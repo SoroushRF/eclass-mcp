@@ -1,6 +1,7 @@
-import { chromium, BrowserContext, Cookie } from 'playwright';
+import { chromium, Browser, BrowserContext } from 'playwright';
 import { loadSession } from './session.js';
 import dotenv from 'dotenv';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -66,124 +67,142 @@ export interface CourseContent {
 }
 
 export class EClassScraper {
-  private async getAuthenticatedContext(): Promise<{ browser: any; context: BrowserContext }> {
+  private browser: Browser | null = null;
+  private currentContext: BrowserContext | null = null;
+
+  private async getBrowser(): Promise<Browser> {
+    if (!this.browser) {
+      this.browser = await chromium.launch({ headless: true });
+    }
+    return this.browser;
+  }
+
+  private async getAuthenticatedContext(): Promise<BrowserContext> {
     const cookies = loadSession();
     if (!cookies) {
       throw new SessionExpiredError();
     }
 
-    const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
-    await context.addCookies(cookies as any); // Cast as PW's Cookie matches closely enough
-
-    return { browser, context };
+    const browser = await this.getBrowser();
+    
+    // Check if current context is valid. If not, create one.
+    if (!this.currentContext) {
+      this.currentContext = await browser.newContext();
+      await this.currentContext.addCookies(cookies as any);
+    }
+    
+    return this.currentContext;
   }
 
   private async checkAuth(page: any): Promise<void> {
     const currentUrl = page.url();
-    // If redirected to login page, session is likely invalid
+    // Use common patterns for York passport and eClass login redirect
     if (currentUrl.includes('/login/') || currentUrl.includes('passport.yorku.ca')) {
+      // Invalidate context if auth fails
+      this.currentContext = null;
       throw new SessionExpiredError();
     }
   }
 
+  /**
+   * Closes the active browser and clears the context.
+   * Useful during shutdown or for force-restarting.
+   */
+  async close(): Promise<void> {
+    if (this.browser) {
+      await this.browser.close();
+      this.browser = null;
+      this.currentContext = null;
+    }
+  }
+
   async getCourses(): Promise<Course[]> {
-    const { browser, context } = await this.getAuthenticatedContext();
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
       await page.goto(ECLASS_URL);
       await this.checkAuth(page);
-
-      // Placeholder for Task 10
-      return [];
+      return []; // Placeholder for Task 10
     } finally {
-      await browser.close();
+      await page.close();
     }
   }
 
   async getCourseContent(courseId: string): Promise<CourseContent> {
-    const { browser, context } = await this.getAuthenticatedContext();
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
       await page.goto(`${ECLASS_URL}/course/view.php?id=${courseId}`);
       await this.checkAuth(page);
-
-      // Placeholder for Task 10
-      return {
-        sections: [],
-        files: [],
-        assignments: [],
-        announcements: [],
-      };
+      return { sections: [], files: [], assignments: [], announcements: [] };
     } finally {
-      await browser.close();
+      await page.close();
     }
   }
 
   async getDeadlines(courseId?: string): Promise<Assignment[]> {
-    const { browser, context } = await this.getAuthenticatedContext();
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
       await page.goto(`${ECLASS_URL}/calendar/view.php?view=upcoming`);
       await this.checkAuth(page);
-
-      // Placeholder for Task 10
       return [];
     } finally {
-      await browser.close();
+      await page.close();
     }
   }
 
   async getGrades(courseId?: string): Promise<Grade[]> {
-    const { browser, context } = await this.getAuthenticatedContext();
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
       if (courseId) {
         await page.goto(`${ECLASS_URL}/grade/report/user/index.php?id=${courseId}`);
       } else {
         await page.goto(`${ECLASS_URL}/grade/report/overview/index.php`);
       }
       await this.checkAuth(page);
-
-      // Placeholder for Task 10
       return [];
     } finally {
-      await browser.close();
+      await page.close();
     }
   }
 
   async getAnnouncements(courseId?: string, limit: number = 10): Promise<Announcement[]> {
-    const { browser, context } = await this.getAuthenticatedContext();
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
-      // Logic would typically involve going to a course page or overall feed
-      // Placeholder for Task 10
-      return [];
+        // eClass announcements are typically at /mod/forum/view.php?id=... 
+        // We'll at least go to the dashboard as a starting point if no ID is given
+        await page.goto(`${ECLASS_URL}/my/`);
+        await this.checkAuth(page);
+        return [];
     } finally {
-      await browser.close();
+        await page.close();
     }
   }
 
   async downloadFile(fileUrl: string): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
-    const { browser, context } = await this.getAuthenticatedContext();
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
     try {
-      const page = await context.newPage();
-      
+      // Handle navigation and download trigger
       const [response] = await Promise.all([
-        page.waitForResponse(res => res.url() === fileUrl && res.status() === 200),
+        page.waitForResponse(res => res.url() === fileUrl && res.status() === 200, { timeout: 30000 }),
         page.goto(fileUrl),
       ]);
 
       await this.checkAuth(page);
 
       const buffer = await response.body();
-      const contentDisposition = response.headers()['content-disposition'];
+      const headers = response.headers();
+      const contentDisposition = headers['content-disposition'];
       const filename = contentDisposition?.match(/filename="(.+)"/)?.[1] || 'downloaded_file';
-      const mimeType = response.headers()['content-type'] || 'application/octet-stream';
+      const mimeType = headers['content-type'] || 'application/octet-stream';
 
       return { buffer, mimeType, filename };
     } finally {
-      await browser.close();
+      await page.close();
     }
   }
 }

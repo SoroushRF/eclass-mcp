@@ -1,6 +1,6 @@
 import http from 'http';
-import { chromium, Cookie } from 'playwright';
-import { saveSession, isSessionPersistent } from '../scraper/session.js';
+import { chromium } from 'playwright';
+import { saveSession, isSessionValid } from '../scraper/session.js';
 import url from 'url';
 import dotenv from 'dotenv';
 
@@ -8,15 +8,13 @@ dotenv.config();
 
 const AUTH_PORT = parseInt(process.env.AUTH_PORT || '3000', 10);
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
+const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export function startAuthServer() {
   const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url || '', true);
 
     if (parsedUrl.pathname === '/auth') {
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.write('<h1>Authenticating... Check the browser window that just opened.</h1>');
-      
       try {
         const browser = await chromium.launch({ headless: false });
         const context = await browser.newContext();
@@ -24,23 +22,33 @@ export function startAuthServer() {
 
         await page.goto(ECLASS_URL);
 
-        // Wait for the user to land on the dashboard (indicated by /my/ in the URL)
-        // or any other indicator that they are logged in.
         // York eClass dashboard is usually https://eclass.yorku.ca/my/
-        await page.waitForURL(/.*\/my\/.*/, { timeout: 0 });
+        // Added 10-minute timeout
+        await page.waitForURL(/.*\/my\/.*/, { timeout: AUTH_TIMEOUT_MS });
 
         const cookies = await context.cookies();
-        saveSession(cookies as any); // Cast because our Cookie interface matches PW's closely enough
+        saveSession(cookies as any);
 
         await browser.close();
 
-        res.end('<h2>Connected! You can close this tab and return to Claude.</h2>');
-      } catch (error) {
+        // Sending complete HTML in one block
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+              <h2 style="color: #2c3e50;">Connected!</h2>
+              <p>Your session has been saved. You can close this tab and return to Claude.</p>
+            </body>
+          </html>
+        `);
+      } catch (error: any) {
         console.error('Auth error:', error);
-        res.end(`<h2>Authentication failed: ${error}</h2>`);
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`<h2>Authentication failed: ${error.message}</h2>`);
       }
     } else if (parsedUrl.pathname === '/status') {
-      const authenticated = isSessionPersistent();
+      const authenticated = isSessionValid();
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ authenticated }));
     } else {

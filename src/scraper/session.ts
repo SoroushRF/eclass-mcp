@@ -50,7 +50,7 @@ export function loadSession(): Cookie[] | null {
     const content = fs.readFileSync(SESSION_FILE, 'utf-8');
     const data: SessionData = JSON.parse(content);
     
-    if (!isSessionValid(data)) {
+    if (!_isSessionFresh(data)) {
         return null;
     }
 
@@ -61,7 +61,10 @@ export function loadSession(): Cookie[] | null {
   }
 }
 
-function isSessionValid(data: SessionData): boolean {
+/**
+ * Internal check for session staleness
+ */
+function _isSessionFresh(data: SessionData): boolean {
     const savedAt = new Date(data.saved_at);
     const now = new Date();
     const diffHours = (now.getTime() - savedAt.getTime()) / (1000 * 60 * 60);
@@ -69,7 +72,10 @@ function isSessionValid(data: SessionData): boolean {
     return diffHours < SESSION_STALE_HOURS;
 }
 
-export function isSessionPersistent(): boolean {
+/**
+ * Exported check for session validity from disk
+ */
+export function isSessionValid(): boolean {
   if (!fs.existsSync(SESSION_FILE)) {
     return false;
   }
@@ -77,7 +83,7 @@ export function isSessionPersistent(): boolean {
   try {
     const content = fs.readFileSync(SESSION_FILE, 'utf-8');
     const data: SessionData = JSON.parse(content);
-    return isSessionValid(data);
+    return _isSessionFresh(data);
   } catch (error) {
     return false;
   }
