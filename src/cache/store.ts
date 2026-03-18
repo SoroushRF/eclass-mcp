@@ -5,7 +5,7 @@ import dotenv from 'dotenv';
 
 dotenv.config({ quiet: true });
 
-const CACHE_DIR = process.env.CACHE_DIR || '.eclass-mcp/cache';
+const CACHE_DIR = path.resolve(__dirname, '../../.eclass-mcp/cache');
 
 export const TTL = {
   COURSES: 60 * 24,      // 24 hours
@@ -23,8 +23,12 @@ interface CacheEntry<T> {
 
 class CacheStore {
   constructor() {
-    if (!fs.existsSync(CACHE_DIR)) {
-      fs.mkdirSync(CACHE_DIR, { recursive: true });
+    try {
+      if (!fs.existsSync(CACHE_DIR)) {
+        fs.mkdirSync(CACHE_DIR, { recursive: true });
+      }
+    } catch (e: any) {
+      console.error(`CRITICAL: Could not create cache directory at ${CACHE_DIR}:`, e.message);
     }
   }
 
