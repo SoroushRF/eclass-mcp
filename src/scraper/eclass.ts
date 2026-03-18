@@ -302,62 +302,123 @@ class EClassScraper {
   async downloadFile(fileUrl: string): Promise<{ buffer: Buffer, mimeType: string, filename: string }> {
     const context = await this.getAuthenticatedContext();
     try {
+      // --- Phase 1: Fast HTTP request (works for direct file URLs) ---
       let response = await context.request.get(fileUrl);
       let headers = response.headers();
       let mimeType = headers['content-type'] || 'application/octet-stream';
       let buffer = await response.body();
 
-      // Moodle often serves an HTML page with an embedded document viewer or a "forced download" link 
-      // instead of the raw file when navigating to /mod/resource/view.php.
       if (mimeType.includes('text/html')) {
         const html = buffer.toString('utf-8');
         let directUrl: string | null = null;
 
+        // Static regex patterns (work when Moodle returns non-JS-rendered HTML)
         // Pattern 1: Embedded object
         const objectMatch = html.match(/<object[^>]*data="([^"]+)"/i);
-        if (objectMatch && objectMatch[1]) directUrl = objectMatch[1];
+        if (objectMatch?.[1]) directUrl = objectMatch[1];
 
         // Pattern 2: Forced download link
         if (!directUrl) {
           const downloadMatch = html.match(/<div class="resourceworkaround"><a href="([^"]+)"/i);
-          if (downloadMatch && downloadMatch[1]) directUrl = downloadMatch[1];
+          if (downloadMatch?.[1]) directUrl = downloadMatch[1];
         }
 
-        // Pattern 3: Iframe
+        // Pattern 3: Static iframe
         if (!directUrl) {
           const iframeMatch = html.match(/<iframe[^>]*src="([^"]+)"/i);
-          if (iframeMatch && iframeMatch[1]) directUrl = iframeMatch[1];
+          if (iframeMatch?.[1]) directUrl = iframeMatch[1];
+        }
+
+        // --- Phase 2: Full Playwright page (handles JS-rendered viewer pages) ---
+        // Moodle's /mod/resource/view.php renders the file viewer via JavaScript,
+        // so the static HTML from a plain HTTP request is a skeleton with no file URL.
+        // We spin up a real browser page to either catch the download event or
+        // read the live DOM after JS has executed.
+        if (!directUrl) {
+          const page = await context.newPage();
+          try {
+            // Arm download listener BEFORE navigating so we don't miss it
+            const downloadPromise = page.waitForEvent('download', { timeout: 12000 }).catch(() => null);
+
+            await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+
+            // Give JS a moment to inject the viewer (iframe / object / redirect)
+            await page.waitForTimeout(2000);
+
+            const download = await downloadPromise;
+            if (download) {
+              // Browser triggered a file download — stream it directly into a buffer
+              const stream = await download.createReadStream();
+              const chunks: Buffer[] = [];
+              await new Promise<void>((resolve, reject) => {
+                stream.on('data', (chunk: Buffer) => chunks.push(chunk));
+                stream.on('end', resolve);
+                stream.on('error', reject);
+              });
+              const filename = download.suggestedFilename();
+              const fileBuffer = Buffer.concat(chunks);
+              // Resolve mime type from filename since download events don't carry content-type
+              let resolvedMime = 'application/octet-stream';
+              const ext = path.extname(filename).toLowerCase();
+              if (ext === '.pdf') resolvedMime = 'application/pdf';
+              else if (ext === '.docx') resolvedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+              else if (ext === '.pptx') resolvedMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+              return { buffer: fileBuffer, mimeType: resolvedMime, filename };
+            }
+
+            // No download event — inspect the live rendered DOM for the file URL
+            directUrl = await page.evaluate(() => {
+              // Moodle object viewer
+              const obj = document.querySelector<HTMLObjectElement>('object[data]');
+              if (obj?.data) return obj.data;
+
+              // Moodle iframe viewer
+              const iframe = document.querySelector<HTMLIFrameElement>('iframe[src]');
+              if (iframe?.src) return iframe.src;
+
+              // Resourceworkaround or forcedownload links
+              const workaround = document.querySelector<HTMLAnchorElement>(
+                '.resourceworkaround a, a[href*="forcedownload=1"]'
+              );
+              if (workaround?.href) return workaround.href;
+
+              // Any pluginfile.php link (direct Moodle file storage URL)
+              const pluginLink = document.querySelector<HTMLAnchorElement>('a[href*="pluginfile.php"]');
+              if (pluginLink?.href) return pluginLink.href;
+
+              return null;
+            });
+          } finally {
+            await page.close();
+          }
         }
 
         if (directUrl) {
-          // If the extracted URL is relative, resolve it against the original URL
           const resolvedUrl = new URL(directUrl, fileUrl).toString();
           response = await context.request.get(resolvedUrl);
           headers = response.headers();
           mimeType = headers['content-type'] || 'application/octet-stream';
           buffer = await response.body();
         } else {
-          throw new Error('Hit an HTML wrapper page but could not extract a direct file URL.');
+          throw new Error('Hit an HTML wrapper page but could not extract a direct file URL even after JS rendering.');
         }
       }
-      
-      // Try to get filename from content-disposition header
-      const contentDisposition = headers['content-disposition'] || '';
-      const filenameMatch = contentDisposition.match(/filename="?([^"]+)"?/);
-      let filename = filenameMatch ? filenameMatch[1] : '';
 
-      // Fallback: extract from the final resolved URL
+      // Extract filename from content-disposition header
+      const contentDisposition = headers['content-disposition'] || '';
+      const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/);
+      let filename = filenameMatch ? decodeURIComponent(filenameMatch[1].trim()) : '';
+
+      // Fallback: extract from the final resolved URL path
       if (!filename) {
-        const finalUrlStr = response.url();
         try {
-          const parsedUrl = new URL(finalUrlStr);
-          filename = path.basename(parsedUrl.pathname);
-        } catch (e) {
+          filename = path.basename(new URL(response.url()).pathname);
+        } catch {
           filename = path.basename(fileUrl);
         }
       }
 
-      // Final fallback if path.basename fails to find a meaningful extension
+      // Final fallback: derive extension from mime type
       if (!filename || !filename.includes('.')) {
         if (mimeType.includes('pdf')) filename += '.pdf';
         else if (mimeType.includes('wordprocessingml')) filename += '.docx';
