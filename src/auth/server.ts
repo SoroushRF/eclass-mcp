@@ -29,12 +29,21 @@ export function startAuthServer() {
 
         // York eClass dashboard is usually https://eclass.yorku.ca/my/
         // Added 10-minute timeout
+        // Wait for login to complete (redirects to /my/)
         await page.waitForURL(/.*\/my\/.*/, { timeout: AUTH_TIMEOUT_MS });
+
+        // Visit a WAF-protected resource page so the real browser completes the
+        // AWS WAF bot challenge and acquires the aws-waf-token cookie.
+        // Without this, headless requests to /mod/resource/view.php get blocked.
+        try {
+          await page.goto(`${ECLASS_URL}/mod/resource/view.php`, { timeout: 15000, waitUntil: 'networkidle' });
+        } catch { /* page might 404, that's fine — we just need the WAF cookie */ }
 
         const cookies = await context.cookies();
         saveSession(cookies as any);
 
         await browser.close();
+
 
         // Sending complete HTML in one block
         res.writeHead(200, { 'Content-Type': 'text/html' });

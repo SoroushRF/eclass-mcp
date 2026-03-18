@@ -329,63 +329,83 @@ class EClassScraper {
           if (iframeMatch?.[1]) directUrl = iframeMatch[1];
         }
 
-        // --- Phase 2: Full Playwright page (handles JS-rendered viewer pages) ---
-        // Moodle's /mod/resource/view.php renders the file viewer via JavaScript,
-        // so the static HTML from a plain HTTP request is a skeleton with no file URL.
-        // We spin up a real browser page to either catch the download event or
-        // read the live DOM after JS has executed.
+        // --- Phase 2: Full Playwright page with response interception ---
+        // Moodle renders /mod/resource/view.php via JavaScript. The file often loads
+        // inside an <iframe> or via a redirect chain — invisible to DOM inspection.
+        // We intercept ALL network responses during page load and capture the first
+        // non-HTML file (PDF, DOCX, PPTX) that flows through, regardless of frame depth.
         if (!directUrl) {
           const page = await context.newPage();
           try {
-            // Arm download listener BEFORE navigating so we don't miss it
-            const downloadPromise = page.waitForEvent('download', { timeout: 12000 }).catch(() => null);
+            let interceptedBuffer: Buffer | null = null;
+            let interceptedMime = '';
+            let interceptedFilename = '';
 
-            await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
+            page.on('response', async (res) => {
+              // Skip if we already captured a file
+              if (interceptedBuffer) return;
 
-            // Give JS a moment to inject the viewer (iframe / object / redirect)
-            await page.waitForTimeout(2000);
+              const ct = res.headers()['content-type'] || '';
+              const url = res.url();
 
-            const download = await downloadPromise;
-            if (download) {
-              // Browser triggered a file download — stream it directly into a buffer
-              const stream = await download.createReadStream();
-              const chunks: Buffer[] = [];
-              await new Promise<void>((resolve, reject) => {
-                stream.on('data', (chunk: Buffer) => chunks.push(chunk));
-                stream.on('end', resolve);
-                stream.on('error', reject);
-              });
-              const filename = download.suggestedFilename();
-              const fileBuffer = Buffer.concat(chunks);
-              // Resolve mime type from filename since download events don't carry content-type
-              let resolvedMime = 'application/octet-stream';
-              const ext = path.extname(filename).toLowerCase();
-              if (ext === '.pdf') resolvedMime = 'application/pdf';
-              else if (ext === '.docx') resolvedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-              else if (ext === '.pptx') resolvedMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-              return { buffer: fileBuffer, mimeType: resolvedMime, filename };
+              // Only care about responses that look like actual files
+              const isFile =
+                ct.includes('application/pdf') ||
+                ct.includes('wordprocessingml') ||
+                ct.includes('presentationml') ||
+                ct.includes('application/octet-stream') ||
+                url.includes('pluginfile.php');
+
+              const isNoise =
+                ct.includes('text/html') ||
+                ct.includes('text/javascript') ||
+                ct.includes('text/css') ||
+                ct.includes('image/') ||
+                ct.includes('font/');
+
+              if (isFile && !isNoise) {
+                try {
+                  const body = await res.body();
+                  if (body.length > 500) { // skip tiny/empty responses
+                    interceptedBuffer = body;
+                    interceptedMime = ct || 'application/octet-stream';
+                    const cd = res.headers()['content-disposition'] || '';
+                    const fnMatch = cd.match(/filename="?([^";\n]+)"?/);
+                    interceptedFilename = fnMatch
+                      ? decodeURIComponent(fnMatch[1].trim())
+                      : path.basename(new URL(url).pathname);
+                  }
+                } catch { /* response body may be unavailable, skip */ }
+              }
+            });
+
+            await page.goto(fileUrl, { waitUntil: 'networkidle', timeout: 20000 });
+
+            if (interceptedBuffer) {
+              await page.close();
+              // Resolve extension from filename if mime is generic
+              let resolvedMime = interceptedMime;
+              const ext = path.extname(interceptedFilename).toLowerCase();
+              if (resolvedMime === 'application/octet-stream') {
+                if (ext === '.pdf') resolvedMime = 'application/pdf';
+                else if (ext === '.docx') resolvedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                else if (ext === '.pptx') resolvedMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+              }
+              return { buffer: interceptedBuffer, mimeType: resolvedMime, filename: interceptedFilename };
             }
 
-            // No download event — inspect the live rendered DOM for the file URL
+            // Response interception missed it — try reading the live DOM as last resort
             directUrl = await page.evaluate(() => {
-              // Moodle object viewer
               const obj = document.querySelector<HTMLObjectElement>('object[data]');
               if (obj?.data) return obj.data;
-
-              // Moodle iframe viewer
               const iframe = document.querySelector<HTMLIFrameElement>('iframe[src]');
               if (iframe?.src) return iframe.src;
-
-              // Resourceworkaround or forcedownload links
               const workaround = document.querySelector<HTMLAnchorElement>(
                 '.resourceworkaround a, a[href*="forcedownload=1"]'
               );
               if (workaround?.href) return workaround.href;
-
-              // Any pluginfile.php link (direct Moodle file storage URL)
               const pluginLink = document.querySelector<HTMLAnchorElement>('a[href*="pluginfile.php"]');
               if (pluginLink?.href) return pluginLink.href;
-
               return null;
             });
           } finally {
