@@ -24,12 +24,58 @@ async function main() {
       console.log(`✅ Found ${courses.length} courses:`);
       courses.forEach(c => console.log(`   - [${c.id}] ${c.name}`));
       
-      // 3. Test getCourseContent (for the first course)
-      const testCourse = courses[0];
-      console.log(`\n2. Fetching Content for "${testCourse.name}"...`);
-      const content = await scraper.getCourseContent(testCourse.id);
-      console.log(`✅ Found ${content.sections.length} sections.`);
+      // 3. Test getCourseContent (Find a course with resources)
+      let testCourse = courses[0];
+      let content: any = { sections: [] };
+      let testResourceUrl = '';
+      let testResourceName = '';
+
+      for (let i = 0; i < Math.min(courses.length, 5); i++) {
+        console.log(`\n2. Fetching Content for "${courses[i].name}"...`);
+        content = await scraper.getCourseContent(courses[i].id);
+        console.log(`✅ Found ${content.sections.length} sections.`);
+        
+        for (const sec of content.sections) {
+          const resource = sec.items.find((item: any) => item.type === 'resource' && item.url);
+          if (resource) {
+            testResourceUrl = resource.url;
+            testResourceName = resource.name;
+            break;
+          }
+        }
+        
+        if (testResourceUrl) {
+          testCourse = courses[i];
+          break; // Stop once we find a course with a resource
+        }
+      }
       
+      // 3.5 Test downloadFile
+      console.log(`\n2.5 Testing File Download...`);
+      if (testResourceUrl) {
+        console.log(`   - Found resource to test in "${testCourse.name}": ${testResourceName} (${testResourceUrl})`);
+        try {
+          const fileData = await scraper.downloadFile(testResourceUrl);
+          console.log(`✅ File downloaded successfully!`);
+          console.log(`   - Filename: ${fileData.filename}`);
+          console.log(`   - Mime Type: ${fileData.mimeType}`);
+          console.log(`   - Size: ${(fileData.buffer.length / 1024).toFixed(2)} KB`);
+          
+          // Write to a debug file to verify it actually downloaded a real PDF/DOCX
+          const debugDir = path.join(__dirname, '..', '.eclass-mcp', 'debug');
+          if (!require('fs').existsSync(debugDir)) {
+            require('fs').mkdirSync(debugDir, { recursive: true });
+          }
+          const outPath = path.join(debugDir, fileData.filename);
+          require('fs').writeFileSync(outPath, fileData.buffer);
+          console.log(`   - Saved to: ${outPath}`);
+        } catch (e: any) {
+          console.error(`❌ File download failed:`, e.message);
+        }
+      } else {
+        console.log(`   - No resources found in course to test downloading.`);
+      }
+
       // 4. Test getDeadlines
       console.log('\n3. Fetching Upcoming Deadlines...');
       const deadlines = await scraper.getDeadlines();

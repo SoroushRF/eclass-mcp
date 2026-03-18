@@ -5,11 +5,13 @@ import { parsePdf } from '../parser/pdf';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
 import path from 'path';
+import crypto from 'crypto';
 
 export async function getFileText(courseId: string, fileUrl: string) {
   try {
-    // We use a normalized version of the URL as a cache key
-    const cacheKey = `file_${Buffer.from(fileUrl).toString('base64').substring(0, 50)}`;
+    // We use an MD5 hash of the URL to ensure a unique, safe cache key
+    const urlHash = crypto.createHash('md5').update(fileUrl).digest('hex');
+    const cacheKey = `file_${urlHash}`;
     const cached = cache.get<string>(cacheKey);
     if (cached) return { content: [{ type: 'text', text: cached }] };
     
@@ -28,7 +30,11 @@ export async function getFileText(courseId: string, fileUrl: string) {
       text = `Unsupported file type: ${mimeType} (${filename})`;
     }
 
-    if (text) {
+    if (!text || text.trim() === '') {
+      text = `[No text could be extracted from this file. It may be a scanned document or unsupported format.]`;
+    }
+
+    if (!text.startsWith('[Error') && !text.startsWith('[No text')) {
       cache.set(cacheKey, text, TTL.FILES);
     }
 
