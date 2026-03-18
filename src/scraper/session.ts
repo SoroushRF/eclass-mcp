@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config();
+
+dotenv.config({ quiet: true });
 
 const SESSION_FILE = process.env.SESSION_FILE || '.eclass-mcp/session.json';
 const SESSION_STALE_HOURS = 60;

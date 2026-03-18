@@ -4,7 +4,8 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config();
+
+dotenv.config({ quiet: true });
 
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 

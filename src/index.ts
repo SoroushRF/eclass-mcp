@@ -1,6 +1,12 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import dotenv from 'dotenv';
+import path from 'path';
+
+// Force absolute path for .env so Claude Desktop can find it
+dotenv.config({ path: path.resolve(__dirname, '../.env'), quiet: true });
+
 import { isSessionValid } from './scraper/session';
 import { startAuthServer } from './auth/server';
 import { listCourses } from './tools/courses';

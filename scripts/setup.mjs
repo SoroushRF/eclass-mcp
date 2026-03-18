@@ -6,18 +6,22 @@ import os from 'os';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const DIST_PATH = path.join(PROJECT_ROOT, 'dist', 'index.js');
-const NODE_PATH = process.execPath; // Full path to the current node.exe
+const NODE_PATH = process.execPath;
 
-let configPath;
-if (os.platform() === 'win32') {
-  configPath = path.join(process.env.APPDATA, 'Claude', 'claude_desktop_config.json');
-} else {
-  configPath = path.join(os.homedir(), 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+// Confirmed Microsoft Store path (Prioritized)
+const STORE_PATH = path.join(os.homedir(), 'AppData', 'Local', 'Packages', 'Claude_pzs8sxrjxfjjc', 'LocalCache', 'Roaming', 'Claude', 'claude_desktop_config.json');
+// Standard path
+const STD_PATH = path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json');
+
+let configPath = STD_PATH;
+if (fs.existsSync(STORE_PATH) || fs.existsSync(path.dirname(STORE_PATH))) {
+  configPath = STORE_PATH;
+} else if (fs.existsSync(STD_PATH) || fs.existsSync(path.dirname(STD_PATH))) {
+  configPath = STD_PATH;
 }
 
-console.error(`Registering eClass MCP with FOOLPROOF paths...`);
-console.error(`Config Path: ${configPath}`);
-console.error(`Node Path: ${NODE_PATH}`);
+console.error(`Registering eClass MCP...`);
+console.error(`TARGETING: ${configPath}`);
 
 if (!fs.existsSync(path.dirname(configPath))) {
   fs.mkdirSync(path.dirname(configPath), { recursive: true });
@@ -41,8 +45,8 @@ config.mcpServers.eclass = {
 
 try {
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf8');
-  console.error('Successfully updated Claude Desktop configuration.');
-  console.error('Restart Claude Desktop and check for the 🔨 icon!');
+  console.error('✅ Successfully updated your Microsoft Store Claude config.');
+  console.error('\n🚀 RESTART CLAUDE NOW! (Right-click tray icon > Quit)');
 } catch (e) {
   console.error(`Error saving config: ${e.message}`);
   process.exit(1);

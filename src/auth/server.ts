@@ -4,7 +4,7 @@ import { saveSession, isSessionValid } from '../scraper/session';
 import url from 'url';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const AUTH_PORT = parseInt(process.env.AUTH_PORT || '3000', 10);
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';

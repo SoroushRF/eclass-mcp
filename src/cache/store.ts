@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
-dotenv.config();
+
+dotenv.config({ quiet: true });
 
 const CACHE_DIR = process.env.CACHE_DIR || '.eclass-mcp/cache';
 
