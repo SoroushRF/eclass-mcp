@@ -1,14 +1,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { isSessionValid } from './scraper/session.js';
-import { startAuthServer } from './auth/server.js';
-import { listCourses } from './tools/courses.js';
-import { getCourseContent } from './tools/content.js';
-import { getFileText } from './tools/files.js';
-import { getUpcomingDeadlines } from './tools/deadlines.js';
-import { getGrades } from './tools/grades.js';
-import { getAnnouncements } from './tools/announcements.js';
+import { isSessionValid } from './scraper/session';
+import { startAuthServer } from './auth/server';
+import { listCourses } from './tools/courses';
+import { getCourseContent } from './tools/content';
+import { getFileText } from './tools/files';
+import { getUpcomingDeadlines } from './tools/deadlines';
+import { getGrades } from './tools/grades';
+import { getAnnouncements } from './tools/announcements';
 
 // Create the MCP server
 const server = new McpServer({
@@ -71,15 +71,15 @@ server.tool(
 
 // Main startup
 async function main() {
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  
   if (!isSessionValid()) {
     startAuthServer(); 
-    console.error('eClass session not found. Visit http://localhost:3000/auth');
+    console.error('eClass session not found. Please visit http://localhost:3000/auth to connect your eClass account.');
   } else {
-    console.error('eClass session valid.');
+    console.error('eClass session found and valid.');
   }
+
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
 }
 
 main().catch((error) => {

@@ -1,5 +1,5 @@
-import { scraper, SessionExpiredError, Grade } from '../scraper/eclass.js';
-import { cache, TTL } from '../cache/store.js';
+import { scraper, SessionExpiredError, Grade } from '../scraper/eclass';
+import { cache, TTL } from '../cache/store';
 
 export async function getGrades(courseId?: string) {
   try {

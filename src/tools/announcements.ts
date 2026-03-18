@@ -1,5 +1,5 @@
-import { scraper, SessionExpiredError, Announcement } from '../scraper/eclass.js';
-import { cache, TTL } from '../cache/store.js';
+import { scraper, SessionExpiredError, Announcement } from '../scraper/eclass';
+import { cache, TTL } from '../cache/store';
 
 export async function getAnnouncements(courseId?: string, limit: number = 10) {
   try {

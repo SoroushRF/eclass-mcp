@@ -1,8 +1,8 @@
-import { scraper, SessionExpiredError } from '../scraper/eclass.js';
-import { cache, TTL } from '../cache/store.js';
-import { parsePdf } from '../parser/pdf.js';
-import { parseDocx } from '../parser/docx.js';
-import { parsePptx } from '../parser/pptx.js';
+import { scraper, SessionExpiredError } from '../scraper/eclass';
+import { cache, TTL } from '../cache/store';
+import { parsePdf } from '../parser/pdf';
+import { parseDocx } from '../parser/docx';
+import { parsePptx } from '../parser/pptx';
 import path from 'path';
 
 export async function getFileText(courseId: string, fileUrl: string) {

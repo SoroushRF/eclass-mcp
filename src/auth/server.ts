@@ -1,6 +1,6 @@
 import http from 'http';
 import { chromium } from 'playwright';
-import { saveSession, isSessionValid } from '../scraper/session.js';
+import { saveSession, isSessionValid } from '../scraper/session';
 import url from 'url';
 import dotenv from 'dotenv';
 
