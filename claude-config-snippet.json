@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "eclass": {
+      "command": "node",
+      "args": ["FULL_PATH_TO_PROJECT/dist/index.js"]
+    }
+  }
+}
