@@ -1,4 +1,5 @@
 import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
+import { openAuthWindow } from '../auth/server';
 import { cache, TTL } from '../cache/store';
 
 export async function getUpcomingDeadlines(daysAhead: number = 14, courseId?: string) {
@@ -24,6 +25,7 @@ export async function getUpcomingDeadlines(daysAhead: number = 14, courseId?: st
     return { content: [{ type: 'text' as const, text: JSON.stringify(filtered) }] };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
+      openAuthWindow();
       return { content: [{ type: 'text' as const, text: e.message }] };
     }
     throw e;

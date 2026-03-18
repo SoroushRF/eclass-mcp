@@ -3,6 +3,7 @@ import { chromium } from 'playwright';
 import { saveSession, isSessionValid } from '../scraper/session';
 import url from 'url';
 import dotenv from 'dotenv';
+import { exec } from 'child_process';
 
 dotenv.config({ quiet: true });
 
@@ -10,7 +11,11 @@ const AUTH_PORT = parseInt(process.env.AUTH_PORT || '3000', 10);
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
+let authServerInstance: http.Server | null = null;
+
 export function startAuthServer() {
+  if (authServerInstance) return authServerInstance;
+
   const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url || '', true);
 
@@ -59,8 +64,14 @@ export function startAuthServer() {
 
   server.listen(AUTH_PORT, () => {
     console.error(`Auth server running at http://localhost:${AUTH_PORT}`);
-    console.error(`Visit http://localhost:${AUTH_PORT}/auth to log in to eClass.`);
   });
 
+  authServerInstance = server;
   return server;
+}
+
+export function openAuthWindow() {
+  const url = `http://localhost:${AUTH_PORT}/auth`;
+  const cmd = process.platform === 'win32' ? `start ${url}` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`;
+  exec(cmd);
 }

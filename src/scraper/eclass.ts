@@ -62,7 +62,7 @@ export interface CourseContent {
 
 export class SessionExpiredError extends Error {
   constructor() {
-    super('eClass session expired or invalid. Please re-authenticate.');
+    super('eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth');
     this.name = 'SessionExpiredError';
   }
 }
@@ -103,7 +103,7 @@ class EClassScraper {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
-      await page.goto(`${ECLASS_URL}/my/`, { waitUntil: 'networkidle' });
+      await page.goto(`${ECLASS_URL}/my/courses.php`, { waitUntil: 'networkidle' });
       
       // Wait for either the dashboard list or login redirect
       if (page.url().includes('login')) {

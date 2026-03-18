@@ -77,11 +77,14 @@ server.tool(
 
 // Main startup
 async function main() {
+  // Always start auth server in background so it's ready for redirects
+  startAuthServer();
+
   if (!isSessionValid()) {
-    startAuthServer(); 
-    console.error('eClass session not found. Please visit http://localhost:3000/auth to connect your eClass account.');
+    console.error('eClass session not found or stale. Opening login window...');
+    // openAuthWindow(); // Optionally open on startup if you want it super-automatic
   } else {
-    console.error('eClass session found and valid.');
+    console.error('eClass session check: Local session file found.');
   }
 
   const transport = new StdioServerTransport();

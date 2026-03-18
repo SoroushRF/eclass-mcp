@@ -1,5 +1,6 @@
-import { scraper } from '../src/scraper/eclass';
+import { scraper, SessionExpiredError } from '../src/scraper/eclass';
 import { isSessionValid } from '../src/scraper/session';
+import { startAuthServer, openAuthWindow } from '../src/auth/server';
 import dotenv from 'dotenv';
 import path from 'path';
 
@@ -10,10 +11,10 @@ async function main() {
   
   // 1. Check Session
   if (!isSessionValid()) {
-    console.error('ERROR: No valid session found. Please run "npm run dev" and visit http://localhost:3000/auth first.');
+    console.error('ERROR: No session file found or it is stale. Please visit http://localhost:3000/auth first.');
     process.exit(1);
   }
-  console.log('✅ Session is valid.');
+  console.log('✅ Session file found (local check). Verifying eligibility during data fetch...');
 
   try {
     // 2. Test getCourses
@@ -47,7 +48,16 @@ async function main() {
     }
 
   } catch (error: any) {
-    console.error('\n❌ TEST FAILED:', error.message);
+    if (error instanceof SessionExpiredError) {
+      console.error('\n❌ SESSION EXPIRED. Starting auth server and opening login window...');
+      startAuthServer();
+      openAuthWindow();
+      // Keep process alive for a bit so the user can interact
+      console.log('Use http://localhost:3000/auth if the window didn\'t open. Press Ctrl+C to stop the test.');
+      await new Promise(() => {}); // Wait indefinitely for user to handle login
+    } else {
+      console.error('\n❌ TEST FAILED:', error.message);
+    }
   } finally {
     await scraper.close();
     console.log('\n--- Test Complete ---');

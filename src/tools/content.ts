@@ -1,4 +1,5 @@
 import { scraper, SessionExpiredError, CourseContent } from '../scraper/eclass';
+import { openAuthWindow } from '../auth/server';
 import { cache, TTL } from '../cache/store';
 
 export async function getCourseContent(courseId: string) {
@@ -12,6 +13,7 @@ export async function getCourseContent(courseId: string) {
     return { content: [{ type: 'text' as const, text: JSON.stringify(content) }] };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
+      openAuthWindow();
       return { content: [{ type: 'text' as const, text: e.message }] };
     }
     throw e;

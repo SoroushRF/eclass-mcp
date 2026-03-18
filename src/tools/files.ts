@@ -1,4 +1,5 @@
 import { scraper, SessionExpiredError } from '../scraper/eclass';
+import { openAuthWindow } from '../auth/server';
 import { cache, TTL } from '../cache/store';
 import { parsePdf } from '../parser/pdf';
 import { parseDocx } from '../parser/docx';
@@ -34,6 +35,7 @@ export async function getFileText(courseId: string, fileUrl: string) {
     return { content: [{ type: 'text' as const, text }] };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
+      openAuthWindow();
       return { content: [{ type: 'text' as const, text: e.message }] };
     }
     throw e;
