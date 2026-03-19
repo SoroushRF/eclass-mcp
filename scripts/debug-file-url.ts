@@ -27,8 +27,23 @@ async function main() {
     process.exit(1);
   }
 
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext();
+  const browser = await chromium.launch({
+    headless: true,
+    args: [
+      '--disable-blink-features=AutomationControlled',
+      '--no-first-run',
+      '--no-default-browser-check',
+    ],
+  });
+  const context = await browser.newContext({
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    viewport: { width: 1920, height: 1080 },
+    locale: 'en-CA',
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+  });
   await context.addCookies(cookies);
 
   // --- Step 1: Raw HTTP request ---
@@ -64,12 +79,28 @@ async function main() {
     }
   });
 
-  await page.goto(fileUrl, { waitUntil: 'networkidle', timeout: 20000 });
+  await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+  // Detect and wait through AWS WAF challenge auto-reload
+  const isWaf = await page.evaluate(() => typeof (window as any).awsWafCookieDomainList !== 'undefined').catch(() => false);
+  if (isWaf) {
+    console.log('⚠️  WAF challenge page detected. Waiting for auto-reload after token acquisition...');
+    try {
+      await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 20000 });
+      console.log('✅ WAF reload completed. Final URL:', page.url());
+    } catch {
+      console.log('❌ WAF reload timed out — challenge may have been blocked by bot detection.');
+    }
+  } else {
+    await page.waitForLoadState('networkidle').catch(() => {});
+  }
 
   const renderedHtml = await page.content();
   const renderedDumpPath = path.join(debugDir, 'rendered_page.html');
   fs.writeFileSync(renderedDumpPath, renderedHtml);
   console.log(`Rendered HTML saved to: ${renderedDumpPath}`);
+  console.log(`Rendered HTML size: ${renderedHtml.length} bytes`);
+  console.log(`Final page URL: ${page.url()}`);
 
   console.log('\n--- All non-noise network responses intercepted ---');
   interceptedUrls.forEach(r => {

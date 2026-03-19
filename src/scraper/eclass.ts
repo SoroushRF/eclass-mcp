@@ -72,7 +72,16 @@ class EClassScraper {
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browser) {
-      this.browser = await chromium.launch({ headless: true });
+      this.browser = await chromium.launch({
+        headless: true,
+        args: [
+          // Suppress the AutomationControlled feature flag that WAF fingerprinting checks
+          '--disable-blink-features=AutomationControlled',
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-infobars',
+        ],
+      });
     }
     return this.browser;
   }
@@ -83,7 +92,18 @@ class EClassScraper {
     if (!cookies || cookies.length === 0) {
       throw new SessionExpiredError();
     }
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      // Mimic a real Chrome on Windows — WAF bot detection checks UA heavily
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      viewport: { width: 1920, height: 1080 },
+      locale: 'en-CA',
+    });
+    // Remove navigator.webdriver flag — the #1 headless indicator WAF checks
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+      // Spoof plugin count (0 plugins = dead giveaway for headless)
+      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+    });
     await context.addCookies(cookies);
     return context;
   }
@@ -379,7 +399,27 @@ class EClassScraper {
               }
             });
 
-            await page.goto(fileUrl, { waitUntil: 'networkidle', timeout: 20000 });
+            await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+            // Detect AWS WAF Bot Control challenge and wait for its auto-reload.
+            // The challenge JS calls getToken() then window.location.reload() —
+            // we need to wait for THAT second navigation to complete.
+            const isWafChallenge = await page.evaluate(() =>
+              typeof (window as any).awsWafCookieDomainList !== 'undefined'
+            ).catch(() => false);
+
+            if (isWafChallenge) {
+              console.error('[downloadFile] WAF challenge detected — waiting for auto-reload...');
+              try {
+                // Wait for the challenge to complete and the page to reload
+                await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 20000 });
+              } catch {
+                console.error('[downloadFile] WAF challenge reload timed out — bot detection may have blocked us.');
+              }
+            } else {
+              // No WAF, just wait for everything to settle
+              await page.waitForLoadState('networkidle').catch(() => {});
+            }
 
             if (interceptedBuffer) {
               await page.close();
