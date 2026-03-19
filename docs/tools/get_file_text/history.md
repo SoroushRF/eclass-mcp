@@ -1,4 +1,7 @@
-# PDF Extraction Pipeline — Architecture & Implementation Plan
+# 📜 PDF Extraction Pipeline: Implementation History
+
+> [!NOTE]
+> **PURPOSE:** This document is the historical log of completed tasks and the current stable architecture. For future brainstorming, research, and technical roadmaps, see [roadmap.md](./roadmap.md).
 
 > This document explains eClass MCP's file extraction pipeline end-to-end, diagnoses the
 > image-content limitation, and lays out a multi-task plan to implement intelligent

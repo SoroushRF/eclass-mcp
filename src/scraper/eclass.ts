@@ -233,19 +233,30 @@ class EClassScraper {
       const deadlines = await page.evaluate(() => {
         const events = Array.from(document.querySelectorAll('.event'));
         return events.map(ev => {
-          const titleLink = ev.querySelector('.name a') as HTMLAnchorElement;
-          const dateStr = ev.querySelector('.date')?.textContent?.trim() || '';
-          const courseLink = ev.querySelector('.course a') as HTMLAnchorElement;
+          // New Moodle 4 / Moove theme Card structure
+          const title = ev.querySelector('h3.name')?.textContent?.trim() || 'Untitled Event';
+          
+          // The link to the actual assignment is usually in the footer button
+          const actionLink = ev.querySelector('.card-footer a.card-link') as HTMLAnchorElement;
+          const url = actionLink?.href || '';
+          
+          // Date is now in a div next to the clock icon
+          const dateIcon = ev.querySelector('.fa-clock-o');
+          const dateStr = dateIcon?.parentElement?.nextElementSibling?.textContent?.trim() || '';
+          
+          // Course info
+          const courseLink = ev.querySelector('a[href*="course/view.php"]') as HTMLAnchorElement;
+          const courseId = ev.getAttribute('data-course-id') || courseLink?.href.match(/id=(\d+)/)?.[1] || '';
           
           return {
-            id: titleLink?.href.match(/id=(\d+)/)?.[1] || Math.random().toString(),
-            name: titleLink?.textContent?.trim() || 'Untitled Event',
+            id: ev.getAttribute('data-event-id') || Math.random().toString(),
+            name: title,
             dueDate: dateStr,
             status: 'Upcoming',
-            courseId: courseLink?.href.match(/id=(\d+)/)?.[1] || '',
-            url: titleLink?.href || ''
+            courseId: courseId,
+            url: url
           };
-        }).filter(d => d.url.includes('assign'));
+        }).filter(d => d.url && (d.url.includes('assign') || d.url.includes('quiz')));
       });
 
       return deadlines as Assignment[];
