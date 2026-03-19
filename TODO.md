@@ -1,30 +1,24 @@
-# 📋 eClass MCP: Master TODO
+# 🚀 CoYork - Master TODO
 
-This is the high-level reminder list for the project.
+## 📂 Active Pipelines
 
----
+### 📄 PDF Processing ([Roadmap](docs/pdf-pipeline-roadmap.md))
+- [ ] Implement smart page-by-page rendering (pdfjs-dist)
+- [ ] Optimize image payload vs text extraction
 
-## 🚀 High Priority (Current)
-
-### 📄 Intelligent PDF Splicing & Vision Checker
-- [ ] **Problem:** Current pipeline uses a 250-char heuristic. It works well, but we need to handle "High-Text + Meaningful Diagram" pages better.
-- [ ] **Next Steps:**
-    - [ ] Implement local **Entropy check** (Visual complexity detection).
-    - [ ] Integrate **Gemini 1.5 Flash Vision** for one-shot diagram classification.
-    - [ ] Implement **Smart Splicing** (Sending text + cropped diagram instead of full 1MB page images).
-- [ ] **Docs:** [Detailed Roadmap here](./docs/tools/get_file_text/roadmap.md)
+### 📅 Deadlines & Details ([Roadmap](docs/tools/deadlines/roadmap.md))
+- [x] Fix "Upcoming" Scraper & Date Parsing (Moodle 4)
+- [ ] Implement Month-by-Month Navigation (Past & Future)
+- [ ] Implement Single-Assignment Deep-Dive (Instructions & Files)
 
 ---
 
-## 🛠️ Infrastructure & Tools
+## 🛠️ Upcoming Tools & Features
 
-- [ ] **Course Management:** Fill in specific tool documentation for enrollment/scraping.
-- [ ] **Auth System:** Document the session/redirect logic more deeply.
-- [ ] **General Docs:** Populate the empty tool folders in `docs/tools/` as features expand.
+- [ ] **Grades Tool:** Scrape current grades and feedback.
+- [ ] **Announcements Tool:** Fetch news and course updates.
+- [ ] **Course Scraper:** Map files, links, and sections.
+- [ ] **Enhanced Sessions:** Handle dual-factor auth or session refreshes.
 
 ---
-
-## ✅ Completed (Recent Major Wins)
-- [x] **Smart PDF Pipeline v1.5** (Smart text density, pay-per-page rendering).
-- [x] **MCP Payload Guardrails** (800KB image limit, 1MB protocol safety).
-- [x] **New Build Stack** (pdfjs-dist v5 with @napi-rs/canvas).
+*Last Updated: 2026-03-19*
