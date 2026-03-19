@@ -40,12 +40,16 @@ server.tool(
 
 server.tool(
   "get_file_text",
-  "Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images.",
+  "Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. " +
+  "For large PDFs, returns a partial result with an overview and instructions to fetch " +
+  "remaining pages using startPage/endPage parameters.",
   { 
     courseId: z.string().describe("The course ID"),
-    fileUrl: z.string().describe("The file URL")
+    fileUrl: z.string().describe("The file URL"),
+    startPage: z.number().optional().describe("Start page for PDF extraction (1-indexed, default: 1)"),
+    endPage: z.number().optional().describe("End page for PDF extraction (1-indexed, default: startPage + 49)")
   },
-  (async ({ courseId, fileUrl }: any) => await getFileText(courseId, fileUrl)) as any
+  (async ({ courseId, fileUrl, startPage, endPage }: any) => await getFileText(courseId, fileUrl, startPage, endPage)) as any
 );
 
 server.tool(

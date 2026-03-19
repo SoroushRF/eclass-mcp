@@ -428,37 +428,150 @@ mixed text+image content blocks.
 
 ---
 
-### Task 7: Add Page Count Guardrails
+### Task 7: Smart Guardrails, Overview Block & Page Range Support
 
-**Goal:** Prevent excessive token usage and MCP response size for very large PDFs.
+**Goal:** Prevent excessive token usage and MCP response size for large PDFs, while giving
+Claude (and the user) full visibility into what was and wasn't processed — plus the ability
+to request specific page ranges for targeted access.
 
-**File:** `src/parser/pdf-analyzer.ts`
+**Files:** `src/parser/pdf-analyzer.ts`, `src/tools/files.ts`, `src/index.ts`
 
 **Steps:**
-1. Add configuration constants:
-   ```typescript
-   const MAX_IMAGE_PAGES = 15;    // Max pages to render as images
-   const MAX_TOTAL_PAGES = 50;    // Max pages to process at all
-   const IMAGE_DPI = 150;         // Default render DPI
-   ```
-2. If a PDF has more than `MAX_TOTAL_PAGES` pages, truncate and add a note:
-   ```typescript
-   { type: 'text', text: `[Note: This PDF has ${totalPages} pages. Showing first ${MAX_TOTAL_PAGES}.]` }
-   ```
-3. If more than `MAX_IMAGE_PAGES` pages are classified as `'image'`, render only the first
-   N and convert the rest to text (even if text extraction is sparse):
-   ```typescript
-   { type: 'text', text: `[Page ${n}: Contains images that could not be rendered (page limit reached).]` }
-   ```
-4. Log a summary to stderr for debugging:
-   ```typescript
-   console.error(`[PDF] ${totalPages} pages: ${textPages} text, ${imagePages} image (${renderedPages} rendered)`);
-   ```
+
+#### 7a. Update guardrail constants
+```typescript
+const MAX_IMAGE_PAGES = 20;    // Max pages rendered as images (raised from 15)
+const MAX_TOTAL_PAGES = 50;    // Max pages processed in a single call
+const DEFAULT_DPI = 150;       // Resolution for image rendering
+```
+
+- Image limit raised to 20 — a scanned 20-page problem set is common.
+  Higher than 20 risks MCP timeouts (each render takes ~1–2s, so 20 pages ≈ 20–40s).
+- Total page limit stays at 50 to protect context window budget.
+
+#### 7b. Add a Document Overview block
+Every PDF response — regardless of size — starts with a structured overview block
+prepended as the **first content block**:
+
+```typescript
+function buildOverviewBlock(
+  totalPages: number,
+  processedRange: [number, number],
+  textPageCount: number,
+  imagePageCount: number,
+  renderedImageCount: number,
+  skippedImageCount: number,
+  isTruncated: boolean
+): ContentBlock {
+  let overview = `📄 Document Overview\n`;
+  overview += `━━━━━━━━━━━━━━━━━━━\n`;
+  overview += `Total pages: ${totalPages}\n`;
+  overview += `Pages in this response: ${processedRange[0]}–${processedRange[1]} of ${totalPages}\n`;
+  overview += `  • Text pages: ${textPageCount} (extracted as text)\n`;
+  overview += `  • Image pages rendered: ${renderedImageCount}\n`;
+  if (skippedImageCount > 0) {
+    overview += `  • Image pages skipped (limit): ${skippedImageCount}\n`;
+  }
+
+  if (isTruncated) {
+    overview += `\n⚠️ PARTIAL CONTENT WARNING\n`;
+    overview += `This response contains only pages ${processedRange[0]}–${processedRange[1]} of ${totalPages}.\n`;
+    overview += `Pages ${processedRange[1] + 1}–${totalPages} were NOT accessed.\n`;
+    overview += `IMPORTANT: You MUST inform the user that this is a partial extraction.\n`;
+    overview += `To access remaining pages, call get_file_text with startPage=${processedRange[1] + 1}.\n`;
+  }
+
+  return { type: 'text', text: overview };
+}
+```
+
+This gives Claude everything it needs to tell the user what it saw and how to get more.
+
+#### 7c. Add bookend warning for truncated content
+When content is truncated, add a **bottom warning** as the last content block:
+
+```typescript
+if (isTruncated) {
+  blocks.push({
+    type: 'text',
+    text: `⚠️ REMINDER: You only received pages ${startPage}–${endPage} of this ` +
+          `${totalPages}-page document. You MUST inform the user about this limitation ` +
+          `and offer to fetch the remaining pages.`
+  });
+}
+```
+
+The top overview + bottom reminder bookend the content, maximizing the chance Claude
+communicates the limitation.
+
+#### 7d. Add page range support to `get_file_text`
+Add optional `startPage` and `endPage` parameters to the MCP tool so Claude can request
+specific sections of a large PDF:
+
+**`src/index.ts`** — update tool registration:
+```typescript
+server.tool(
+  "get_file_text",
+  "Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. " +
+  "For large PDFs, returns a partial result with instructions to fetch remaining pages " +
+  "using startPage/endPage parameters.",
+  {
+    courseId: z.string().describe("The course ID"),
+    fileUrl: z.string().describe("The file URL"),
+    startPage: z.number().optional().describe("Start page (1-indexed, PDF only)"),
+    endPage: z.number().optional().describe("End page (1-indexed, PDF only)")
+  },
+  async ({ courseId, fileUrl, startPage, endPage }) =>
+    await getFileText(courseId, fileUrl, startPage, endPage)
+);
+```
+
+**`src/tools/files.ts`** — pass range through:
+```typescript
+export async function getFileText(
+  courseId: string,
+  fileUrl: string,
+  startPage?: number,
+  endPage?: number
+) {
+  // ... existing cache/download logic ...
+  if (mimeType.includes('pdf') || ext === '.pdf') {
+    blocks = await parsePdfSmart(buffer, startPage, endPage);
+  }
+  // ...
+}
+```
+
+**`src/parser/pdf-analyzer.ts`** — accept range in main function:
+```typescript
+export async function parsePdfSmart(
+  buffer: Buffer,
+  startPage?: number,
+  endPage?: number
+): Promise<ContentBlock[]> {
+  // ... load PDF ...
+  const firstPage = startPage ?? 1;
+  const lastPage = Math.min(endPage ?? totalPages, firstPage + MAX_TOTAL_PAGES - 1, totalPages);
+  // Process only pages firstPage..lastPage
+}
+```
+
+#### 7e. Progress logging
+Log detailed progress to stderr for debugging:
+```typescript
+console.error(`[PDF] ${totalPages} pages total, processing ${firstPage}–${lastPage}`);
+console.error(`[PDF] Classification: ${textPageCount} text, ${imagePageCount} image`);
+console.error(`[PDF] Rendered ${renderedImageCount}/${imagePageCount} image pages`);
+```
 
 **Notes:**
-- These guardrails protect against a 200-page course pack being sent as 200 PNG images.
-- The limits are conservative — Claude's context window can handle ~120 images at 150 DPI,
-  but leaving room for the conversation itself is important.
+- The overview block costs ~100–200 tokens — negligible compared to content.
+- Page range support means a 200-page course pack can be fully accessed across multiple
+  targeted calls, without ever hitting the 50-page limit.
+- The bookend warnings use instruction-style language ("You MUST inform the user") which
+  Claude tends to respect, though we can't guarantee it.
+- When `startPage`/`endPage` are provided, caching should use a range-aware cache key
+  (e.g., `file_<hash>_p5-20`) to avoid collisions with full-file cache entries.
 
 ---
 

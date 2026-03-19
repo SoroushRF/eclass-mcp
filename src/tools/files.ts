@@ -7,11 +7,19 @@ import { parsePptx } from '../parser/pptx';
 import path from 'path';
 import crypto from 'crypto';
 
-export async function getFileText(courseId: string, fileUrl: string) {
+export async function getFileText(
+  courseId: string,
+  fileUrl: string,
+  startPage?: number,
+  endPage?: number
+) {
   try {
-    // We use an MD5 hash of the URL to ensure a unique, safe cache key
+    // Build a cache key — include page range if specified to avoid collisions
     const urlHash = crypto.createHash('md5').update(fileUrl).digest('hex');
-    const cacheKey = `file_${urlHash}`;
+    let cacheKey = `file_${urlHash}`;
+    if (startPage || endPage) {
+      cacheKey += `_p${startPage ?? 1}-${endPage ?? 'end'}`;
+    }
 
     // Cache lookup: handle both old string-only cache and new block-based cache
     const cached = cache.get<any>(cacheKey);
@@ -32,7 +40,7 @@ export async function getFileText(courseId: string, fileUrl: string) {
     let blocks: ContentBlock[] = [];
 
     if (mimeType.includes('pdf') || ext === '.pdf') {
-      blocks = await parsePdfSmart(buffer);
+      blocks = await parsePdfSmart(buffer, startPage, endPage);
     } else {
       let text = '';
       if (mimeType.includes('officedocument.wordprocessingml') || ext === '.docx') {
@@ -51,7 +59,7 @@ export async function getFileText(courseId: string, fileUrl: string) {
       blocks = [{ type: 'text', text }];
     }
 
-    // Cache the full block array for 7 days (including base64 images)
+    // Cache the full block array (including base64 images)
     if (blocks.length > 0) {
       cache.set(cacheKey, blocks, TTL.FILES);
     }
