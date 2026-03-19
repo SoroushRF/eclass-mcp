@@ -1,4 +1,5 @@
 import * as pdfjsLib from 'pdfjs-dist';
+import { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
 
 export interface PageAnalysis {
   pageNum: number;       // 1-indexed
@@ -8,6 +9,47 @@ export interface PageAnalysis {
 }
 
 const MIN_TEXT_CHARS = 50;  // Threshold to classify as "text-heavy" if no images
+
+/**
+ * Reconstructs readable text from a single page's content items.
+ * Groups items by Y-coordinate into lines and sorts by X-coordinate.
+ */
+async function extractPageText(pdf: PDFDocumentProxy, pageNum: number): Promise<string> {
+  const page = await pdf.getPage(pageNum);
+  const textContent = await page.getTextContent();
+  
+  // Group text items by their Y-coordinate (transform[5])
+  const lines: { [y: number]: any[] } = {};
+  
+  for (const item of textContent.items as any[]) {
+    // Round Y-coordinate to group items on roughly the same line (2-unit fuzz factor)
+    const y = Math.round((item.transform[5] || 0) / 2) * 2;
+    if (!lines[y]) lines[y] = [];
+    lines[y].push(item);
+  }
+
+  // Sort Y-coordinates from top to bottom (descending Y in PDF coordinates)
+  const sortedY = Object.keys(lines)
+    .map(Number)
+    .sort((a, b) => b - a);
+
+  let reconstructedText = '';
+
+  for (const y of sortedY) {
+    // Sort items on the same line by X-coordinate (transform[4])
+    const lineItems = lines[y].sort((a, b) => (a.transform[4] || 0) - (b.transform[4] || 0));
+    const lineText = lineItems.map(item => item.str).join(' ').trim();
+    if (lineText) {
+      reconstructedText += lineText + '\n';
+    }
+  }
+
+  // Final normalization: collapse whitespace and consecutive newlines
+  return reconstructedText
+    .replace(/\s+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 /**
  * Metadata-first analysis of the PDF structure.
