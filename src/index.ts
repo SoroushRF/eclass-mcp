@@ -40,7 +40,7 @@ server.tool(
 
 server.tool(
   "get_file_text",
-  "Extracts text from a course file (PDF, DOCX, PPTX).",
+  "Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images.",
   { 
     courseId: z.string().describe("The course ID"),
     fileUrl: z.string().describe("The file URL")

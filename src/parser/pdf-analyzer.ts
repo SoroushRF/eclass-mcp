@@ -9,6 +9,42 @@ export interface ContentBlock {
   mimeType?: string;  // image/png
 }
 
+/**
+ * Main entry point for the smart PDF extraction pipeline.
+ * Analyzes each page and returns an ordered array of text and/or image content blocks.
+ */
+export async function parsePdfSmart(buffer: Buffer): Promise<ContentBlock[]> {
+  const loadingTask = pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useWorkerFetch: false,
+    stopAtErrors: true,
+    isEvalSupported: false,
+  });
+
+  const pdf = await loadingTask.promise;
+  const analysis = await analyzePages(buffer);
+  const blocks: ContentBlock[] = [];
+
+  for (const page of analysis) {
+    if (page.classification === 'text') {
+      const text = await extractPageText(pdf, page.pageNum);
+      if (text) {
+        blocks.push({ type: 'text', text });
+      }
+    } else {
+      const imageBuffer = await renderPageAsImage(pdf, page.pageNum);
+      blocks.push({
+        type: 'image',
+        data: imageBuffer.toString('base64'),
+        mimeType: 'image/png'
+      });
+    }
+  }
+
+  await pdf.destroy();
+  return blocks;
+}
+
 export interface PageAnalysis {
   pageNum: number;       // 1-indexed
   textLength: number;    // Character count from getTextContent()
