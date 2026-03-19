@@ -12,12 +12,18 @@ export async function getFileText(courseId: string, fileUrl: string) {
     // We use an MD5 hash of the URL to ensure a unique, safe cache key
     const urlHash = crypto.createHash('md5').update(fileUrl).digest('hex');
     const cacheKey = `file_${urlHash}`;
-    
-    // Task 6 will update caching to support mixed blocks. 
-    // For now, we only use cache for non-PDF (string-only) text.
+
+    // Cache lookup: handle both old string-only cache and new block-based cache
     const cached = cache.get<any>(cacheKey);
-    if (cached && typeof cached === 'string') {
-      return { content: [{ type: 'text' as const, text: cached }] };
+    if (cached) {
+      if (typeof cached === 'string') {
+        // Migration: wrap old string cache into a block
+        return { content: [{ type: 'text' as const, text: cached }] };
+      }
+      if (Array.isArray(cached)) {
+        // New block array format
+        return { content: cached as ContentBlock[] };
+      }
     }
     
     const { buffer, mimeType, filename } = await scraper.downloadFile(fileUrl);
@@ -37,16 +43,17 @@ export async function getFileText(courseId: string, fileUrl: string) {
         text = `Unsupported file type: ${mimeType} (${filename})`;
       }
 
-      if (!text || text.trim() === '') {
+      const isEmpty = !text || text.trim() === '';
+      if (isEmpty) {
         text = `[No text could be extracted from this file. It may be a scanned document or unsupported format.]`;
       }
       
       blocks = [{ type: 'text', text }];
+    }
 
-      // Cache non-PDF results as strings for now
-      if (!text.startsWith('[Error') && !text.startsWith('[No text')) {
-        cache.set(cacheKey, text, TTL.FILES);
-      }
+    // Cache the full block array for 7 days (including base64 images)
+    if (blocks.length > 0) {
+      cache.set(cacheKey, blocks, TTL.FILES);
     }
 
     return { content: blocks };
