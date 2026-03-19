@@ -20,6 +20,7 @@
     "mammoth": "^1.12.0",
     "node-cron": "^4.2.1",
     "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "^5.5.207",
     "playwright": "^1.58.2",
     "zod": "^4.3.6"
   },
