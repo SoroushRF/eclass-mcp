@@ -1,5 +1,13 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
+import { createCanvas } from 'canvas';
+
+export interface ContentBlock {
+  type: 'text' | 'image';
+  text?: string;
+  data?: string;      // base64 PNG for image
+  mimeType?: string;  // image/png
+}
 
 export interface PageAnalysis {
   pageNum: number;       // 1-indexed
@@ -113,8 +121,30 @@ export async function analyzePages(buffer: Buffer): Promise<PageAnalysis[]> {
     });
   }
 
-  // Cleanup: specifically for older pdfjsLib if needed, most modern ones handle GC well.
   await pdf.destroy();
-
   return analysis;
+}
+
+/**
+ * Renders a single PDF page to a PNG buffer using node-canvas.
+ * DPI 150 is the sweet spot for readability vs token cost.
+ */
+async function renderPageAsImage(pdf: PDFDocumentProxy, pageNum: number, dpi: number = 150): Promise<Buffer> {
+  const page = await pdf.getPage(pageNum);
+  
+  // Calculate viewport at the target DPI (PDF units are 72 DPI)
+  const scale = dpi / 72;
+  const viewport = page.getViewport({ scale });
+
+  // Create canvas for the page
+  const canvas = createCanvas(viewport.width, viewport.height);
+  const ctx = canvas.getContext('2d');
+
+  // Render the page into the canvas context
+  await (page as any).render({
+    canvasContext: ctx,
+    viewport: viewport
+  }).promise;
+
+  return canvas.toBuffer('image/png');
 }
