@@ -46,8 +46,10 @@ export interface PageAnalysis {
 
 const MAX_IMAGE_PAGES = 20;    // Max pages rendered as images per call
 const MAX_TOTAL_PAGES = 50;    // Max pages processed in a single call
-const DEFAULT_DPI = 150;       // Resolution for image rendering
-const MIN_TEXT_CHARS = 50;     // Threshold to classify as "text-heavy" if no images
+const DEFAULT_DPI = 100;       // Resolution for image rendering (100 DPI is safe for MCP payloads)
+const MIN_TEXT_CHARS = 50;     // Threshold to avoid empty/garbage pages
+const MIN_TEXT_FOR_SAFE_TEXT = 250; // Threshold: if text > this, we trust extraction even if logos exist
+const MAX_PAYLOAD_BYTES = 800 * 1024; // 800KB safety limit for the total Base64 payload (MCP limit is 1MB)
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Overview & Warning Blocks
@@ -139,6 +141,7 @@ export async function parsePdfSmart(
   let renderedImageCount = 0;
   let skippedImageCount = 0;
   let textPageCount = 0;
+  let currentPayloadSize = 0; // Estimated characters in the final MCP response
 
   console.error(`[PDF] ${totalPages} pages total, processing ${firstPage}–${lastPage}`);
 
@@ -147,24 +150,41 @@ export async function parsePdfSmart(
       textPageCount++;
       const text = await extractPageText(pdf, page.pageNum);
       if (text) {
-        blocks.push({ type: 'text', text: `--- Page ${page.pageNum} ---\n${text}` });
+        const blockText = `--- Page ${page.pageNum} ---\n${text}`;
+        currentPayloadSize += blockText.length;
+        blocks.push({ type: 'text', text: blockText });
       }
     } else {
-      // Classification is 'image' — check render limit
-      if (renderedImageCount < MAX_IMAGE_PAGES) {
+      // Classification is 'image' — check render and size limits
+      if (renderedImageCount < MAX_IMAGE_PAGES && currentPayloadSize < MAX_PAYLOAD_BYTES) {
         const imageBuffer = await renderPageAsImage(pdf, page.pageNum, DEFAULT_DPI);
-        blocks.push({
-          type: 'image',
-          data: imageBuffer.toString('base64'),
-          mimeType: 'image/png'
-        });
-        renderedImageCount++;
+        const base64 = imageBuffer.toString('base64');
+        const estSize = base64.length + 100; // +100 for JSON overhead
+
+        if (currentPayloadSize + estSize < MAX_PAYLOAD_BYTES) {
+          blocks.push({
+            type: 'image',
+            data: base64,
+            mimeType: 'image/png'
+          });
+          renderedImageCount++;
+          currentPayloadSize += estSize;
+        } else {
+          // Payload would exceed 1MB limit — fallback to text
+          skippedImageCount++;
+          const text = await extractPageText(pdf, page.pageNum);
+          blocks.push({
+            type: 'text',
+            text: `--- Page ${page.pageNum} ---\n[⚠️ Size limit reached. Image skipped to prevent error. Text fallback below]\n${text || '[No extractable text]'}`
+          });
+        }
       } else {
         skippedImageCount++;
         const text = await extractPageText(pdf, page.pageNum);
+        const reason = renderedImageCount >= MAX_IMAGE_PAGES ? 'Image render limit reached' : 'Size limit reached';
         blocks.push({
           type: 'text',
-          text: `--- Page ${page.pageNum} ---\n[⚠️ Image render limit reached. Text fallback below]\n${text || '[No extractable text on this page]'}`
+          text: `--- Page ${page.pageNum} ---\n[⚠️ ${reason}. Text fallback below]\n${text || '[No extractable text on this page]'}`
         });
       }
     }
@@ -234,10 +254,17 @@ async function analyzePagesRange(
       }
     }
 
-    // 3. Classify (pages with images always get image treatment for safety)
+    // 3. Classify (Smart Heuristic)
     let classification: 'text' | 'image' = 'text';
+
     if (hasImages) {
-      classification = 'image';
+      // If a page has a lot of text, we assume any images are decorative (logos/bullets)
+      // and prioritize text extraction to stay under the 1MB payload limit.
+      if (textLength < MIN_TEXT_FOR_SAFE_TEXT) {
+        classification = 'image';
+      } else {
+        classification = 'text';
+      }
     }
 
     analysis.push({ pageNum: i, textLength, hasImages, classification });

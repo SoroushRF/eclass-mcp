@@ -14,9 +14,9 @@ export async function getFileText(
   endPage?: number
 ) {
   try {
-    // Build a cache key — include page range if specified to avoid collisions
+    // Build a cache key — include page range and logic version to avoid collisions
     const urlHash = crypto.createHash('md5').update(fileUrl).digest('hex');
-    let cacheKey = `file_${urlHash}`;
+    let cacheKey = `file_${urlHash}_v2`; // Added v2 to force refresh with new DPI limit
     if (startPage || endPage) {
       cacheKey += `_p${startPage ?? 1}-${endPage ?? 'end'}`;
     }
