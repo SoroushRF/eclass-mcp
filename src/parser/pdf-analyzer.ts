@@ -1,6 +1,30 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
-import { createCanvas } from 'canvas';
+/**
+ * Smart PDF Extraction Pipeline
+ *
+ * Uses pdfjs-dist (legacy build, loaded via dynamic import for CJS compat)
+ * to analyse each page's metadata and choose the cheapest extraction strategy
+ * that captures all content — text OR rendered image.
+ */
+
+// Type-only imports (stripped at compile time – safe in CJS)
+import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
+import { createCanvas } from '@napi-rs/canvas';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Lazy-loaded pdfjs-dist (ESM-only, must use dynamic import in CJS projects)
+// ─────────────────────────────────────────────────────────────────────────────
+let _pdfjs: any = null;
+
+async function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
+  if (!_pdfjs) {
+    _pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any);
+  }
+  return _pdfjs;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Public Types
+// ─────────────────────────────────────────────────────────────────────────────
 
 export interface ContentBlock {
   type: 'text' | 'image';
@@ -9,13 +33,6 @@ export interface ContentBlock {
   mimeType?: string;  // image/png
 }
 
-/**
- * Guardrails to protect Claude's context window and local memory.
- */
-const MAX_IMAGE_PAGES = 20;    // Max pages rendered as images per call
-const MAX_TOTAL_PAGES = 50;    // Max pages processed in a single call
-const DEFAULT_DPI = 150;       // Resolution for image rendering
-
 export interface PageAnalysis {
   pageNum: number;       // 1-indexed
   textLength: number;    // Character count from getTextContent()
@@ -23,16 +40,19 @@ export interface PageAnalysis {
   classification: 'text' | 'image';
 }
 
-const MIN_TEXT_CHARS = 50;  // Threshold to classify as "text-heavy" if no images
+// ─────────────────────────────────────────────────────────────────────────────
+// Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+
+const MAX_IMAGE_PAGES = 20;    // Max pages rendered as images per call
+const MAX_TOTAL_PAGES = 50;    // Max pages processed in a single call
+const DEFAULT_DPI = 150;       // Resolution for image rendering
+const MIN_TEXT_CHARS = 50;     // Threshold to classify as "text-heavy" if no images
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Overview & Warning Blocks
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Builds the document overview block that is always prepended to the response.
- * Gives Claude full visibility into the document structure and what was processed.
- */
 function buildOverviewBlock(
   totalPages: number,
   processedRange: [number, number],
@@ -62,9 +82,6 @@ function buildOverviewBlock(
   return { type: 'text', text: overview };
 }
 
-/**
- * Builds the bottom bookend warning for truncated content.
- */
 function buildBookendWarning(
   processedRange: [number, number],
   totalPages: number
@@ -83,7 +100,6 @@ function buildBookendWarning(
 
 /**
  * Main entry point for the smart PDF extraction pipeline.
- * Analyzes each page and returns an ordered array of text and/or image content blocks.
  *
  * @param buffer    Raw PDF file buffer
  * @param startPage Optional 1-indexed start page (defaults to 1)
@@ -94,10 +110,11 @@ export async function parsePdfSmart(
   startPage?: number,
   endPage?: number
 ): Promise<ContentBlock[]> {
+  const pdfjsLib = await getPdfjs();
+
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
     useWorkerFetch: false,
-    stopAtErrors: true,
     isEvalSupported: false,
   });
 
@@ -143,7 +160,6 @@ export async function parsePdfSmart(
         });
         renderedImageCount++;
       } else {
-        // Render limit reached: fall back to text extraction (even if sparse)
         skippedImageCount++;
         const text = await extractPageText(pdf, page.pageNum);
         blocks.push({
@@ -185,14 +201,13 @@ export async function parsePdfSmart(
 
 /**
  * Analyzes a specific range of pages in the PDF.
- * Scans each page's operator list for images and content for text counts.
- * This is very fast as it avoids any image rendering.
  */
 async function analyzePagesRange(
   pdf: PDFDocumentProxy,
   firstPage: number,
   lastPage: number
 ): Promise<PageAnalysis[]> {
+  const pdfjsLib = await getPdfjs();
   const analysis: PageAnalysis[] = [];
 
   for (let i = firstPage; i <= lastPage; i++) {
@@ -236,10 +251,11 @@ async function analyzePagesRange(
  * Loads its own PDF instance internally.
  */
 export async function analyzePages(buffer: Buffer): Promise<PageAnalysis[]> {
+  const pdfjsLib = await getPdfjs();
+
   const loadingTask = pdfjsLib.getDocument({
     data: new Uint8Array(buffer),
     useWorkerFetch: false,
-    stopAtErrors: true,
     isEvalSupported: false,
   });
 
@@ -261,17 +277,14 @@ async function extractPageText(pdf: PDFDocumentProxy, pageNum: number): Promise<
   const page = await pdf.getPage(pageNum);
   const textContent = await page.getTextContent();
 
-  // Group text items by their Y-coordinate (transform[5])
   const lines: { [y: number]: any[] } = {};
 
   for (const item of textContent.items as any[]) {
-    // Round Y-coordinate to group items on roughly the same line (2-unit fuzz factor)
     const y = Math.round((item.transform[5] || 0) / 2) * 2;
     if (!lines[y]) lines[y] = [];
     lines[y].push(item);
   }
 
-  // Sort Y-coordinates from top to bottom (descending Y in PDF coordinates)
   const sortedY = Object.keys(lines)
     .map(Number)
     .sort((a, b) => b - a);
@@ -279,15 +292,13 @@ async function extractPageText(pdf: PDFDocumentProxy, pageNum: number): Promise<
   let reconstructedText = '';
 
   for (const y of sortedY) {
-    // Sort items on the same line by X-coordinate (transform[4])
     const lineItems = lines[y].sort((a, b) => (a.transform[4] || 0) - (b.transform[4] || 0));
-    const lineText = lineItems.map(item => item.str).join(' ').trim();
+    const lineText = lineItems.map((item: any) => item.str).join(' ').trim();
     if (lineText) {
       reconstructedText += lineText + '\n';
     }
   }
 
-  // Final normalization: collapse whitespace and consecutive newlines
   return reconstructedText
     .replace(/\s+$/gm, '')
     .replace(/\n{3,}/g, '\n\n')
@@ -299,25 +310,22 @@ async function extractPageText(pdf: PDFDocumentProxy, pageNum: number): Promise<
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Renders a single PDF page to a PNG buffer using node-canvas.
- * DPI 150 is the sweet spot for readability vs token cost.
+ * Renders a single PDF page to a PNG buffer using @napi-rs/canvas.
  */
 async function renderPageAsImage(pdf: PDFDocumentProxy, pageNum: number, dpi: number = 150): Promise<Buffer> {
   const page = await pdf.getPage(pageNum);
 
-  // Calculate viewport at the target DPI (PDF units are 72 DPI)
   const scale = dpi / 72;
   const viewport = page.getViewport({ scale });
 
-  // Create canvas for the page
-  const canvas = createCanvas(viewport.width, viewport.height);
+  // Floor dimensions to avoid fractional pixel errors
+  const canvas = createCanvas(Math.floor(viewport.width), Math.floor(viewport.height));
   const ctx = canvas.getContext('2d');
 
-  // Render the page into the canvas context
   await (page as any).render({
     canvasContext: ctx,
     viewport: viewport
   }).promise;
 
-  return canvas.toBuffer('image/png');
+  return Buffer.from(canvas.toBuffer('image/png'));
 }

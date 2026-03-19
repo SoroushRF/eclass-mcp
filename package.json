@@ -15,6 +15,7 @@
   "type": "commonjs",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@napi-rs/canvas": "^0.1.97",
     "adm-zip": "^0.5.16",
     "canvas": "^3.2.1",
     "dotenv": "^17.3.1",
