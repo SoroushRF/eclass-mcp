@@ -87,6 +87,11 @@ server.tool(
     maxImages: z.number().int().min(0).max(10).optional().describe("Max instruction images to attach (default 3)"),
     imageOffset: z.number().int().min(0).optional().describe("Pagination offset into instruction image list (default 0)"),
     maxTotalImageBytes: z.number().int().min(0).max(1000000).optional().describe("Max base64 payload budget for attached images (default 750000)"),
+    includeCsv: z.boolean().optional().describe("If true, inline attached CSV files as text (no parsing heuristics) when present"),
+    csvMode: z.enum(["auto", "full", "preview"]).optional().describe("CSV inlining mode (default auto)"),
+    maxCsvBytes: z.number().int().min(0).max(2000000).optional().describe("Max CSV bytes to inline (default 200000)"),
+    csvPreviewLines: z.number().int().min(1).max(5000).optional().describe("When previewing/truncating, max number of lines to include (default 200)"),
+    maxCsvAttachments: z.number().int().min(0).max(10).optional().describe("Max number of CSV attachments to inline (default 3)"),
   },
   (async (args: any) => await getItemDetails(args)) as any
 );

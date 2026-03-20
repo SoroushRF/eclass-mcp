@@ -222,121 +222,256 @@ export async function getItemDetails(params: {
   maxImages?: number;
   imageOffset?: number;
   maxTotalImageBytes?: number;
+  includeCsv?: boolean;
+  csvMode?: 'auto' | 'full' | 'preview';
+  maxCsvBytes?: number;
+  csvPreviewLines?: number;
+  maxCsvAttachments?: number;
 }) {
   try {
     const url = params?.url;
     if (!url) throw new Error('url is required');
 
     const includeImages = params?.includeImages ?? false;
+    const includeCsv = params?.includeCsv ?? false;
     const maxImages = params?.maxImages ?? 3;
     const imageOffset = params?.imageOffset ?? 0;
     const maxTotalImageBytes = params?.maxTotalImageBytes ?? 750_000;
 
+    const csvMode = params?.csvMode ?? 'auto';
+    const maxCsvBytes = params?.maxCsvBytes ?? 200_000;
+    const csvPreviewLines = params?.csvPreviewLines ?? 200;
+    const maxCsvAttachments = params?.maxCsvAttachments ?? 3;
+
     const details = await getDetailsCached(url);
 
     // Backwards compatible mode: return only the JSON payload.
-    if (!includeImages) {
+    if (!includeImages && !includeCsv) {
       return { content: [{ type: 'text' as const, text: JSON.stringify(details) }] };
     }
 
-    const allImageUrls = details.descriptionImageUrls ?? [];
-    if (!allImageUrls.length) {
-      return {
-        content: [
-          {
+    const content: any[] = [];
+    const meta: any = { ...details };
+
+    // --- CSV inlining (optional) ---
+    let csvAttachments = Array.isArray(details.attachments) ? details.attachments : [];
+    csvAttachments = csvAttachments.filter((a: any) => a?.kind === 'csv');
+
+    const csvIncluded: Array<{ name?: string; url: string; mode: string; bytes: number; truncated: boolean }> = [];
+    let csvSkippedCount = 0;
+
+    if (includeCsv && csvAttachments.length) {
+      const limitedCsv = csvAttachments.slice(0, Math.max(0, maxCsvAttachments));
+      for (const att of limitedCsv) {
+        try {
+          const downloaded = await scraper.downloadFile(att.url);
+          const bytes = downloaded.buffer.length;
+
+          const truncatedBySize = bytes > maxCsvBytes;
+          let mode = csvMode;
+
+          if (csvMode === 'full') {
+            if (truncatedBySize) {
+              mode = 'preview';
+            } else {
+              mode = 'full';
+            }
+          }
+
+          if (mode === 'auto') {
+            mode = truncatedBySize ? 'preview' : 'full';
+          }
+
+          const bufferForDecode =
+            mode === 'preview' ? downloaded.buffer.slice(0, Math.min(downloaded.buffer.length, maxCsvBytes)) : downloaded.buffer;
+
+          // Decode as UTF-8 (best effort). Moodle CSVs are usually UTF-8; if not, we at least return something.
+          let finalText = bufferForDecode.toString('utf-8');
+          finalText = finalText.replace(/^\uFEFF/, ''); // strip UTF-8 BOM
+          finalText = finalText.replace(/\u0000/g, '');
+
+          if (mode === 'preview') {
+            // Restrict to the first N lines (and implicitly to maxCsvBytes due to decode size assumption).
+            const lines = finalText.split(/\r?\n/);
+            finalText = lines.slice(0, csvPreviewLines).join('\n');
+          }
+
+          // Final hard cap: never inline more than maxCsvBytes characters.
+          if (finalText.length > maxCsvBytes) {
+            finalText = finalText.slice(0, maxCsvBytes);
+            csvIncluded.push({ name: att.name, url: att.url, mode, bytes, truncated: true });
+          } else {
+            csvIncluded.push({ name: att.name, url: att.url, mode, bytes, truncated: truncatedBySize });
+          }
+
+          content.push({
             type: 'text' as const,
-            text: JSON.stringify({
-              ...details,
-              imageTotalCount: 0,
-              imagesReturnedCount: 0,
-              imagesSkippedByBudget: 0,
-              imagesRemainingCount: 0,
-              nextImageOffset: 0,
-              note: 'No instruction images found in descriptionHtml.'
-            }),
-          },
-        ],
-      };
-    }
-
-    const offset = Math.max(0, imageOffset);
-    const slice = allImageUrls.slice(offset);
-
-    const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
-    let usedBytes = 0;
-    let skippedByBudget = 0;
-    let attemptedCount = 0;
-
-    for (let i = 0; i < slice.length; i++) {
-      attemptedCount = i + 1;
-      if (downloadedImages.length >= maxImages) break;
-
-      const imageUrl = slice[i];
-      try {
-        const { buffer, mimeType } = await scraper.downloadFile(imageUrl);
-        const urlLower = imageUrl.toLowerCase();
-        const isImageByMime = mimeType.startsWith('image/');
-        const isImageByExt =
-          urlLower.endsWith('.png') ||
-          urlLower.endsWith('.jpg') ||
-          urlLower.endsWith('.jpeg') ||
-          urlLower.endsWith('.gif') ||
-          urlLower.endsWith('.webp') ||
-          urlLower.includes('.png?') ||
-          urlLower.includes('.jpg?') ||
-          urlLower.includes('.jpeg?') ||
-          urlLower.includes('.gif?') ||
-          urlLower.includes('.webp?');
-
-        if (!isImageByMime && !isImageByExt) {
-          skippedByBudget++;
-          continue;
+            text: `--- CSV: ${att.name || 'attachment'} ---\n${finalText}`,
+          });
+        } catch {
+          csvSkippedCount++;
         }
-
-        const base64 = buffer.toString('base64');
-        // Approximate payload: base64 string length ~ bytes in ASCII payload.
-        const estBytes = base64.length;
-        if (usedBytes + estBytes > maxTotalImageBytes) {
-          skippedByBudget++;
-          break;
-        }
-
-        downloadedImages.push({ base64, mimeType });
-        usedBytes += estBytes;
-      } catch {
-        skippedByBudget++;
       }
     }
 
-    const imagesReturnedCount = downloadedImages.length;
-    const nextImageOffset = offset + attemptedCount;
-    const imagesRemainingCount = Math.max(0, allImageUrls.length - nextImageOffset);
+    meta.csvTotalAttachments = csvAttachments.length;
+    meta.csvIncludedCount = csvIncluded.length;
+    meta.csvSkippedCount = csvSkippedCount;
 
-    const content: any[] = [
-      {
-        type: 'text' as const,
-        text: JSON.stringify({
-          ...details,
-          imageTotalCount: allImageUrls.length,
-          imageOffset: offset,
-          imagesReturnedCount,
-          imagesSkippedByBudget: skippedByBudget,
-          imagesRemainingCount,
-          nextImageOffset,
-          maxImages,
-          maxTotalImageBytes,
-          usedBase64BytesEstimate: usedBytes,
-        }),
-      },
-    ];
+    // --- Image vision inlining (optional) ---
+    let imageTotalCount = 0;
+    let imagesReturnedCount = 0;
+    let imagesSkippedByBudget = 0;
+    let imagesRemainingCount = 0;
+    let nextImageOffset = 0;
+    let usedBase64BytesEstimate = 0;
 
-    for (const img of downloadedImages) {
-      content.push({
-        type: 'image' as const,
-        data: img.base64,
-        mimeType: img.mimeType,
-      });
+    if (includeImages) {
+      const allImageUrls = details.descriptionImageUrls ?? [];
+      imageTotalCount = allImageUrls.length;
+
+      if (!allImageUrls.length) {
+        meta.imageTotalCount = 0;
+        meta.imagesReturnedCount = 0;
+        meta.imagesSkippedByBudget = 0;
+        meta.imagesRemainingCount = 0;
+        meta.nextImageOffset = 0;
+        meta.note = 'No instruction images found in descriptionHtml.';
+
+        content.unshift({
+          type: 'text' as const,
+          text: JSON.stringify(meta),
+        });
+
+        return { content };
+      }
+
+      const offset = Math.max(0, imageOffset);
+      const slice = allImageUrls.slice(offset);
+
+      const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
+      let usedBytes = 0;
+      let attemptedCount = 0;
+
+      imagesSkippedByBudget = 0;
+
+      for (let i = 0; i < slice.length; i++) {
+        attemptedCount = i + 1;
+        if (downloadedImages.length >= maxImages) break;
+
+        const imageUrl = slice[i];
+        try {
+          const { buffer, mimeType } = await scraper.downloadFile(imageUrl);
+          const urlLower = imageUrl.toLowerCase();
+          const isImageByMime = mimeType.startsWith('image/');
+          const isImageByExt =
+            urlLower.endsWith('.png') ||
+            urlLower.endsWith('.jpg') ||
+            urlLower.endsWith('.jpeg') ||
+            urlLower.endsWith('.gif') ||
+            urlLower.endsWith('.webp') ||
+            urlLower.includes('.png?') ||
+            urlLower.includes('.jpg?') ||
+            urlLower.includes('.jpeg?') ||
+            urlLower.includes('.gif?') ||
+            urlLower.includes('.webp?');
+
+          if (!isImageByMime && !isImageByExt) {
+            imagesSkippedByBudget++;
+            continue;
+          }
+
+          const base64 = buffer.toString('base64');
+          const estBytes = base64.length;
+          if (usedBytes + estBytes > maxTotalImageBytes) {
+            imagesSkippedByBudget++;
+            break;
+          }
+
+          downloadedImages.push({ base64, mimeType });
+          usedBytes += estBytes;
+        } catch {
+          imagesSkippedByBudget++;
+        }
+      }
+
+      imagesReturnedCount = downloadedImages.length;
+      nextImageOffset = offset + attemptedCount;
+      imagesRemainingCount = Math.max(0, imageTotalCount - nextImageOffset);
+      usedBase64BytesEstimate = usedBytes;
+
+      meta.imageTotalCount = imageTotalCount;
+      meta.imageOffset = offset;
+      meta.imagesReturnedCount = imagesReturnedCount;
+      meta.imagesSkippedByBudget = imagesSkippedByBudget;
+      meta.imagesRemainingCount = imagesRemainingCount;
+      meta.nextImageOffset = nextImageOffset;
+      meta.maxImages = maxImages;
+      meta.maxTotalImageBytes = maxTotalImageBytes;
+      meta.usedBase64BytesEstimate = usedBase64BytesEstimate;
     }
+
+    if (includeImages) {
+      // Attach images after metadata JSON and CSV blocks.
+      const allImageUrls = details.descriptionImageUrls ?? [];
+      const offset = Math.max(0, imageOffset);
+      const slice = allImageUrls.slice(offset);
+      // Re-download images to re-use existing logic? Avoid: we already computed downloadedImages,
+      // but to keep changes small we recompute by calling the same download logic inline.
+      // Note: this is acceptable because includeImages is capped and expensive steps are limited.
+      const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
+      let usedBytes = 0;
+      let imagesSkipped = 0;
+      for (let i = 0; i < slice.length; i++) {
+        if (downloadedImages.length >= maxImages) break;
+        const imageUrl = slice[i];
+        try {
+          const { buffer, mimeType } = await scraper.downloadFile(imageUrl);
+          const urlLower = imageUrl.toLowerCase();
+          const isImageByMime = mimeType.startsWith('image/');
+          const isImageByExt =
+            urlLower.endsWith('.png') ||
+            urlLower.endsWith('.jpg') ||
+            urlLower.endsWith('.jpeg') ||
+            urlLower.endsWith('.gif') ||
+            urlLower.endsWith('.webp') ||
+            urlLower.includes('.png?') ||
+            urlLower.includes('.jpg?') ||
+            urlLower.includes('.jpeg?') ||
+            urlLower.includes('.gif?') ||
+            urlLower.includes('.webp?');
+
+          if (!isImageByMime && !isImageByExt) {
+            imagesSkipped++;
+            continue;
+          }
+          const base64 = buffer.toString('base64');
+          const estBytes = base64.length;
+          if (usedBytes + estBytes > maxTotalImageBytes) {
+            imagesSkipped++;
+            break;
+          }
+          downloadedImages.push({ base64, mimeType });
+          usedBytes += estBytes;
+        } catch {
+          imagesSkipped++;
+        }
+      }
+
+      for (const img of downloadedImages) {
+        content.push({
+          type: 'image' as const,
+          data: img.base64,
+          mimeType: img.mimeType,
+        });
+      }
+    }
+
+    // First block: metadata
+    content.unshift({
+      type: 'text' as const,
+      text: JSON.stringify(meta),
+    });
 
     return { content };
   } catch (e) {
