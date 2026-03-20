@@ -63,7 +63,7 @@ flowchart LR
 | `get_course_content` | Sections, files, assignments for one course | `courseId` |
 | `get_upcoming_deadlines` | Assignments due in the next N days | `daysAhead?`, `courseId?` |
 | `get_deadlines` | Deadlines by scope: upcoming / month / range | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?` |
-| `get_item_details` | Full instructions + status + grade for one assignment or quiz URL | `url` |
+| `get_item_details` | Full instructions + status + grade for one assignment or quiz URL | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?` |
 | `get_file_text` | Extract text (and rendered images) from PDF, DOCX, or PPTX | `courseId`, `fileUrl`, `startPage?`, `endPage?` |
 | `get_grades` | Grade report (all courses or one) | `courseId?` |
 | `get_announcements` | Recent course announcements | `courseId?`, `limit?` |
@@ -144,6 +144,18 @@ For large PDFs, Claude will automatically paginate:
 "Read pages 10–20 of that lecture PDF."
 ```
 
+For instruction screenshots embedded in assignments, you can enable vision:
+```
+"Read the full instructions from this assignment, including any screenshots."
+Use `eclass:get_item_details` with includeImages=true if your client supports it.
+```
+
+For small CSV attachments, you can inline them as text:
+```
+"Read the CSV attachment data from this assignment."
+Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
+```
+
 ---
 
 ## 🔧 Troubleshooting
@@ -192,6 +204,7 @@ rm -rf dist && npm run build
 | Deadlines tool — full roadmap & architecture | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md) |
 | Deadlines — implementation history | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md) |
 | Deadlines — known issues & investigation log | [`docs/tools/deadlines/failed-prompts-investigation-plan.md`](docs/tools/deadlines/failed-prompts-investigation-plan.md) |
+| Deadlines — vision instruction screenshots (no OCR) | [`docs/tools/deadlines/vision-image-reading.md`](docs/tools/deadlines/vision-image-reading.md) |
 | PDF pipeline — engineering deep-dive | [`docs/tools/get_file_text/history.md`](docs/tools/get_file_text/history.md) |
 | PDF pipeline — future roadmap (smart image detection) | [`docs/tools/get_file_text/roadmap.md`](docs/tools/get_file_text/roadmap.md) |
 | Master TODO | [`TODO.md`](TODO.md) |
@@ -205,6 +218,8 @@ rm -rf dist && npm run build
 - [x] Upcoming deadlines scraper (Moodle 4 / Moove theme)
 - [x] Month + range deadline queries via assignment index pages
 - [x] Assignment and quiz detail scraping (instructions, submission status, grades)
+- [x] Vision instruction screenshots for assignments/quizzes (no OCR) with payload caps + pagination
+- [x] CSV attachment inlining (full/preview) with byte/line limits
 - [x] Smart PDF extraction — hybrid text + image rendering pipeline
 - [x] DOCX and PPTX parsers
 - [ ] **Harden quiz page selectors** — grade extraction missing in some cases *(P3)*

@@ -16,12 +16,18 @@ All args are optional except `url`.
 - `maxImages` (number, optional): max number of instruction images to attach (default `3`)
 - `imageOffset` (number, optional): pagination offset into the instruction image list (default `0`)
 - `maxTotalImageBytes` (number, optional): maximum base64 payload budget for attached images (default `750000`)
+- `includeCsv` (boolean, optional): if `true`, inline linked CSV attachments as text (no parsing heuristics)
+- `csvMode` (auto|full|preview, optional): controls full vs preview inlining (default `auto`)
+- `maxCsvBytes` (number, optional): maximum bytes to inline for CSV (default `200000`)
+- `csvPreviewLines` (number, optional): when previewing, max number of lines to include (default `200`)
+- `maxCsvAttachments` (number, optional): max number of CSV attachments to inline (default `3`)
 
 ### What the tool returns
 The tool always returns MCP `content`:
 
 1. A first `text` block containing JSON metadata (always)
 2. If `includeImages=true`, additional `image` blocks (base64) for the selected images
+3. If `includeCsv=true`, one or more additional `text` blocks containing inlined CSV contents (full/preview)
 
 The first JSON metadata object includes:
 
@@ -31,6 +37,10 @@ The first JSON metadata object includes:
 - `imagesSkippedByBudget`: how many were skipped due to the payload cap or unsupported image types
 - `imagesRemainingCount`: how many instruction images are left to fetch
 - `nextImageOffset`: the offset to use for the next fetch (if `imagesRemainingCount > 0`)
+- CSV metadata fields (when `includeCsv=true`):
+  - `csvTotalAttachments`
+  - `csvIncludedCount`
+  - `csvSkippedCount`
 
 ## How to use it from Claude (permission for leftovers)
 When the JSON metadata shows `imagesRemainingCount > 0`, Claude should:
@@ -45,5 +55,6 @@ When the JSON metadata shows `imagesRemainingCount > 0`, Claude should:
 `get_item_details` also extracts downloadable resources linked from the assignment/quiz page as `attachments` when available.
 
 - For PDFs/DOCX/PPTX (and images), Claude can often use existing tools (like `get_file_text`) for deeper extraction.
-- For CSV/other formats, Claude should treat extraction as best-effort unless a dedicated parser exists.
+- For CSV: if `includeCsv=true`, the tool will inline the CSV as text (full/preview) with strict byte/line caps.
+- For other formats: treat extraction as best-effort (the tool lists URLs, but does not parse unknown binaries).
 

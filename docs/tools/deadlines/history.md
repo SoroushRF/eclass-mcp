@@ -43,4 +43,19 @@ This document tracks the incremental fixes and features added to the Deadlines a
   - January range query returned historical results.
 
 ---
+
+## ✅ Phase 3: Vision Instruction Images + CSV Inlining (Completed)
+**Date:** 2026-03-20
+**What we did:**
+- Updated `get_item_details` to optionally attach instruction screenshots as **vision `image` blocks** (no OCR) using `includeImages` plus strict payload caps/pagination.
+- Updated `get_item_details` to optionally inline **CSV attachments** as text using `includeCsv` with full/preview + byte/line limits.
+- Extended scraping to return:
+  - `descriptionImageUrls` for instruction screenshots
+  - `attachments[]` for downloadable resources across varied formats
+
+**Verification outcome:**
+- Instruction screenshot reading works with `includeImages=true`.
+- CSV inlining works for `kind: "csv"` attachments with `csvMode=full|preview`.
+
+---
 *Created: 2026-03-19*

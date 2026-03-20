@@ -22,8 +22,16 @@ Evolve the Deadlines tool into a dynamic system that can view past/future assign
     - `scope=month|range`: assignment-index aggregation (`mod/assign/index.php`) across one/all courses, then date filtering.
 
 - **`get_item_details`**: fetches rich details for a single assignment/quiz URL.
-  - **Args**: `url` (string)
-  - **Returns**: JSON text `ItemDetails` (`kind: 'assign' | 'quiz'`) with description + status/grade fields when available.
+  - **Args**:
+    - `url` (string)
+    - `includeImages?`: attach instruction screenshots as vision `image` blocks (no OCR)
+    - `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`: image caps + pagination controls
+    - `includeCsv?`: inline CSV attachments as text
+    - `csvMode?` (`auto|full|preview`), `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?`: CSV caps + truncation controls
+  - **Returns**: MCP `content` blocks:
+    - always a first `text` block with JSON metadata
+    - optionally `image` blocks (when `includeImages=true`)
+    - optionally inlined CSV `text` blocks (when `includeCsv=true`)
 
 ### Local scripts (verification)
 - `scripts/test-month-view.ts`
@@ -76,15 +84,18 @@ Step A: call `get_deadlines` (any scope) and pick an item’s `url`.
 
 Step B: call:
 - Tool: `get_item_details`
-- Args: `{ "url": "<paste_url_here>" }`
+- Args: `{ "url": "<paste_url_here>", "includeImages": true, "includeCsv": true }` (set whichever options you need)
 
 Expect:
-- JSON object with:
+- A first JSON metadata block with:
   - `kind`: `'assign'` or `'quiz'`
   - `title`
   - `descriptionText?` / `descriptionHtml?`
   - `fields?`: key/value map (submission status table or quiz summary table when present)
   - `grade?`, `feedbackText?` when visible to the student
+- Plus optional extra blocks:
+  - vision `image` blocks for instruction screenshots (if `includeImages=true`)
+  - inline CSV `text` blocks for CSV attachments (if `includeCsv=true`)
 
 ### 5) Auto-details (based on user prompt in client)
 Call:
@@ -133,5 +144,5 @@ Expect:
 3.  **Checkpoint:** Report back to USER after EVERY task.
 
 ---
-*Last Updated: 2026-03-19*
+*Last Updated: 2026-03-20*
 *Status: Detailed Planning Complete*
