@@ -1,0 +1,170 @@
+# Deadlines Feature - Failed Prompts Investigation Plan
+
+## Purpose
+Track failed or partially failed prompts for the deadlines/details feature and investigate them one-by-one in a strict sequence.
+
+We will only move to the next prompt after:
+1) root cause is identified,
+2) fix is implemented,
+3) fix is verified,
+4) docs are updated.
+
+---
+
+## Failed Prompt Backlog
+
+## P1 - Month scope returned empty
+**Prompt**
+`Show my eClass deadlines for March 2026 (include past and future). Return the list.`
+
+**Observed result**
+- Returned empty for month scope.
+- Range fallback also returned empty.
+- Assistant inferred "eClass is upcoming-only."
+
+**Expected result**
+- `scope=month` should return assignment items from March 2026 (including past+future).
+
+**Root cause (confirmed)**
+- Month calendar grid was an unreliable source in this tenant/theme.
+- DOM extraction/filtering from calendar view did not reliably expose assignment links/data.
+- Empty month results were also reinforced by cached empty arrays during investigation.
+
+**Fix applied**
+1. Pivoted month/range source from calendar month view to assignment index pages.
+2. Implemented aggregation from `mod/assign/index.php?id=<courseId>`.
+3. Filtered by parsed due date for the requested month.
+4. Treated cached empty arrays as cache miss during recomputation.
+
+**Acceptance criteria**
+- Month query returns non-empty when events exist in that month.
+- Returned items include `name`, `dueDate`, `url`, `courseId`, `type`.
+
+**Verification**
+- Prompt re-run by user succeeded after architecture pivot.
+- Status: **Done**
+
+---
+
+## P2 - Range scope returned empty for historical window
+**Prompt**
+`Show all eClass deadlines between 2026-01-01 and 2026-01-31.`
+
+**Observed result**
+- Empty result.
+- Assistant inferred "API is forward-only."
+
+**Expected result**
+- Range should return historical assignments when present in assignment index tables.
+
+**Root cause (confirmed)**
+- Range logic depended on the same unreliable month calendar source.
+- Boundaries and filtering were not aligned to full-day behavior for `YYYY-MM-DD`.
+
+**Fix applied**
+1. Reused assignment-index aggregation for range queries.
+2. Added explicit boundary normalization for day-only inputs:
+   - `from` -> start of day
+   - `to` -> end of day
+3. Filtered only on parseable due dates from assignment index rows.
+
+**Acceptance criteria**
+- Range query returns historical events when present in source pages.
+- If no source data exists, response includes a clear "no source events found" explanation path (to be designed).
+
+**Verification**
+- Prompt re-run by user succeeded for January range.
+- Status: **Done**
+
+---
+
+## P3 - Quiz details missing grade
+**Prompt**
+`Open this eClass item and extract the full description/instructions plus my submission status and grade/feedback if shown: https://eclass.yorku.ca/mod/quiz/view.php?id=3859421`
+
+**Observed result**
+- Details fetched successfully.
+- Grade was missing even though quiz was graded.
+
+**Expected result**
+- Quiz details include grade (or score) when visible on the quiz page.
+
+**Likely causes**
+- Quiz grade selector coverage too narrow.
+- Grade appears in a block outside current summary table selectors.
+- Grade rendered behind another page (review/attempt summary) requiring additional navigation.
+
+**Investigation steps**
+1. Capture quiz page HTML and locate actual grade DOM node.
+2. Expand quiz parser selectors for grade/score labels and summary blocks.
+3. If needed, follow review/result link and scrape grade there.
+4. Re-run `scripts/test-item-details.ts` using this URL.
+
+**Acceptance criteria**
+- `get_item_details` returns `grade` for graded quiz when shown in UI.
+- No regression for ungraded quizzes.
+
+---
+
+## P4 - Assignment descriptions missing (text + images)
+**Prompt**
+`Get my upcoming deadlines and for the first 5 items also fetch the full instructions/description and my status/grade if available.`
+
+**Observed result**
+- Returned "template only" for multiple assignment descriptions.
+- User confirms real descriptions exist with mixed text + images.
+
+**Expected result**
+- Assignment details should include meaningful instruction content from assignment intro/description area.
+- Preserve both text and image references where possible.
+
+**Likely causes**
+- Description selector is grabbing wrapper boilerplate instead of content body.
+- Lazy-loaded or nested content not targeted.
+- Current extraction returns plain text and drops image context.
+
+**Investigation steps**
+1. Save assignment detail HTML for failing items.
+2. Identify exact container for authored content (not template wrapper).
+3. Extract richer payload:
+   - cleaned text body
+   - HTML fragment
+   - image URLs (resolved absolute URLs)
+4. Verify via `get_item_details` and `get_deadlines(includeDetails=true)` output.
+
+**Acceptance criteria**
+- Description contains authored instructions (not only boilerplate).
+- Image references are present in output where images exist.
+
+---
+
+## Execution Procedure (Strict Order)
+1. Investigate/fix **P1**.
+2. Investigate/fix **P2**.
+3. Investigate/fix **P3**.
+4. Investigate/fix **P4**.
+
+For each prompt:
+1. Reproduce.
+2. Capture evidence (HTML/selectors/output).
+3. Implement minimal fix.
+4. Run script tests + MCP prompt test.
+5. Update docs (`history.md`, this file, `TODO.md`) with outcome.
+
+---
+
+## Documentation Update Checklist Per Prompt
+- [ ] Mark prompt status: `Open -> In Progress -> Verified -> Done`
+- [ ] Add root cause summary
+- [ ] Add changed files list
+- [ ] Add verification commands + observed output summary
+- [ ] Add follow-up risks
+
+---
+
+## Status Board
+- P1: Done
+- P2: Done
+- P3: Open
+- P4: Open
+

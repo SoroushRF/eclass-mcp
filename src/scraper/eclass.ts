@@ -3,6 +3,7 @@ import { loadSession } from './session';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import { DeadlineItem, DeadlineItemType, AssignmentDetails, QuizDetails, ItemDetails } from '../types/deadlines';
 
 
 dotenv.config({ quiet: true });
@@ -30,6 +31,19 @@ export interface Assignment {
   status: string;
   courseId: string;
   url: string;
+}
+
+function inferItemType(url: string): DeadlineItemType {
+  const u = url.toLowerCase();
+  if (u.includes('/mod/assign/')) return 'assign';
+  if (u.includes('/mod/quiz/')) return 'quiz';
+  if (u.includes('assign')) return 'assign';
+  if (u.includes('quiz')) return 'quiz';
+  return 'other';
+}
+
+function toDeadlineItem(a: Assignment): DeadlineItem {
+  return { ...a, type: inferItemType(a.url) };
 }
 
 export interface Grade {
@@ -260,6 +274,267 @@ class EClassScraper {
       });
 
       return deadlines as Assignment[];
+    } finally {
+      await page.close();
+      await context.close();
+    }
+  }
+
+  async getMonthDeadlines(month: number, year: number, courseId?: string): Promise<DeadlineItem[]> {
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
+    try {
+      const time = Math.floor(new Date(year, month - 1, 1).getTime() / 1000);
+      const url = courseId
+        ? `${ECLASS_URL}/calendar/view.php?view=month&time=${time}&course=${courseId}`
+        : `${ECLASS_URL}/calendar/view.php?view=month&time=${time}`;
+
+      await page.goto(url, { waitUntil: 'networkidle' });
+
+      const items = await page.evaluate(() => {
+        const eventEls = Array.from(document.querySelectorAll('.calendar_event_course, .calendar_event, .event'));
+
+        return eventEls.map((el) => {
+          const links = Array.from(el.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+          const hrefs = links.map((a) => a.href).filter(Boolean);
+
+          const preferred =
+            hrefs.find((h) => h.includes('/mod/assign/')) ||
+            hrefs.find((h) => h.includes('/mod/quiz/')) ||
+            hrefs.find((h) => h.includes('assign')) ||
+            hrefs.find((h) => h.includes('quiz')) ||
+            hrefs.find((h) => h.includes('/calendar/')) ||
+            hrefs[0] ||
+            '';
+
+          const url = preferred;
+
+          const title =
+            (el.querySelector('.eventname, .name, .card-title, .calendar_event_name')?.textContent ||
+              links[0]?.textContent ||
+              '').trim() ||
+            'Untitled Event';
+
+          // Month view date can be in time tags or aria labels; fall back to whatever text we can find.
+          const dateText =
+            (el.querySelector('time') as HTMLTimeElement | null)?.getAttribute('datetime') ||
+            (el.querySelector('time') as HTMLTimeElement | null)?.textContent ||
+            (el.getAttribute('aria-label') || '') ||
+            (el.textContent || '');
+
+          const courseLink = el.querySelector('a[href*="course/view.php"]') as HTMLAnchorElement | null;
+          const courseId =
+            el.getAttribute('data-course-id') ||
+            courseLink?.href.match(/id=(\d+)/)?.[1] ||
+            '';
+
+          const id =
+            el.getAttribute('data-event-id') ||
+            url.match(/[?&]id=(\d+)/)?.[1] ||
+            Math.random().toString();
+
+          return {
+            id,
+            name: title,
+            dueDate: (dateText || '').trim(),
+            status: 'Calendar',
+            courseId,
+            url,
+          };
+        }).filter(d => d.url);
+      });
+
+      return (items as Assignment[]).map(toDeadlineItem);
+    } finally {
+      await page.close();
+      await context.close();
+    }
+  }
+
+  async getAssignmentIndexDeadlines(courseId: string): Promise<DeadlineItem[]> {
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
+    try {
+      const url = `${ECLASS_URL}/mod/assign/index.php?id=${courseId}`;
+      await page.goto(url, { waitUntil: 'networkidle' });
+
+      const rows = await page.evaluate((cid) => {
+        const headerCells = Array.from(document.querySelectorAll('.generaltable thead th'));
+        const headers = headerCells.map((th) => (th.textContent || '').trim());
+        const dataRows = Array.from(document.querySelectorAll('.generaltable tbody tr'));
+
+        return dataRows.map((tr, idx) => {
+          const tds = Array.from(tr.querySelectorAll('td'));
+          const mapped: Record<string, string> = {};
+          headers.forEach((h, i) => {
+            mapped[h] = (tds[i]?.textContent || '').trim().replace(/\s+/g, ' ');
+          });
+
+          const link = tr.querySelector('a[href*="/mod/assign/view.php?id="]') as HTMLAnchorElement | null;
+          const href = link?.href || '';
+          const name = (link?.textContent || mapped['Assignments'] || '').trim();
+          if (!href || !name) return null;
+
+          const idMatch = href.match(/[?&]id=(\d+)/);
+          return {
+            id: idMatch?.[1] || `${cid}_${idx}`,
+            name,
+            dueDate: mapped['Due date'] || mapped['Due Date'] || mapped['Due'] || '',
+            status: mapped['Submission'] || 'Unknown',
+            courseId: cid,
+            url: href,
+            type: 'assign' as const,
+            section: mapped['Section'] || '',
+            submission: mapped['Submission'] || '',
+            grade: mapped['Grade'] || '',
+          };
+        }).filter(Boolean);
+      }, courseId);
+
+      return rows as DeadlineItem[];
+    } finally {
+      await page.close();
+      await context.close();
+    }
+  }
+
+  async getAllAssignmentDeadlines(courseId?: string): Promise<DeadlineItem[]> {
+    if (courseId) return this.getAssignmentIndexDeadlines(courseId);
+
+    const courses = await this.getCourses();
+    const all: DeadlineItem[] = [];
+    for (const c of courses) {
+      try {
+        const items = await this.getAssignmentIndexDeadlines(c.id);
+        all.push(...items);
+      } catch {
+        // Continue across courses; a single course failure should not fail all deadlines.
+      }
+    }
+    return all;
+  }
+
+  async getItemDetails(url: string): Promise<ItemDetails> {
+    const t = inferItemType(url);
+    if (t === 'quiz') return this.getQuizDetails(url);
+    return this.getAssignmentDetails(url);
+  }
+
+  async getAssignmentDetails(url: string): Promise<AssignmentDetails> {
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
+    try {
+      await page.goto(url, { waitUntil: 'networkidle' });
+      const data = await page.evaluate((pageUrl) => {
+        const title =
+          (document.querySelector('h1')?.textContent || document.title || '').trim() ||
+          'Assignment';
+
+        const descEl =
+          (document.querySelector('.no-overflow') as HTMLElement | null) ||
+          (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
+          (document.querySelector('#intro') as HTMLElement | null);
+
+        const descriptionHtml = descEl?.innerHTML?.trim() || '';
+        const descriptionText = descEl?.textContent?.trim() || '';
+
+        const table = document.querySelector('.submissionstatustable') as HTMLTableElement | null;
+        const fields: Record<string, string> = {};
+        if (table) {
+          const rows = Array.from(table.querySelectorAll('tr'));
+          for (const r of rows) {
+            const k = (r.querySelector('th')?.textContent || '').trim();
+            const v = (r.querySelector('td')?.textContent || '').trim();
+            if (k) fields[k] = v;
+          }
+        }
+
+        // Try to derive grade/feedback from the table when present.
+        const grade =
+          fields['Grade'] ||
+          fields['Grading status'] ||
+          '';
+
+        const feedbackText =
+          fields['Feedback'] ||
+          '';
+
+        return {
+          kind: 'assign' as const,
+          url: pageUrl,
+          title,
+          descriptionHtml: descriptionHtml || undefined,
+          descriptionText: descriptionText || undefined,
+          fields: Object.keys(fields).length ? fields : undefined,
+          grade: grade || undefined,
+          feedbackText: feedbackText || undefined,
+        };
+      }, url);
+
+      return data;
+    } finally {
+      await page.close();
+      await context.close();
+    }
+  }
+
+  async getQuizDetails(url: string): Promise<QuizDetails> {
+    const context = await this.getAuthenticatedContext();
+    const page = await context.newPage();
+    try {
+      await page.goto(url, { waitUntil: 'networkidle' });
+      const data = await page.evaluate((pageUrl) => {
+        const title =
+          (document.querySelector('h1')?.textContent || document.title || '').trim() ||
+          'Quiz';
+
+        const descEl =
+          (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
+          (document.querySelector('#intro') as HTMLElement | null) ||
+          (document.querySelector('.no-overflow') as HTMLElement | null);
+
+        const descriptionHtml = descEl?.innerHTML?.trim() || '';
+        const descriptionText = descEl?.textContent?.trim() || '';
+
+        // Quiz summary page often has a table with key/value facts.
+        const table =
+          (document.querySelector('.generaltable') as HTMLTableElement | null) ||
+          (document.querySelector('.quizattemptsummary') as HTMLTableElement | null);
+
+        const fields: Record<string, string> = {};
+        if (table) {
+          const rows = Array.from(table.querySelectorAll('tr'));
+          for (const r of rows) {
+            const k = (r.querySelector('th')?.textContent || r.querySelector('td')?.textContent || '').trim();
+            const tds = Array.from(r.querySelectorAll('td'));
+            const v = (tds.length >= 2 ? tds[1].textContent : tds[0]?.textContent || '').trim();
+            if (k && v) fields[k] = v;
+          }
+        }
+
+        const grade =
+          fields['Grade'] ||
+          fields['Mark'] ||
+          fields['Marks'] ||
+          '';
+
+        const feedbackText =
+          fields['Feedback'] ||
+          '';
+
+        return {
+          kind: 'quiz' as const,
+          url: pageUrl,
+          title,
+          descriptionHtml: descriptionHtml || undefined,
+          descriptionText: descriptionText || undefined,
+          fields: Object.keys(fields).length ? fields : undefined,
+          grade: grade || undefined,
+          feedbackText: feedbackText || undefined,
+        };
+      }, url);
+
+      return data;
     } finally {
       await page.close();
       await context.close();

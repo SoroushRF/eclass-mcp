@@ -11,6 +11,7 @@ export const TTL = {
   COURSES: 60 * 24,      // 24 hours
   CONTENT: 60 * 6,       // 6 hours
   DEADLINES: 60 * 2,     // 2 hours
+  DETAILS: 60,           // 1 hour (details change, but not constantly)
   ANNOUNCEMENTS: 60,     // 1 hour
   GRADES: 60 * 12,       // 12 hours
   FILES: 60 * 24 * 7,    // 7 days (parsed file text rarely changes)

@@ -8,8 +8,10 @@
 
 ### 📅 Deadlines & Details ([Roadmap](docs/tools/deadlines/roadmap.md))
 - [x] Fix "Upcoming" Scraper & Date Parsing (Moodle 4)
-- [ ] Implement Month-by-Month Navigation (Past & Future)
-- [ ] Implement Single-Assignment Deep-Dive (Instructions & Files)
+- [x] Implement Month-by-Month Navigation (Past & Future)
+- [x] Implement Single-Assignment Deep-Dive (Instructions & Status/Grades when available)
+- [ ] Install Playwright browser (`npx playwright install chromium`) on target machine (required to run scraper/tests)
+- [ ] Harden selectors for quiz pages and month-view date extraction (validate against multiple courses/themes)
 
 ---
 

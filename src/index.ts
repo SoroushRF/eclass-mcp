@@ -12,7 +12,7 @@ import { startAuthServer } from './auth/server';
 import { listCourses } from './tools/courses';
 import { getCourseContent } from './tools/content';
 import { getFileText } from './tools/files';
-import { getUpcomingDeadlines } from './tools/deadlines';
+import { getUpcomingDeadlines, getDeadlines, getItemDetails } from './tools/deadlines';
 import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 
@@ -60,6 +60,31 @@ server.tool(
     courseId: z.string().optional().describe("Filter by course ID")
   },
   (async ({ daysAhead, courseId }: any) => await getUpcomingDeadlines(daysAhead, courseId)) as any
+);
+
+server.tool(
+  "get_deadlines",
+  "Returns assignment/quiz deadlines for upcoming, month, or date range scopes.",
+  {
+    courseId: z.string().optional().describe("Filter by course ID"),
+    scope: z.enum(["upcoming", "month", "range"]).optional().describe("Scope (default upcoming)"),
+    month: z.number().int().min(1).max(12).optional().describe("Month (1-12) when scope=month"),
+    year: z.number().int().min(2000).max(2100).optional().describe("Year when scope=month"),
+    from: z.string().optional().describe("Start date/time (ISO or YYYY-MM-DD) when scope=range"),
+    to: z.string().optional().describe("End date/time (ISO or YYYY-MM-DD) when scope=range"),
+    includeDetails: z.boolean().optional().describe("If true, fetch details for first maxDetails items"),
+    maxDetails: z.number().int().min(0).max(25).optional().describe("Max items to deep-fetch when includeDetails=true (default 7)")
+  },
+  (async (args: any) => await getDeadlines(args)) as any
+);
+
+server.tool(
+  "get_item_details",
+  "Fetches assignment/quiz page details (description/status/grade when available).",
+  {
+    url: z.string().describe("Assignment or quiz URL"),
+  },
+  (async (args: any) => await getItemDetails(args)) as any
 );
 
 server.tool(
