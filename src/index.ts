@@ -80,9 +80,13 @@ server.tool(
 
 server.tool(
   "get_item_details",
-  "Fetches assignment/quiz page details (description/status/grade when available).",
+  "Fetches assignment/quiz page details, optionally attaching vision instruction images (no OCR) with strict payload caps.",
   {
     url: z.string().describe("Assignment or quiz URL"),
+    includeImages: z.boolean().optional().describe("If true, attach instruction screenshots as vision image blocks (no OCR) when present"),
+    maxImages: z.number().int().min(0).max(10).optional().describe("Max instruction images to attach (default 3)"),
+    imageOffset: z.number().int().min(0).optional().describe("Pagination offset into instruction image list (default 0)"),
+    maxTotalImageBytes: z.number().int().min(0).max(1000000).optional().describe("Max base64 payload budget for attached images (default 750000)"),
   },
   (async (args: any) => await getItemDetails(args)) as any
 );

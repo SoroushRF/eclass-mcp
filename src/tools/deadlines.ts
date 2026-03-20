@@ -80,7 +80,8 @@ function hasUsableItems<T>(value: T[] | null): value is T[] {
 function detailsCacheKey(url: string) {
   // CacheStore already sanitizes; keep key short-ish and deterministic.
   const shortened = url.length > 200 ? url.slice(0, 200) : url;
-  return `details_${shortened}`;
+  // Bump this when the extraction payload shape changes (e.g. added descriptionImageUrls).
+  return `details_${shortened}_v2`;
 }
 
 function inferTypeFromUrl(url: string): 'assign' | 'quiz' | 'other' {
@@ -215,12 +216,129 @@ export async function getDeadlines(params: {
   }
 }
 
-export async function getItemDetails(params: { url: string }) {
+export async function getItemDetails(params: {
+  url: string;
+  includeImages?: boolean;
+  maxImages?: number;
+  imageOffset?: number;
+  maxTotalImageBytes?: number;
+}) {
   try {
     const url = params?.url;
     if (!url) throw new Error('url is required');
+
+    const includeImages = params?.includeImages ?? false;
+    const maxImages = params?.maxImages ?? 3;
+    const imageOffset = params?.imageOffset ?? 0;
+    const maxTotalImageBytes = params?.maxTotalImageBytes ?? 750_000;
+
     const details = await getDetailsCached(url);
-    return { content: [{ type: 'text' as const, text: JSON.stringify(details) }] };
+
+    // Backwards compatible mode: return only the JSON payload.
+    if (!includeImages) {
+      return { content: [{ type: 'text' as const, text: JSON.stringify(details) }] };
+    }
+
+    const allImageUrls = details.descriptionImageUrls ?? [];
+    if (!allImageUrls.length) {
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({
+              ...details,
+              imageTotalCount: 0,
+              imagesReturnedCount: 0,
+              imagesSkippedByBudget: 0,
+              imagesRemainingCount: 0,
+              nextImageOffset: 0,
+              note: 'No instruction images found in descriptionHtml.'
+            }),
+          },
+        ],
+      };
+    }
+
+    const offset = Math.max(0, imageOffset);
+    const slice = allImageUrls.slice(offset);
+
+    const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
+    let usedBytes = 0;
+    let skippedByBudget = 0;
+    let attemptedCount = 0;
+
+    for (let i = 0; i < slice.length; i++) {
+      attemptedCount = i + 1;
+      if (downloadedImages.length >= maxImages) break;
+
+      const imageUrl = slice[i];
+      try {
+        const { buffer, mimeType } = await scraper.downloadFile(imageUrl);
+        const urlLower = imageUrl.toLowerCase();
+        const isImageByMime = mimeType.startsWith('image/');
+        const isImageByExt =
+          urlLower.endsWith('.png') ||
+          urlLower.endsWith('.jpg') ||
+          urlLower.endsWith('.jpeg') ||
+          urlLower.endsWith('.gif') ||
+          urlLower.endsWith('.webp') ||
+          urlLower.includes('.png?') ||
+          urlLower.includes('.jpg?') ||
+          urlLower.includes('.jpeg?') ||
+          urlLower.includes('.gif?') ||
+          urlLower.includes('.webp?');
+
+        if (!isImageByMime && !isImageByExt) {
+          skippedByBudget++;
+          continue;
+        }
+
+        const base64 = buffer.toString('base64');
+        // Approximate payload: base64 string length ~ bytes in ASCII payload.
+        const estBytes = base64.length;
+        if (usedBytes + estBytes > maxTotalImageBytes) {
+          skippedByBudget++;
+          break;
+        }
+
+        downloadedImages.push({ base64, mimeType });
+        usedBytes += estBytes;
+      } catch {
+        skippedByBudget++;
+      }
+    }
+
+    const imagesReturnedCount = downloadedImages.length;
+    const nextImageOffset = offset + attemptedCount;
+    const imagesRemainingCount = Math.max(0, allImageUrls.length - nextImageOffset);
+
+    const content: any[] = [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          ...details,
+          imageTotalCount: allImageUrls.length,
+          imageOffset: offset,
+          imagesReturnedCount,
+          imagesSkippedByBudget: skippedByBudget,
+          imagesRemainingCount,
+          nextImageOffset,
+          maxImages,
+          maxTotalImageBytes,
+          usedBase64BytesEstimate: usedBytes,
+        }),
+      },
+    ];
+
+    for (const img of downloadedImages) {
+      content.push({
+        type: 'image' as const,
+        data: img.base64,
+        mimeType: img.mimeType,
+      });
+    }
+
+    return { content };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();

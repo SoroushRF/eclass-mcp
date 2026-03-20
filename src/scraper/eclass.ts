@@ -438,6 +438,71 @@ class EClassScraper {
         const descriptionHtml = descEl?.innerHTML?.trim() || '';
         const descriptionText = descEl?.textContent?.trim() || '';
 
+        // Extract instruction screenshot URLs (vision-only; no OCR).
+        const descriptionImageUrls: string[] = [];
+        if (descEl) {
+          const imgs = Array.from(descEl.querySelectorAll('img[src]')) as HTMLImageElement[];
+          for (const img of imgs) {
+            const src = img.getAttribute('src') || '';
+            if (!src) continue;
+            try {
+              descriptionImageUrls.push(new URL(src, pageUrl).href);
+            } catch {
+              // ignore invalid URLs
+            }
+          }
+        }
+        const descriptionImageUrlsUnique = Array.from(new Set(descriptionImageUrls));
+
+        const descriptionImageSet = new Set(descriptionImageUrlsUnique);
+
+        // Extract downloadable resources linked from the page.
+        const pluginAnchors = Array.from(document.querySelectorAll('a[href*="pluginfile.php"]')) as HTMLAnchorElement[];
+        const attachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+
+        const classifyKind = (href: string): any => {
+          const h = href.toLowerCase();
+          if (h.includes('.pdf')) return 'pdf';
+          if (h.includes('.docx')) return 'docx';
+          if (h.includes('.pptx')) return 'pptx';
+          if (h.match(/\.(png|jpe?g|gif|webp)(\?|#|$)/i)) return 'image';
+          if (h.includes('.csv')) return 'csv';
+          return 'other';
+        };
+
+        for (const a of pluginAnchors) {
+          const href = a.href || a.getAttribute('href') || '';
+          if (!href) continue;
+          let abs = href;
+          try {
+            abs = new URL(href, pageUrl).href;
+          } catch {
+            // ignore
+          }
+
+          // Don't double-count instruction screenshots as attachments.
+          if (descriptionImageSet.has(abs)) continue;
+
+          if (attachments.length >= 20) break;
+
+          const name = (a.textContent || '').trim() || '';
+          const kind = classifyKind(abs);
+          attachments.push({
+            url: abs,
+            kind,
+            name: name || undefined,
+            hint: 'downloadable resource'
+          });
+        }
+
+        const uniqueAttachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+        const seen = new Set<string>();
+        for (const att of attachments) {
+          if (seen.has(att.url)) continue;
+          seen.add(att.url);
+          uniqueAttachments.push(att);
+        }
+
         const table = document.querySelector('.submissionstatustable') as HTMLTableElement | null;
         const fields: Record<string, string> = {};
         if (table) {
@@ -465,6 +530,8 @@ class EClassScraper {
           title,
           descriptionHtml: descriptionHtml || undefined,
           descriptionText: descriptionText || undefined,
+          descriptionImageUrls: descriptionImageUrlsUnique.length ? descriptionImageUrlsUnique : undefined,
+          attachments: uniqueAttachments.length ? (uniqueAttachments as any) : undefined,
           fields: Object.keys(fields).length ? fields : undefined,
           grade: grade || undefined,
           feedbackText: feedbackText || undefined,
@@ -495,6 +562,69 @@ class EClassScraper {
 
         const descriptionHtml = descEl?.innerHTML?.trim() || '';
         const descriptionText = descEl?.textContent?.trim() || '';
+
+        // Extract quiz instruction screenshot URLs (vision-only; no OCR).
+        const descriptionImageUrls: string[] = [];
+        if (descEl) {
+          const imgs = Array.from(descEl.querySelectorAll('img[src]')) as HTMLImageElement[];
+          for (const img of imgs) {
+            const src = img.getAttribute('src') || '';
+            if (!src) continue;
+            try {
+              descriptionImageUrls.push(new URL(src, pageUrl).href);
+            } catch {
+              // ignore invalid URLs
+            }
+          }
+        }
+        const descriptionImageUrlsUnique = Array.from(new Set(descriptionImageUrls));
+        const descriptionImageSet = new Set(descriptionImageUrlsUnique);
+
+        // Best-effort downloadable resources from quiz page.
+        const pluginAnchors = Array.from(document.querySelectorAll('a[href*="pluginfile.php"]')) as HTMLAnchorElement[];
+        const attachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+
+        const classifyKind = (href: string): any => {
+          const h = href.toLowerCase();
+          if (h.includes('.pdf')) return 'pdf';
+          if (h.includes('.docx')) return 'docx';
+          if (h.includes('.pptx')) return 'pptx';
+          if (h.match(/\.(png|jpe?g|gif|webp)(\?|#|$)/i)) return 'image';
+          if (h.includes('.csv')) return 'csv';
+          return 'other';
+        };
+
+        for (const a of pluginAnchors) {
+          const href = a.href || a.getAttribute('href') || '';
+          if (!href) continue;
+          let abs = href;
+          try {
+            abs = new URL(href, pageUrl).href;
+          } catch {
+            // ignore
+          }
+
+          // Avoid double-counting instruction screenshots as attachments.
+          if (descriptionImageSet.has(abs)) continue;
+          if (attachments.length >= 20) break;
+
+          const name = (a.textContent || '').trim() || '';
+          const kind = classifyKind(abs);
+          attachments.push({
+            url: abs,
+            kind,
+            name: name || undefined,
+            hint: 'downloadable resource'
+          });
+        }
+
+        const uniqueAttachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+        const seen = new Set<string>();
+        for (const att of attachments) {
+          if (seen.has(att.url)) continue;
+          seen.add(att.url);
+          uniqueAttachments.push(att);
+        }
 
         // Try to extract grade/score from the page text first. This is more robust
         // than our key/value table mapping because Moodle structures can vary.
@@ -570,6 +700,8 @@ class EClassScraper {
           title,
           descriptionHtml: descriptionHtml || undefined,
           descriptionText: descriptionText || undefined,
+          descriptionImageUrls: descriptionImageUrlsUnique.length ? descriptionImageUrlsUnique : undefined,
+          attachments: uniqueAttachments.length ? (uniqueAttachments as any) : undefined,
           fields: Object.keys(fields).length ? fields : undefined,
           grade: grade || undefined,
           feedbackText: feedbackText || undefined,
@@ -751,13 +883,17 @@ class EClassScraper {
 
             if (interceptedBuffer) {
               await page.close();
-              // Resolve extension from filename if mime is generic
+      // Resolve extension from filename if mime is generic
               let resolvedMime = interceptedMime;
               const ext = path.extname(interceptedFilename).toLowerCase();
               if (resolvedMime === 'application/octet-stream') {
                 if (ext === '.pdf') resolvedMime = 'application/pdf';
                 else if (ext === '.docx') resolvedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
                 else if (ext === '.pptx') resolvedMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        else if (ext === '.png') resolvedMime = 'image/png';
+        else if (ext === '.jpg' || ext === '.jpeg') resolvedMime = 'image/jpeg';
+        else if (ext === '.gif') resolvedMime = 'image/gif';
+        else if (ext === '.webp') resolvedMime = 'image/webp';
               }
               return { buffer: interceptedBuffer, mimeType: resolvedMime, filename: interceptedFilename };
             }
