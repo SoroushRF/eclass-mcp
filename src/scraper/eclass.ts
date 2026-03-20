@@ -496,31 +496,73 @@ class EClassScraper {
         const descriptionHtml = descEl?.innerHTML?.trim() || '';
         const descriptionText = descEl?.textContent?.trim() || '';
 
-        // Quiz summary page often has a table with key/value facts.
+        // Try to extract grade/score from the page text first. This is more robust
+        // than our key/value table mapping because Moodle structures can vary.
+        const pageText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+
+        const num = `(\\d+(?:\\.\\d+)?)`;
+        const highestGradeMatch = pageText.match(new RegExp(`Highest grade:\\s*${num}\\s*\\/\\s*${num}`, 'i'));
+        const gradeToPassMatch = pageText.match(new RegExp(`Grade to pass:\\s*${num}\\s*out of\\s*${num}`, 'i'));
+        const markPercentMatch = pageText.match(new RegExp(`(?:Mark|Score):\\s*${num}\\s*%`, 'i'));
+
+        let grade: string | undefined;
+        if (highestGradeMatch) {
+          grade = `${highestGradeMatch[1]} / ${highestGradeMatch[2]}`;
+        } else if (markPercentMatch) {
+          grade = `${markPercentMatch[1]}%`;
+        } else if (gradeToPassMatch) {
+          // Fallback: at least we know grading rubric, even if the achieved grade
+          // isn't visible in the summary.
+          grade = `${gradeToPassMatch[1]} / ${gradeToPassMatch[2]} (to pass)`;
+        }
+
+        // Additionally, collect a small set of key/value facts from quizattemptsummary
+        // when the DOM is accessible.
         const table =
-          (document.querySelector('.generaltable') as HTMLTableElement | null) ||
-          (document.querySelector('.quizattemptsummary') as HTMLTableElement | null);
+          (document.querySelector('table.quizattemptsummary') as HTMLTableElement | null) ||
+          (document.querySelector('table.generaltable.quizattemptsummary') as HTMLTableElement | null) ||
+          (document.querySelector('.quizattemptsummary') as HTMLElement | null);
 
         const fields: Record<string, string> = {};
-        if (table) {
-          const rows = Array.from(table.querySelectorAll('tr'));
+        const tableEl =
+          table && table.tagName === 'TABLE'
+            ? (table as HTMLTableElement)
+            : table
+              ? (table.querySelector('table') as HTMLTableElement | null)
+              : null;
+
+        if (tableEl) {
+          const rows = Array.from(tableEl.querySelectorAll('tr'));
           for (const r of rows) {
-            const k = (r.querySelector('th')?.textContent || r.querySelector('td')?.textContent || '').trim();
-            const tds = Array.from(r.querySelectorAll('td'));
-            const v = (tds.length >= 2 ? tds[1].textContent : tds[0]?.textContent || '').trim();
-            if (k && v) fields[k] = v;
+            const cells = Array.from(r.querySelectorAll('th, td'))
+              .map((el) => (el.textContent || '').trim().replace(/\s+/g, ' '))
+              .filter(Boolean);
+
+            if (cells.length >= 2) {
+              const k = cells[0];
+              const v = cells.slice(1).join(' ').trim();
+              if (k && v && (/(grade|mark|attempt|state)/i.test(k) || /\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?/.test(v))) {
+                fields[k] = v;
+              }
+            }
           }
         }
 
-        const grade =
-          fields['Grade'] ||
-          fields['Mark'] ||
-          fields['Marks'] ||
-          '';
+        // If text-based grade failed, attempt to derive it from captured fields.
+        if (!grade) {
+          const candidateKeys = Object.keys(fields).filter((k) => /grade|mark/i.test(k));
+          for (const k of candidateKeys) {
+            const v = fields[k];
+            if (/\d/.test(v) && (v.includes('/') || v.includes('%'))) {
+              grade = v;
+              break;
+            }
+          }
+        }
 
-        const feedbackText =
-          fields['Feedback'] ||
-          '';
+        // Feedback is not always present in the summary HTML, so keep it optional.
+        const feedbackMatch = pageText.match(/Feedback:\s*(.+?)(?:\n|$)/i);
+        const feedbackText = feedbackMatch ? feedbackMatch[1].trim() : '';
 
         return {
           kind: 'quiz' as const,
