@@ -22,8 +22,9 @@ export async function getCourseContent(courseId: string) {
 
 export async function getSectionText(url: string) {
   try {
+    console.log(`[MCP Server] Claude requested section text for: ${url}`);
     // Generate a safe cache key from the URL stripping special chars
-    const cacheKey = `sectiontext_v2_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const cacheKey = `sectiontext_v4_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
     const cached = cache.get<SectionTextData>(cacheKey);
     if (cached) return { content: [{ type: 'text' as const, text: JSON.stringify(cached) }] };
     
