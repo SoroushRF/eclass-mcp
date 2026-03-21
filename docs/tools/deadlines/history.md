@@ -58,4 +58,20 @@ This document tracks the incremental fixes and features added to the Deadlines a
 - CSV inlining works for `kind: "csv"` attachments with `csvMode=full|preview`.
 
 ---
+## ✅ Phase 4: Course Label Enrichment for Deadline Items (Completed)
+**Date:** 2026-03-20
+**What we did:**
+- Extended deadline payloads to include `courseName` and best-effort `courseCode` in addition to `courseId`.
+- Enriched both upcoming-calendar items and assignment-index-backed items with human-readable course metadata.
+- Bumped deadline cache keys so stale `courseId`-only entries would not keep leaking into Claude responses.
+
+**Why this mattered:**
+- Claude could answer deadline questions correctly but still label some items as `Course 149363` because the tool output only exposed the raw eClass course ID.
+- After this change, clients can prefer `courseCode` or `courseName` when summarizing what the student should study.
+
+**Verification outcome:**
+- TypeScript compile check passed after the payload shape change.
+- Next deadline fetch will bypass the old cache key and return refreshed items with readable course labels.
+
+---
 *Created: 2026-03-19*

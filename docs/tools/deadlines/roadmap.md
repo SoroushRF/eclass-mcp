@@ -17,6 +17,8 @@ Evolve the Deadlines tool into a dynamic system that can view past/future assign
     - `includeDetails?`: boolean (default `false`) – deep-fetch details for first `maxDetails` items
     - `maxDetails?`: number (default `7`, max `25`)
   - **Returns**: JSON text array of `DeadlineItem` objects (and optionally `details` for first N items).
+    - `DeadlineItem` now includes `courseName?` and `courseCode?` in addition to `courseId`.
+    - Clients should prefer `courseCode` or `courseName` when summarizing deadlines for the user, and only fall back to raw `courseId` if no readable label exists.
   - **Current source strategy**:
     - `scope=upcoming`: calendar upcoming page (fast path).
     - `scope=month|range`: assignment-index aggregation (`mod/assign/index.php`) across one/all courses, then date filtering.
@@ -60,6 +62,7 @@ Call:
 
 Expect:
 - JSON array, each item includes: `name`, `dueDate` (string), `url`, `courseId`, `type: 'assign'|'quiz'|...`
+- When available, each item also includes `courseName` and `courseCode` so assistants can say `EECS1021` instead of a raw eClass course ID.
 - assignment-index-backed entries also include `section`, `submission`, `grade` when available.
 
 ### 2) Month view (past + future within a month)

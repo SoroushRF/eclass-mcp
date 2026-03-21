@@ -138,11 +138,43 @@ We will only move to the next prompt after:
 
 ---
 
+## P5 - Deadline summaries used raw eClass course IDs instead of readable course labels
+**Prompt**
+`check my eclass what should I study for tonight?`
+
+**Observed result**
+- Deadline prioritization was broadly correct.
+- Some items were labeled like `Course 149363` instead of the human-facing course name or course code students recognize.
+
+**Expected result**
+- Deadline items should carry a readable course label so assistants can say `EECS1021` or the actual course title, not the raw eClass ID.
+
+**Root cause (confirmed)**
+- Deadline items returned `courseId` but not `courseName` or `courseCode`.
+- Claude had to infer a display label from incomplete data and sometimes fell back to the numeric eClass course ID.
+
+**Fix applied**
+1. Extended `DeadlineItem` to include `courseName?` and `courseCode?`.
+2. Enriched upcoming-calendar deadlines with course metadata from the linked course card text.
+3. Enriched assignment-index deadlines by joining course IDs against `getCourses()` results.
+4. Bumped deadline cache keys so old `courseId`-only payloads would be bypassed automatically.
+
+**Acceptance criteria**
+- Deadline payloads include readable course metadata when available.
+- Claude can summarize deadlines using `courseCode` or `courseName` without inventing labels like `Course 149363`.
+
+**Verification**
+- TypeScript compile check passed after the payload change.
+- Status: **Done**
+
+---
+
 ## Execution Procedure (Strict Order)
 1. Investigate/fix **P1**.
 2. Investigate/fix **P2**.
 3. Investigate/fix **P3**.
 4. Investigate/fix **P4**.
+5. Investigate/fix **P5**.
 
 For each prompt:
 1. Reproduce.
@@ -167,4 +199,4 @@ For each prompt:
 - P2: Done
 - P3: Open
 - P4: Open
-
+- P5: Done
