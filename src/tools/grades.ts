@@ -4,7 +4,7 @@ import { cache, TTL } from '../cache/store';
 
 export async function getGrades(courseId?: string) {
   try {
-    const cacheKey = `grades_${courseId || 'all'}`;
+    const cacheKey = `grades_v2_${courseId || 'all'}`;
     const cached = cache.get<Grade[]>(cacheKey);
     if (cached) return { content: [{ type: 'text', text: JSON.stringify(cached) }] };
     

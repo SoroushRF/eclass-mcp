@@ -4,7 +4,7 @@ import { cache, TTL } from '../cache/store';
 import { DeadlineItem, ItemDetails } from '../types/deadlines';
 
 type DeadlineScope = 'upcoming' | 'month' | 'range';
-const DEADLINES_CACHE_VERSION = 'v2';
+const DEADLINES_CACHE_VERSION = 'v3';
 
 function parseEClassDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -82,7 +82,7 @@ function detailsCacheKey(url: string) {
   // CacheStore already sanitizes; keep key short-ish and deterministic.
   const shortened = url.length > 200 ? url.slice(0, 200) : url;
   // Bump this when the extraction payload shape changes (e.g. added descriptionImageUrls).
-  return `details_${shortened}_v2`;
+  return `details_${shortened}_v3`;
 }
 
 function inferTypeFromUrl(url: string): 'assign' | 'quiz' | 'other' {

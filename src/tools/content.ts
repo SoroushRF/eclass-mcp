@@ -4,7 +4,7 @@ import { cache, TTL } from '../cache/store';
 
 export async function getCourseContent(courseId: string) {
   try {
-    const cacheKey = `content_v3_${courseId}`;
+    const cacheKey = `content_v4_${courseId}`;
     const cached = cache.get<CourseContent>(cacheKey);
     if (cached) return { content: [{ type: 'text' as const, text: JSON.stringify(cached) }] };
     
@@ -24,7 +24,7 @@ export async function getSectionText(url: string) {
   try {
     console.log(`[MCP Server] Claude requested section text for: ${url}`);
     // Generate a safe cache key from the URL stripping special chars
-    const cacheKey = `sectiontext_v4_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
+    const cacheKey = `sectiontext_v5_${url.replace(/[^a-zA-Z0-9]/g, '_')}`;
     const cached = cache.get<SectionTextData>(cacheKey);
     if (cached) return { content: [{ type: 'text' as const, text: JSON.stringify(cached) }] };
     
