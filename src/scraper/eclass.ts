@@ -587,6 +587,10 @@ class EClassScraper {
           (document.querySelector('h1')?.textContent || document.title || '').trim() ||
           'Assignment';
 
+        const courseId = (window as any).M?.cfg?.courseId?.toString() || 
+                        document.body.className.match(/course-(\d+)/)?.[1] || 
+                        '';
+
         // Task 3: Better selector for instructions to avoid catching feedback
         const descEl =
           (document.querySelector('.description .no-overflow') as HTMLElement | null) ||
@@ -650,7 +654,7 @@ class EClassScraper {
             url: abs,
             kind,
             name: name || undefined,
-            hint: 'downloadable resource'
+            hint: 'Use the get_file_text tool to read this file.'
           });
         }
 
@@ -722,6 +726,7 @@ class EClassScraper {
         return {
           kind: 'assign' as const,
           url: pageUrl,
+          courseId: courseId || undefined,
           title,
           descriptionHtml: descriptionHtml || undefined,
           descriptionText: descriptionText || undefined,
@@ -749,6 +754,9 @@ class EClassScraper {
         const title =
           (document.querySelector('h1')?.textContent || document.title || '').trim() ||
           'Quiz';
+        const courseId = (window as any).M?.cfg?.courseId?.toString() || 
+                        document.body.className.match(/course-(\d+)/)?.[1] || 
+                        '';
 
         const descEl =
           (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
@@ -809,7 +817,7 @@ class EClassScraper {
             url: abs,
             kind,
             name: name || undefined,
-            hint: 'downloadable resource'
+            hint: 'Use the get_file_text tool to read this file.'
           });
         }
 
@@ -892,6 +900,7 @@ class EClassScraper {
         return {
           kind: 'quiz' as const,
           url: pageUrl,
+          courseId: courseId || undefined,
           title,
           descriptionHtml: descriptionHtml || undefined,
           descriptionText: descriptionText || undefined,

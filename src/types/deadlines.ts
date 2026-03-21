@@ -17,6 +17,7 @@ export interface DeadlineItem {
 
 export interface ItemDetailsBase {
   url: string;
+  courseId?: string;
   title: string;
   descriptionText?: string;
   descriptionHtml?: string;
