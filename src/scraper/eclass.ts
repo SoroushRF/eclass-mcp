@@ -867,27 +867,74 @@ class EClassScraper {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
+      const isOverview = !courseId;
       const url = courseId 
         ? `${ECLASS_URL}/grade/report/user/index.php?id=${courseId}`
         : `${ECLASS_URL}/grade/report/overview/index.php`;
         
       await page.goto(url, { waitUntil: 'networkidle' });
       
-      const grades = await page.evaluate((cid) => {
-        const rows = Array.from(document.querySelectorAll('tr.gradeitem, .user-grade tr'));
-        return rows.map(r => {
-          return {
-            courseId: cid || '',
-            itemName: r.querySelector('.column-itemname')?.textContent?.trim() || 'Item',
-            grade: r.querySelector('.column-grade')?.textContent?.trim() || '-',
-            range: r.querySelector('.column-range')?.textContent?.trim() || '-',
-            percentage: r.querySelector('.column-percentage')?.textContent?.trim() || '-',
-            feedback: r.querySelector('.column-feedback')?.textContent?.trim() || ''
-          };
-        }).filter(g => g.grade !== '-');
-      }, courseId);
+      const grades = await page.evaluate(({ cid, isOverviewMode }: { cid: string | undefined, isOverviewMode: boolean }) => {
+        if (isOverviewMode) {
+          // Task 1: Overview Report Scraper
+          const table = document.querySelector('.generaltable, #overview-grade, .user-grade');
+          if (!table) return [];
+          
+          const rows = Array.from(table.querySelectorAll('tr')).slice(1); // Skip header row
+          return rows.map(r => {
+            const cells = Array.from(r.querySelectorAll('td'));
+            if (cells.length < 2) return null;
+            
+            const link = cells[0].querySelector('a');
+            const name = link?.textContent?.trim() || cells[0].textContent?.trim() || 'Unknown Course';
+            const gradeVal = cells[1].textContent?.trim() || '-';
+            
+            // Extract the actual course id from the href: .../user.php?mode=grade&id=148691&...
+            const href = link?.href || '';
+            const idMatch = href.match(/[?&]id=(\d+)/);
+            const extractedCid = idMatch ? idMatch[1] : '';
 
-      return grades as Grade[];
+            return {
+              courseId: extractedCid,
+              itemName: name,
+              grade: gradeVal,
+              range: '-',
+              percentage: '-',
+              feedback: ''
+            };
+          }).filter(Boolean);
+        } else {
+          // Task 2: User Report Scraper (Moodle 4.x)
+          const rows = Array.from(document.querySelectorAll('tr'));
+          return rows.map(r => {
+            const itemCell = r.querySelector('.column-itemname');
+            const gradeCell = r.querySelector('.column-grade');
+            if (!itemCell || !gradeCell) return null;
+            
+            let name = itemCell.textContent?.trim() || 'Item';
+            // Moodle 4 often prepends "Manual item", "Assignment", etc. to labels. Strip them.
+            name = name.replace(/^(Manual item|Assignment|Quiz|Forum|Resource|Category|Grade item)\s*/i, '').trim();
+            
+            return {
+              courseId: cid || '',
+              itemName: name,
+              grade: gradeCell.textContent?.trim() || '-',
+              range: r.querySelector('.column-range')?.textContent?.trim() || '-',
+              percentage: r.querySelector('.column-percentage')?.textContent?.trim() || '-',
+              feedback: r.querySelector('.column-feedback')?.textContent?.trim() || ''
+            };
+          }).filter(g => g !== null && g.itemName && g.itemName !== 'Grade item' && g.itemName !== 'Category');
+        }
+      }, { cid: courseId, isOverviewMode: isOverview });
+
+      // Task 4: Removal of Excessive Filtering
+      // For Overview mode, we filter out '-' to keep the summary concise (only courses with real marks).
+      // For User mode (specific course), we return everything so the user can see their full assignment list.
+      return (grades as Grade[]).filter(g => {
+        if (!g) return false;
+        if (isOverview) return g.grade !== '-';
+        return true; 
+      });
     } finally {
       await page.close();
       await context.close();

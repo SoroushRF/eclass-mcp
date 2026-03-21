@@ -6,7 +6,8 @@ async function investigateSections() {
     const courses = await scraper.getCourses();
     console.log(`Found ${courses.length} courses.`);
 
-    const context = await scraper['getAuthenticatedContext']();
+    // @ts-ignore
+    const context = await (scraper as any).getAuthenticatedContext();
     
     for (const c of courses) {
       const page = await context.newPage();
@@ -18,7 +19,7 @@ async function investigateSections() {
         const internalModules = document.querySelectorAll('.activityinstance a, .activity-item a');
         
         // Sometimes "One section per page" courses have links directly to &section=X
-        const sectionLinks = Array.from(document.querySelectorAll('a[href*="&section="]')).map(a => a.href);
+        const sectionLinks = Array.from(document.querySelectorAll('a[href*="&section="]') as NodeListOf<HTMLAnchorElement>).map(a => a.href);
 
         return {
           sectionCount: sections.length,
