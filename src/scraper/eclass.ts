@@ -573,15 +573,26 @@ class EClassScraper {
     const page = await context.newPage();
     try {
       await page.goto(url, { waitUntil: 'networkidle' });
-      const data = await page.evaluate((pageUrl) => {
+
+      // Proactively trigger the "Comments" link if it exists to load dynamic submission comments.
+      const commentLink = await page.$('.comment-link');
+      if (commentLink) {
+        await commentLink.click().catch(() => {});
+        // Wait a bit for the AJAX content to appear in the DOM
+        await page.waitForTimeout(1000).catch(() => {});
+      }
+
+      const data = await page.evaluate(({ url: pageUrl }: { url: string }) => {
         const title =
           (document.querySelector('h1')?.textContent || document.title || '').trim() ||
           'Assignment';
 
+        // Task 3: Better selector for instructions to avoid catching feedback
         const descEl =
-          (document.querySelector('.no-overflow') as HTMLElement | null) ||
+          (document.querySelector('.description .no-overflow') as HTMLElement | null) ||
           (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
-          (document.querySelector('#intro') as HTMLElement | null);
+          (document.querySelector('#intro') as HTMLElement | null) ||
+          (document.querySelector('.no-overflow') as HTMLElement | null);
 
         const descriptionHtml = descEl?.innerHTML?.trim() || '';
         const descriptionText = descEl?.textContent?.trim() || '';
@@ -651,15 +662,46 @@ class EClassScraper {
           uniqueAttachments.push(att);
         }
 
-        const table = document.querySelector('.submissionstatustable') as HTMLTableElement | null;
+        const tables = Array.from(document.querySelectorAll('.submissionstatustable, .feedbacktable, .generaltable'));
         const fields: Record<string, string> = {};
-        if (table) {
+        
+        for (const table of tables) {
           const rows = Array.from(table.querySelectorAll('tr'));
           for (const r of rows) {
             const k = (r.querySelector('th')?.textContent || '').trim();
-            const v = (r.querySelector('td')?.textContent || '').trim();
-            if (k) fields[k] = v;
+            let v = (r.querySelector('td')?.textContent || '').trim();
+            
+            if (!k) continue;
+
+            // Task 1: If this is "Submission comments", look deeper for hidden text
+            if (k === 'Submission comments') {
+                const commentMessages = Array.from(r.querySelectorAll('.comment-message, .commentscontainer .text'));
+                if (commentMessages.length > 0) {
+                    const cleanMsgs = commentMessages
+                        .map(m => m.textContent?.trim())
+                        .filter(txt => txt && !txt.includes('___'));
+                    if (cleanMsgs.length > 0) v = cleanMsgs.join('\n');
+                } else {
+                    v = v.replace(/Show comments/g, '')
+                         .replace(/Comments\s*\(\d+\)/g, '')
+                         .replace(/Save comment\s*\|\s*Cancel/g, '')
+                         .trim();
+                }
+            }
+            
+            fields[k] = v;
           }
+        }
+
+        // Task 3: Capture standalone Feedback Comments blocks (multi-line)
+        const dedicatedFeedback = document.querySelector('.assignfeedback_comments, .feedback-comments, .feedback .no-overflow');
+        let extraFeedback = '';
+        if (dedicatedFeedback) {
+            extraFeedback = dedicatedFeedback.textContent?.trim() || '';
+            // If it's already in the table fields as 'Feedback comments', don't double count it
+            if (fields['Feedback comments'] && extraFeedback.includes(fields['Feedback comments'])) {
+                extraFeedback = '';
+            }
         }
 
         // Try to derive grade/feedback from the table when present.
@@ -668,9 +710,14 @@ class EClassScraper {
           fields['Grading status'] ||
           '';
 
-        const feedbackText =
-          fields['Feedback'] ||
-          '';
+        const finalFeedback = [
+          fields['Feedback'],
+          fields['Feedback comments'],
+          fields['Submission comments'],
+          extraFeedback
+        ].filter(f => f && f.length > 0)
+         .filter((v, i, a) => a.indexOf(v) === i) // Unique
+         .join('\n---\n');
 
         return {
           kind: 'assign' as const,
@@ -682,9 +729,9 @@ class EClassScraper {
           attachments: uniqueAttachments.length ? (uniqueAttachments as any) : undefined,
           fields: Object.keys(fields).length ? fields : undefined,
           grade: grade || undefined,
-          feedbackText: feedbackText || undefined,
+          feedbackText: finalFeedback || undefined,
         };
-      }, url);
+      }, { url });
 
       return data;
     } finally {
