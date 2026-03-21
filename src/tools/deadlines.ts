@@ -4,6 +4,7 @@ import { cache, TTL } from '../cache/store';
 import { DeadlineItem, ItemDetails } from '../types/deadlines';
 
 type DeadlineScope = 'upcoming' | 'month' | 'range';
+const DEADLINES_CACHE_VERSION = 'v2';
 
 function parseEClassDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -48,7 +49,7 @@ function parseBoundaryDate(raw: string, isEndBoundary: boolean): Date {
 
 export async function getUpcomingDeadlines(_daysAhead: number = 30, courseId?: string) {
   try {
-    const cacheKey = `deadlines_${courseId || 'all'}`;
+    const cacheKey = `deadlines_${DEADLINES_CACHE_VERSION}_${courseId || 'all'}`;
     let deadlines = cache.get<Assignment[]>(cacheKey) || [];
 
     if (deadlines.length === 0) {
@@ -70,7 +71,7 @@ export async function getUpcomingDeadlines(_daysAhead: number = 30, courseId?: s
 
 function deadlineCacheKey(scope: DeadlineScope, courseId?: string, extra?: string) {
   const coursePart = courseId || 'all';
-  return `deadlines_${scope}_${coursePart}${extra ? `_${extra}` : ''}`;
+  return `deadlines_${DEADLINES_CACHE_VERSION}_${scope}_${coursePart}${extra ? `_${extra}` : ''}`;
 }
 
 function hasUsableItems<T>(value: T[] | null): value is T[] {

@@ -13,6 +13,7 @@ const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 export interface Course {
   id: string;
   name: string;
+  courseCode?: string;
   url: string;
 }
 
@@ -30,7 +31,41 @@ export interface Assignment {
   dueDate: string;
   status: string;
   courseId: string;
+  courseName?: string;
+  courseCode?: string;
   url: string;
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function extractCourseCode(name?: string): string | undefined {
+  if (!name) return undefined;
+
+  const normalized = normalizeWhitespace(name);
+  const patterns = [
+    /\b([A-Z]{2,5}\s?\d{3,4}[A-Z]?)\b/,
+    /\b([A-Z]{2,5}\s\d{3,4}\s?[A-Z]?)\b/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = normalized.match(pattern);
+    if (match?.[1]) {
+      return match[1].replace(/\s+/g, '');
+    }
+  }
+
+  return undefined;
+}
+
+function buildCourseMetadata(courseId: string, courseName?: string) {
+  const cleanName = courseName ? normalizeWhitespace(courseName) : undefined;
+  return {
+    courseId,
+    courseName: cleanName || undefined,
+    courseCode: extractCourseCode(cleanName),
+  };
 }
 
 function inferItemType(url: string): DeadlineItemType {
@@ -181,13 +216,19 @@ class EClassScraper {
           return {
             id: match ? match[1] : '',
             name: name,
+            courseCode: '',
             url: url
           };
         }).filter(c => c.id);
       });
 
+      const enrichedCourses = courses.map((course) => ({
+        ...course,
+        courseCode: extractCourseCode(course.name),
+      }));
+
       if (courses.length === 0) await this.dumpPage(page, 'dashboard_empty');
-      return courses;
+      return enrichedCourses;
     } finally {
       await page.close();
       await context.close();
@@ -261,19 +302,27 @@ class EClassScraper {
           // Course info
           const courseLink = ev.querySelector('a[href*="course/view.php"]') as HTMLAnchorElement;
           const courseId = ev.getAttribute('data-course-id') || courseLink?.href.match(/id=(\d+)/)?.[1] || '';
+          const courseName = courseLink?.textContent?.trim() || '';
           
           return {
             id: ev.getAttribute('data-event-id') || Math.random().toString(),
             name: title,
             dueDate: dateStr,
             status: 'Upcoming',
-            courseId: courseId,
+            ...({
+              courseId,
+              courseName,
+              courseCode: '',
+            }),
             url: url
           };
         }).filter(d => d.url && (d.url.includes('assign') || d.url.includes('quiz')));
       });
 
-      return deadlines as Assignment[];
+      return (deadlines as Assignment[]).map((item) => ({
+        ...item,
+        ...buildCourseMetadata(item.courseId, item.courseName),
+      }));
     } finally {
       await page.close();
       await context.close();
@@ -351,14 +400,14 @@ class EClassScraper {
     }
   }
 
-  async getAssignmentIndexDeadlines(courseId: string): Promise<DeadlineItem[]> {
+  async getAssignmentIndexDeadlines(courseId: string, courseName?: string): Promise<DeadlineItem[]> {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
       const url = `${ECLASS_URL}/mod/assign/index.php?id=${courseId}`;
       await page.goto(url, { waitUntil: 'networkidle' });
 
-      const rows = await page.evaluate((cid) => {
+      const rows = await page.evaluate(({ cid, cname }) => {
         const headerCells = Array.from(document.querySelectorAll('.generaltable thead th'));
         const headers = headerCells.map((th) => (th.textContent || '').trim());
         const dataRows = Array.from(document.querySelectorAll('.generaltable tbody tr'));
@@ -382,6 +431,8 @@ class EClassScraper {
             dueDate: mapped['Due date'] || mapped['Due Date'] || mapped['Due'] || '',
             status: mapped['Submission'] || 'Unknown',
             courseId: cid,
+            courseName: cname || '',
+            courseCode: '',
             url: href,
             type: 'assign' as const,
             section: mapped['Section'] || '',
@@ -389,9 +440,12 @@ class EClassScraper {
             grade: mapped['Grade'] || '',
           };
         }).filter(Boolean);
-      }, courseId);
+      }, { cid: courseId, cname: courseName || '' });
 
-      return rows as DeadlineItem[];
+      return (rows as DeadlineItem[]).map((item) => ({
+        ...item,
+        ...buildCourseMetadata(item.courseId, item.courseName),
+      }));
     } finally {
       await page.close();
       await context.close();
@@ -399,13 +453,17 @@ class EClassScraper {
   }
 
   async getAllAssignmentDeadlines(courseId?: string): Promise<DeadlineItem[]> {
-    if (courseId) return this.getAssignmentIndexDeadlines(courseId);
+    if (courseId) {
+      const courses = await this.getCourses().catch(() => []);
+      const match = courses.find((course) => course.id === courseId);
+      return this.getAssignmentIndexDeadlines(courseId, match?.name);
+    }
 
     const courses = await this.getCourses();
     const all: DeadlineItem[] = [];
     for (const c of courses) {
       try {
-        const items = await this.getAssignmentIndexDeadlines(c.id);
+        const items = await this.getAssignmentIndexDeadlines(c.id, c.name);
         all.push(...items);
       } catch {
         // Continue across courses; a single course failure should not fail all deadlines.

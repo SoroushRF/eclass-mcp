@@ -6,6 +6,8 @@ export interface DeadlineItem {
   dueDate: string;
   status: string;
   courseId: string;
+  courseName?: string;
+  courseCode?: string;
   url: string;
   type: DeadlineItemType;
   section?: string;
@@ -55,4 +57,3 @@ export interface QuizDetails extends ItemDetailsBase {
 }
 
 export type ItemDetails = AssignmentDetails | QuizDetails;
-
