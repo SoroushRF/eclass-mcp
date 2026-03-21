@@ -10,7 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, '../.env'), quiet: true });
 import { isSessionValid } from './scraper/session';
 import { startAuthServer } from './auth/server';
 import { listCourses } from './tools/courses';
-import { getCourseContent } from './tools/content';
+import { getCourseContent, getSectionText } from './tools/content';
 import { getFileText } from './tools/files';
 import { getUpcomingDeadlines, getDeadlines, getItemDetails } from './tools/deadlines';
 import { getGrades } from './tools/grades';
@@ -36,6 +36,13 @@ server.tool(
   "Gets full content of a specific course.",
   { courseId: z.string().describe("The course ID") },
   (async ({ courseId }: any) => await getCourseContent(courseId)) as any
+);
+
+server.tool(
+  "get_section_text",
+  "Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.",
+  { url: z.string().describe("The exact URL to the course section") },
+  (async ({ url }: any) => await getSectionText(url)) as any
 );
 
 server.tool(

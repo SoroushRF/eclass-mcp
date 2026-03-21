@@ -1,0 +1,65 @@
+{
+  "courseIndexItemCount": 22,
+  "visibleModulesCount": 6,
+  "tabsFound": 14,
+  "tabsPreview": [
+    {
+      "tag": "BUTTON",
+      "class": "nav-link active",
+      "text": "Intro"
+    },
+    {
+      "tag": "BUTTON",
+      "class": "nav-link ",
+      "text": "Booking Space"
+    },
+    {
+      "tag": "BUTTON",
+      "class": "nav-link ",
+      "text": "Policies"
+    },
+    {
+      "tag": "BUTTON",
+      "class": "nav-link ",
+      "text": "Event Budgeting"
+    },
+    {
+      "tag": "BUTTON",
+      "class": "nav-link ",
+      "text": "Risk Management"
+    },
+    {
+      "tag": "BUTTON",
+      "class": "nav-link ",
+      "text": "Checklists, Toolkits and Resou"
+    },
+    {
+      "tag": "DIV",
+      "class": "tab-pane fade show active",
+      "text": "As a Recognized student organi"
+    },
+    {
+      "tag": "DIV",
+      "class": "tab-pane fade ",
+      "text": "If you are booking space on Ca"
+    },
+    {
+      "tag": "DIV",
+      "class": "tab-pane fade ",
+      "text": "You can also review these poli"
+    },
+    {
+      "tag": "DIV",
+      "class": "tab-pane fade ",
+      "text": "Creating a well-structured bud"
+    }
+  ],
+  "rawLinksInTabsCount": 6,
+  "courseIndexSample": [
+    "Start",
+    "Course Announcements",
+    "Start Here!",
+    "Start Here - Test Your Knowledge",
+    "Club Basics"
+  ]
+}
