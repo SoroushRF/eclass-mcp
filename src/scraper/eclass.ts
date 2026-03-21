@@ -23,6 +23,7 @@ export interface Announcement {
   content: string;
   date: string;
   author: string;
+  discussionUrl?: string; // Add optional discussion URL
 }
 
 export interface Assignment {
@@ -808,29 +809,102 @@ class EClassScraper {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
-      // Typically the 'News Forum' or 'Announcements' link on course page
-      // We'll navigate to the forum listing directly if we have a courseId
+      let forumUrl = '';
+
       if (courseId) {
-        await page.goto(`${ECLASS_URL}/mod/forum/view.php?id=${courseId}`, { waitUntil: 'networkidle' });
+        // Step 1: Navigate to the course forum index to reliably find the "Announcements" or module ID
+        await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${courseId}`, { waitUntil: 'networkidle' });
+        
+        forumUrl = await page.evaluate(() => {
+          const links = Array.from(document.querySelectorAll('.generaltable a[href*="mod/forum/view.php"]')) as HTMLAnchorElement[];
+          // Try to find one named Announcements or News, otherwise take the first forum available.
+          const target = links.find(l => /announcement|news|forum/i.test(l.textContent || '')) || links[0];
+          return target ? target.href : '';
+        });
+
+        if (!forumUrl) {
+          // Fallback if course has no forum index or we couldn't find one.
+          forumUrl = `${ECLASS_URL}/course/view.php?id=${courseId}`; // Just try the course page or fail gracefully later.
+        }
       } else {
-        await page.goto(`${ECLASS_URL}/my/`, { waitUntil: 'networkidle' });
+        forumUrl = `${ECLASS_URL}/my/`;
       }
 
-      const announcements = await page.evaluate(() => {
+      await page.goto(forumUrl, { waitUntil: 'networkidle' });
+
+      // If we are on a course page acting as a fallback, look for a forum link there
+      if (forumUrl.includes('course/view')) {
+         const foundLink = await page.evaluate(() => {
+            const links = Array.from(document.querySelectorAll('a[href*="mod/forum/view.php"]')) as HTMLAnchorElement[];
+            const target = links.find(l => /announcement|news|forum/i.test(l.textContent || '')) || links[0];
+            return target?.href || '';
+         });
+         if (foundLink) {
+           await page.goto(foundLink, { waitUntil: 'networkidle' });
+         } else {
+           return []; // No forum found
+         }
+      }
+
+      // Step 2: Extract the List of Discussions
+      const announcementsMeta = await page.evaluate(() => {
         const topics = Array.from(document.querySelectorAll('.topic, .discussion'));
-        return topics.map(t => {
-          const link = t.querySelector('.subject a, .topic-name a') as HTMLAnchorElement;
+        return topics.map(row => {
+          // Classic Moodle or Moove theme support
+          const titleLink = row.querySelector('.subject a, .topic-name a, th.topic a') as HTMLAnchorElement;
+          
+          let authorText = row.querySelector('.author')?.textContent?.trim() || '';
+          if (!authorText) {
+             const authorDiv = row.querySelectorAll('.author-info .text-truncate');
+             if (authorDiv.length > 0) authorText = authorDiv[0].textContent?.trim() || '';
+          }
+
+          let dateText = row.querySelector('.lastpost date, .modified')?.textContent?.trim() || '';
+          if (!dateText) {
+             const times = row.querySelectorAll('time');
+             if (times.length > 0) dateText = times[0].textContent?.trim() || '';
+          }
+
           return {
-            id: link?.href.match(/d=(\d+)/)?.[1] || '',
-            title: link?.textContent?.trim() || 'Untitled',
-            content: '', // Full content usually requires extra navigation
-            date: t.querySelector('.lastpost date, .modified')?.textContent?.trim() || '',
-            author: t.querySelector('.author')?.textContent?.trim() || ''
+            id: titleLink?.href.match(/[?&]d=(\d+)/)?.[1] || '',
+            title: titleLink?.textContent?.trim() || 'Untitled',
+            discussionUrl: titleLink?.href || '',
+            date: dateText,
+            author: authorText
           };
-        }).filter(a => a.id);
+        }).filter(a => a.id && a.discussionUrl);
       });
 
-      return announcements.slice(0, limit) as Announcement[];
+      const topDiscussions = announcementsMeta.slice(0, limit);
+      const results: Announcement[] = [];
+
+      // Step 3: Fetch the POST BODY for each discussion
+      for (const meta of topDiscussions) {
+        let content = '';
+        try {
+          await page.goto(meta.discussionUrl, { waitUntil: 'networkidle' });
+          content = await page.evaluate(() => {
+            const post = document.querySelector('.forumpost, article.forum-post');
+            if (!post) return '';
+            const body = post.querySelector('.post-content-container, .posting') as HTMLElement;
+            let text = body?.textContent || body?.innerText || '';
+            return text.replace(/\n\s*\n/g, '\n').trim(); // clean up extra whitespace
+          });
+        } catch (err) {
+          // ignore page navigation errors for a single post
+        }
+
+        results.push({
+          id: meta.id,
+          title: meta.title,
+          content: content || 'Could not fetch content.',
+          date: meta.date,
+          author: meta.author,
+          discussionUrl: meta.discussionUrl
+        });
+      }
+
+      return results;
     } finally {
       await page.close();
       await context.close();
