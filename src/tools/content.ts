@@ -4,7 +4,7 @@ import { cache, TTL } from '../cache/store';
 
 export async function getCourseContent(courseId: string) {
   try {
-    const cacheKey = `content_${courseId}`;
+    const cacheKey = `content_v3_${courseId}`;
     const cached = cache.get<CourseContent>(cacheKey);
     if (cached) return { content: [{ type: 'text' as const, text: JSON.stringify(cached) }] };
     

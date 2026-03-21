@@ -1,0 +1,13 @@
+{
+  "basicLinks": 167,
+  "potentialSectionsCount": 14,
+  "standardModulesCount": 9,
+  "allModulesCount": 19,
+  "topLinks": [
+    "<a class=\"dropdown-item\" href=\"https://eclass.yorku.ca/mod/forum/index.php?id=148310\">Forums</a>",
+    "<a class=\"dropdown-item\" href=\"https://eclass.yorku.ca/mod/questionnaire/index.php?id=148310\">Questionnaires</a>",
+    "<a class=\"dropdown-item\" href=\"https://eclass.yorku.ca/mod/quiz/index.php?id=148310\">Quizzes</a>",
+    "<a class=\"courseindex-link text-truncate\" href=\"https://eclass.yorku.ca/mod/forum/view.php?id=3578070\">Course Announcements</a>",
+    "<a class=\"courseindex-link text-truncate\" href=\"https://eclass.yorku.ca/mod/quiz/view.php?id=3590229\">Start Here - Test Your Knowledge</a>"
+  ]
+}

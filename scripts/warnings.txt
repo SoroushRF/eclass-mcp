@@ -1,0 +1,51 @@
+Checking: LE/ENG 1102 M, N, O, P & V - Ren. Eng. 2: Eng. Design Principles (Winter 2025-2026) (ID: 149363)
+ΓÜá∩╕Å WARNING! This course is using "One section per page"! Main page has no modules, only section links.
+
+Checking: Lassonde Academy: Pre-U Math (Summer 2025) (ID: 146327)
+ΓÜá∩╕Å WARNING! This course is using "One section per page"! Main page has no modules, only section links.
+
+Checking: Lassonde Academy S2025 (ID: 146329)
+ΓÜá∩╕Å WARNING! This course is using "One section per page"! Main page has no modules, only section links.
+
+Checking: LE/ENG 1101 A, B, C, D, E, F & H - Renaissance Engineer 1: (Fall 2025-2026) (ID: 148894)
+ΓÜá∩╕Å WARNING! This course is using "One section per page"! Main page has no modules, only section links.
+
+Checking: MATH 1025 B Applied Linear Algebra, Fall 2025 (ID: 143667)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: LE/ENG 1102 N - Ren. Eng. 2: Eng. Design Principles (Winter 2025-2026) (ID: 134156)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: LE/EECS 1021 Y - Object-Oriented Programming & Telemetry (Winter 2025-2026) (Lab 03) (ID: 141806)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/PHYS 1800 B - Engineering Mechanics (Fall 2025-2026) (Lab 03) (ID: 136651)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/PHYS 1801 N - Electricity, Magnetism & Optics for Eng. (Winter 2025-2026) (Lab 03) (ID: 136674)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/CHEM 1100 N - Chemistry and Materials Science (Winter 2025-2026) (Tutorial 01) (ID: 143629)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: LE/ENG 1101 D - Renaissance Engineer 1: (Fall 2025-2026) (Tutorial 04) (ID: 134280)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/CHEM 1100 N - Chemistry and Materials Science (Winter 2025-2026) (Lab 10) (ID: 143624)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: LE/ENG 1102 N - Ren. Eng. 2: Eng. Design Principles (Winter 2025-2026) (Tutorial 03) (ID: 134159)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/PHYS 1800 B - Engineering Mechanics (Fall 2025-2026) (Tutorial 01) (ID: 136658)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/PHYS 1801 N - Electricity, Magnetism & Optics for Eng. (Winter 2025-2026) (ID: 136680)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/MATH 1028 Z - Discrete Mathematics for Engineers (Winter 2025-2026) (Tutorial 03) (ID: 141219)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
+Checking: SC/PHYS 1801 N - Electricity, Magnetism & Optics for Eng. (Winter 2025-2026) (Tutorial 01) (ID: 136681)
+ΓÜá∩╕Å WARNING! Could not find any standard modules here. It might be empty, or using a totally different template grid.
+
