@@ -115,7 +115,7 @@ Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor 
 | [ ] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
 | [ ] **E07** | Branch rename `master` ? `main` (or document decision) + update refs | A |
 | [x] **E08** | Test framework (Vitest/Jest) + coverage script | B |
-| [ ] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
+| [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
 | [ ] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants) | B |
 | [ ] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope | B |
 | [ ] **E12** | Structured error types + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, ?) | B |
@@ -249,6 +249,7 @@ on:
 
 jobs:
   build:
+    timeout-minutes: 15
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -268,9 +269,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npx tsc --noEmit
-
       - name: Build
         run: npm run build
 
@@ -282,10 +280,12 @@ jobs:
 ```
 
 2. **Why `npm ci`:** reproducible installs from lockfile; fails if lock out of sync.
-3. **Why Node matrix:** catches platform-specific path or optional dependency issues (Windows vs Linux).
-4. **Playwright in CI:** only add `npx playwright install chromium` to CI when **automated browser tests** exist (E10); otherwise skip to keep CI fast.
-5. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `main`/`master`.
-6. **Badge (optional):** Add workflow status badge to README after first green run.
+3. **`npm run build`** runs `tsc` (typecheck + emit); a separate `tsc --noEmit` step is optional and was omitted to avoid duplicate compiler work.
+4. **Why Node matrix:** catches platform-specific path or optional dependency issues (Windows vs Linux).
+5. **Playwright in CI:** only add `npx playwright install chromium` to CI when **automated browser tests** exist (E10); otherwise skip to keep CI fast.
+6. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `main`/`master`.
+7. **Badge (optional):** Add workflow status badge to README after first green run.
+8. **`timeout-minutes: 15`** on the job avoids hung installs (e.g. future Playwright in CI).
 
 **E01 done when:** workflow is green on a test PR for all matrix cells or documented exclusions.
 

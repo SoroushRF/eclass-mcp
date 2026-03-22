@@ -21,6 +21,16 @@ interface CacheEntry<T> {
   data: T;
 }
 
+/** Sanitize cache key segment for a safe filename (used by CacheStore). */
+export function sanitizeCacheKeyForFilename(key: string): string {
+  return key.replace(/[^a-z0-9_-]/gi, '_');
+}
+
+/** Whether a cache entry should be treated as expired at `now`. */
+export function isCacheEntryExpired(expiresAtIso: string, now: Date): boolean {
+  return now > new Date(expiresAtIso);
+}
+
 class CacheStore {
   constructor() {
     try {
@@ -36,7 +46,7 @@ class CacheStore {
   }
 
   private getFilePath(key: string): string {
-    return path.join(CACHE_DIR, `${key.replace(/[^a-z0-9_-]/gi, '_')}.json`);
+    return path.join(CACHE_DIR, `${sanitizeCacheKeyForFilename(key)}.json`);
   }
 
   get<T>(key: string): T | null {
@@ -50,9 +60,7 @@ class CacheStore {
       const entry: CacheEntry<T> = JSON.parse(content);
 
       const now = new Date();
-      const expiresAt = new Date(entry.expires_at);
-
-      if (now > expiresAt) {
+      if (isCacheEntryExpired(entry.expires_at, now)) {
         this.invalidate(key);
         return null;
       }

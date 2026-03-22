@@ -1,5 +1,12 @@
 import AdmZip from 'adm-zip';
 
+/** Sort key for `ppt/slides/slideN.xml` entry names (exported for tests). */
+export function compareSlideEntryNames(a: string, b: string): number {
+  const aNum = parseInt(a.match(/slide(\d+)\.xml/)?.[1] || '0', 10);
+  const bNum = parseInt(b.match(/slide(\d+)\.xml/)?.[1] || '0', 10);
+  return aNum - bNum;
+}
+
 export async function parsePptx(buffer: Buffer): Promise<string> {
   try {
     const zip = new AdmZip(buffer);
@@ -12,17 +19,7 @@ export async function parsePptx(buffer: Buffer): Promise<string> {
           entry.entryName.startsWith('ppt/slides/slide') &&
           entry.entryName.endsWith('.xml')
       )
-      .sort((a, b) => {
-        const aNum = parseInt(
-          a.entryName.match(/slide(\d+)\.xml/)?.[1] || '0',
-          10
-        );
-        const bNum = parseInt(
-          b.entryName.match(/slide(\d+)\.xml/)?.[1] || '0',
-          10
-        );
-        return aNum - bNum;
-      });
+      .sort((a, b) => compareSlideEntryNames(a.entryName, b.entryName));
 
     let overallText = '';
 

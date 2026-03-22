@@ -5,7 +5,22 @@ import dotenv from 'dotenv';
 dotenv.config({ quiet: true });
 
 const SESSION_FILE = path.resolve(__dirname, '../../.eclass-mcp/session.json');
-const SESSION_STALE_HOURS = 60;
+
+/** Hours after which a saved session is treated as stale (exported for tests). */
+export const SESSION_STALE_HOURS = 60;
+
+/**
+ * Pure staleness check for a session `saved_at` ISO timestamp.
+ */
+export function isSavedSessionFresh(
+  savedAtIso: string,
+  now: Date,
+  staleHours: number = SESSION_STALE_HOURS
+): boolean {
+  const savedAt = new Date(savedAtIso);
+  const diffHours = (now.getTime() - savedAt.getTime()) / (1000 * 60 * 60);
+  return diffHours < staleHours;
+}
 
 export interface Cookie {
   name: string;
@@ -65,11 +80,7 @@ export function loadSession(): Cookie[] | null {
  * Internal check for session staleness
  */
 function _isSessionFresh(data: SessionData): boolean {
-  const savedAt = new Date(data.saved_at);
-  const now = new Date();
-  const diffHours = (now.getTime() - savedAt.getTime()) / (1000 * 60 * 60);
-
-  return diffHours < SESSION_STALE_HOURS;
+  return isSavedSessionFresh(data.saved_at, new Date());
 }
 
 /**
