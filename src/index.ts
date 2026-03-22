@@ -24,7 +24,7 @@ import { getExamSchedule, getClassTimetable } from './tools/sis';
 // Create the MCP server
 const server = new McpServer({
   name: 'eclass-mcp',
-  version: '1.0.0',
+  version: '1.1.0',
 });
 
 // Register all tools with any casting to bypass literal-type inference issues
