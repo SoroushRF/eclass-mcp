@@ -2,19 +2,18 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
-
 dotenv.config({ quiet: true });
 
 const CACHE_DIR = path.resolve(__dirname, '../../.eclass-mcp/cache');
 
 export const TTL = {
-  COURSES: 60 * 24,      // 24 hours
-  CONTENT: 60 * 6,       // 6 hours
-  DEADLINES: 60 * 2,     // 2 hours
-  DETAILS: 60,           // 1 hour (details change, but not constantly)
-  ANNOUNCEMENTS: 60,     // 1 hour
-  GRADES: 60 * 12,       // 12 hours
-  FILES: 60 * 24 * 7,    // 7 days (parsed file text rarely changes)
+  COURSES: 60 * 24, // 24 hours
+  CONTENT: 60 * 6, // 6 hours
+  DEADLINES: 60 * 2, // 2 hours
+  DETAILS: 60, // 1 hour (details change, but not constantly)
+  ANNOUNCEMENTS: 60, // 1 hour
+  GRADES: 60 * 12, // 12 hours
+  FILES: 60 * 24 * 7, // 7 days (parsed file text rarely changes)
 };
 
 interface CacheEntry<T> {
@@ -29,7 +28,10 @@ class CacheStore {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
       }
     } catch (e: any) {
-      console.error(`CRITICAL: Could not create cache directory at ${CACHE_DIR}:`, e.message);
+      console.error(
+        `CRITICAL: Could not create cache directory at ${CACHE_DIR}:`,
+        e.message
+      );
     }
   }
 
@@ -46,7 +48,7 @@ class CacheStore {
     try {
       const content = fs.readFileSync(filePath, 'utf-8');
       const entry: CacheEntry<T> = JSON.parse(content);
-      
+
       const now = new Date();
       const expiresAt = new Date(entry.expires_at);
 

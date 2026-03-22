@@ -107,14 +107,14 @@ Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor 
 
 | ID | Item | Epic |
 |----|------|------|
-| [ ] **E01** | CI workflow: push + PR, `npm ci`, `npm run build`, `npx tsc --noEmit` | A |
-| [ ] **E02** | Add `npm run lint` + `npm run test` to CI when available | A |
-| [ ] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check` | A |
+| [x] **E01** | CI workflow: push + PR, `npm ci`, `npm run build`, `npx tsc --noEmit` | A |
+| [x] **E02** | Add `npm run lint` + `npm run test` to CI when available | A |
+| [x] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check` | A |
 | [ ] **E04** | Add `LICENSE` (verify SPDX matches `package.json`) | A |
 | [ ] **E05** | Add `SECURITY.md` (reporting contact, scope, safe harbor) | A |
 | [ ] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
 | [ ] **E07** | Branch rename `master` ? `main` (or document decision) + update refs | A |
-| [ ] **E08** | Test framework (Vitest/Jest) + coverage script | B |
+| [x] **E08** | Test framework (Vitest/Jest) + coverage script | B |
 | [ ] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
 | [ ] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants) | B |
 | [ ] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope | B |
@@ -274,11 +274,11 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Uncomment when E03/E08 land:
-      # - name: Lint
-      #   run: npm run lint
-      # - name: Test
-      #   run: npm test -- --run
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
 ```
 
 2. **Why `npm ci`:** reproducible installs from lockfile; fails if lock out of sync.

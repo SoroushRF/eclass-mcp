@@ -12,112 +12,217 @@ import { startAuthServer } from './auth/server';
 import { listCourses } from './tools/courses';
 import { getCourseContent, getSectionText } from './tools/content';
 import { getFileText } from './tools/files';
-import { getUpcomingDeadlines, getDeadlines, getItemDetails } from './tools/deadlines';
+import {
+  getUpcomingDeadlines,
+  getDeadlines,
+  getItemDetails,
+} from './tools/deadlines';
 import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 
 // Create the MCP server
 const server = new McpServer({
-  name: "eclass-mcp",
-  version: "1.0.0"
+  name: 'eclass-mcp',
+  version: '1.0.0',
 });
 
 // Register all tools with any casting to bypass literal-type inference issues
 // and ensure we move forward with Task 8.
 server.tool(
-  "list_courses",
-  "Lists all courses the student is enrolled in on eClass.",
+  'list_courses',
+  'Lists all courses the student is enrolled in on eClass.',
   {},
   (async () => await listCourses()) as any
 );
 
 server.tool(
-  "get_course_content",
-  "Gets full content of a specific course.",
-  { courseId: z.string().describe("The course ID") },
+  'get_course_content',
+  'Gets full content of a specific course.',
+  { courseId: z.string().describe('The course ID') },
   (async ({ courseId }: any) => await getCourseContent(courseId)) as any
 );
 
 server.tool(
-  "get_section_text",
-  "Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.",
-  { url: z.string().describe("The exact URL to the course section") },
+  'get_section_text',
+  'Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.',
+  { url: z.string().describe('The exact URL to the course section') },
   (async ({ url }: any) => await getSectionText(url)) as any
 );
 
 server.tool(
-  "get_file_text",
-  "Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. " +
-  "For large PDFs, returns a partial result with an overview and instructions to fetch " +
-  "remaining pages using startPage/endPage parameters.",
-  { 
-    courseId: z.string().optional().describe("The course ID (optional if unknown)"),
-    fileUrl: z.string().describe("The file URL"),
-    startPage: z.number().optional().describe("Start page for PDF extraction (1-indexed, default: 1)"),
-    endPage: z.number().optional().describe("End page for PDF extraction (1-indexed, default: startPage + 49)")
+  'get_file_text',
+  'Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. ' +
+    'For large PDFs, returns a partial result with an overview and instructions to fetch ' +
+    'remaining pages using startPage/endPage parameters.',
+  {
+    courseId: z
+      .string()
+      .optional()
+      .describe('The course ID (optional if unknown)'),
+    fileUrl: z.string().describe('The file URL'),
+    startPage: z
+      .number()
+      .optional()
+      .describe('Start page for PDF extraction (1-indexed, default: 1)'),
+    endPage: z
+      .number()
+      .optional()
+      .describe(
+        'End page for PDF extraction (1-indexed, default: startPage + 49)'
+      ),
   },
-  (async ({ courseId, fileUrl, startPage, endPage }: any) => await getFileText(courseId || 'unknown', fileUrl, startPage, endPage)) as any
+  (async ({ courseId, fileUrl, startPage, endPage }: any) =>
+    await getFileText(
+      courseId || 'unknown',
+      fileUrl,
+      startPage,
+      endPage
+    )) as any
 );
 
 server.tool(
-  "get_upcoming_deadlines",
-  "Returns upcoming assignment deadlines.",
+  'get_upcoming_deadlines',
+  'Returns upcoming assignment deadlines.',
   {
-    daysAhead: z.number().optional().describe("Days ahead (default 14)"),
-    courseId: z.string().optional().describe("Filter by course ID")
+    daysAhead: z.number().optional().describe('Days ahead (default 14)'),
+    courseId: z.string().optional().describe('Filter by course ID'),
   },
-  (async ({ daysAhead, courseId }: any) => await getUpcomingDeadlines(daysAhead, courseId)) as any
+  (async ({ daysAhead, courseId }: any) =>
+    await getUpcomingDeadlines(daysAhead, courseId)) as any
 );
 
 server.tool(
-  "get_deadlines",
-  "Returns assignment/quiz deadlines for upcoming, month, or date range scopes.",
+  'get_deadlines',
+  'Returns assignment/quiz deadlines for upcoming, month, or date range scopes.',
   {
-    courseId: z.string().optional().describe("Filter by course ID"),
-    scope: z.enum(["upcoming", "month", "range"]).optional().describe("Scope (default upcoming)"),
-    month: z.number().int().min(1).max(12).optional().describe("Month (1-12) when scope=month"),
-    year: z.number().int().min(2000).max(2100).optional().describe("Year when scope=month"),
-    from: z.string().optional().describe("Start date/time (ISO or YYYY-MM-DD) when scope=range"),
-    to: z.string().optional().describe("End date/time (ISO or YYYY-MM-DD) when scope=range"),
-    includeDetails: z.boolean().optional().describe("If true, fetch details for first maxDetails items"),
-    maxDetails: z.number().int().min(0).max(25).optional().describe("Max items to deep-fetch when includeDetails=true (default 7)")
+    courseId: z.string().optional().describe('Filter by course ID'),
+    scope: z
+      .enum(['upcoming', 'month', 'range'])
+      .optional()
+      .describe('Scope (default upcoming)'),
+    month: z
+      .number()
+      .int()
+      .min(1)
+      .max(12)
+      .optional()
+      .describe('Month (1-12) when scope=month'),
+    year: z
+      .number()
+      .int()
+      .min(2000)
+      .max(2100)
+      .optional()
+      .describe('Year when scope=month'),
+    from: z
+      .string()
+      .optional()
+      .describe('Start date/time (ISO or YYYY-MM-DD) when scope=range'),
+    to: z
+      .string()
+      .optional()
+      .describe('End date/time (ISO or YYYY-MM-DD) when scope=range'),
+    includeDetails: z
+      .boolean()
+      .optional()
+      .describe('If true, fetch details for first maxDetails items'),
+    maxDetails: z
+      .number()
+      .int()
+      .min(0)
+      .max(25)
+      .optional()
+      .describe('Max items to deep-fetch when includeDetails=true (default 7)'),
   },
   (async (args: any) => await getDeadlines(args)) as any
 );
 
 server.tool(
-  "get_item_details",
-  "Fetches assignment/quiz page details, optionally attaching vision instruction images (no OCR) with strict payload caps.",
+  'get_item_details',
+  'Fetches assignment/quiz page details, optionally attaching vision instruction images (no OCR) with strict payload caps.',
   {
-    url: z.string().describe("Assignment or quiz URL"),
-    includeImages: z.boolean().optional().describe("If true, attach instruction screenshots as vision image blocks (no OCR) when present"),
-    maxImages: z.number().int().min(0).max(10).optional().describe("Max instruction images to attach (default 3)"),
-    imageOffset: z.number().int().min(0).optional().describe("Pagination offset into instruction image list (default 0)"),
-    maxTotalImageBytes: z.number().int().min(0).max(1000000).optional().describe("Max base64 payload budget for attached images (default 750000)"),
-    includeCsv: z.boolean().optional().describe("If true, inline attached CSV files as text (no parsing heuristics) when present"),
-    csvMode: z.enum(["auto", "full", "preview"]).optional().describe("CSV inlining mode (default auto)"),
-    maxCsvBytes: z.number().int().min(0).max(2000000).optional().describe("Max CSV bytes to inline (default 200000)"),
-    csvPreviewLines: z.number().int().min(1).max(5000).optional().describe("When previewing/truncating, max number of lines to include (default 200)"),
-    maxCsvAttachments: z.number().int().min(0).max(10).optional().describe("Max number of CSV attachments to inline (default 3)"),
+    url: z.string().describe('Assignment or quiz URL'),
+    includeImages: z
+      .boolean()
+      .optional()
+      .describe(
+        'If true, attach instruction screenshots as vision image blocks (no OCR) when present'
+      ),
+    maxImages: z
+      .number()
+      .int()
+      .min(0)
+      .max(10)
+      .optional()
+      .describe('Max instruction images to attach (default 3)'),
+    imageOffset: z
+      .number()
+      .int()
+      .min(0)
+      .optional()
+      .describe('Pagination offset into instruction image list (default 0)'),
+    maxTotalImageBytes: z
+      .number()
+      .int()
+      .min(0)
+      .max(1000000)
+      .optional()
+      .describe(
+        'Max base64 payload budget for attached images (default 750000)'
+      ),
+    includeCsv: z
+      .boolean()
+      .optional()
+      .describe(
+        'If true, inline attached CSV files as text (no parsing heuristics) when present'
+      ),
+    csvMode: z
+      .enum(['auto', 'full', 'preview'])
+      .optional()
+      .describe('CSV inlining mode (default auto)'),
+    maxCsvBytes: z
+      .number()
+      .int()
+      .min(0)
+      .max(2000000)
+      .optional()
+      .describe('Max CSV bytes to inline (default 200000)'),
+    csvPreviewLines: z
+      .number()
+      .int()
+      .min(1)
+      .max(5000)
+      .optional()
+      .describe(
+        'When previewing/truncating, max number of lines to include (default 200)'
+      ),
+    maxCsvAttachments: z
+      .number()
+      .int()
+      .min(0)
+      .max(10)
+      .optional()
+      .describe('Max number of CSV attachments to inline (default 3)'),
   },
   (async (args: any) => await getItemDetails(args)) as any
 );
 
 server.tool(
-  "get_grades",
+  'get_grades',
   "Returns the student's grades.",
-  { courseId: z.string().optional().describe("Filter by course ID") },
+  { courseId: z.string().optional().describe('Filter by course ID') },
   (async ({ courseId }: any) => await getGrades(courseId)) as any
 );
 
 server.tool(
-  "get_announcements",
-  "Returns recent course announcements.",
+  'get_announcements',
+  'Returns recent course announcements.',
   {
-    courseId: z.string().optional().describe("Filter by course ID"),
-    limit: z.number().optional().describe("Max number (default 10)")
+    courseId: z.string().optional().describe('Filter by course ID'),
+    limit: z.number().optional().describe('Max number (default 10)'),
   },
-  (async ({ courseId, limit }: any) => await getAnnouncements(courseId, limit)) as any
+  (async ({ courseId, limit }: any) =>
+    await getAnnouncements(courseId, limit)) as any
 );
 
 // Main startup

@@ -33,9 +33,9 @@ export async function getFileText(
         return { content: cached as ContentBlock[] };
       }
     }
-    
+
     const { buffer, mimeType, filename } = await scraper.downloadFile(fileUrl);
-    
+
     const ext = path.extname(filename).toLowerCase();
     let blocks: ContentBlock[] = [];
 
@@ -43,9 +43,15 @@ export async function getFileText(
       blocks = await parsePdfSmart(buffer, startPage, endPage);
     } else {
       let text = '';
-      if (mimeType.includes('officedocument.wordprocessingml') || ext === '.docx') {
+      if (
+        mimeType.includes('officedocument.wordprocessingml') ||
+        ext === '.docx'
+      ) {
         text = await parseDocx(buffer);
-      } else if (mimeType.includes('officedocument.presentationml') || ext === '.pptx') {
+      } else if (
+        mimeType.includes('officedocument.presentationml') ||
+        ext === '.pptx'
+      ) {
         text = await parsePptx(buffer);
       } else {
         text = `Unsupported file type: ${mimeType} (${filename})`;
@@ -55,7 +61,7 @@ export async function getFileText(
       if (isEmpty) {
         text = `[No text could be extracted from this file. It may be a scanned document or unsupported format.]`;
       }
-      
+
       blocks = [{ type: 'text', text }];
     }
 

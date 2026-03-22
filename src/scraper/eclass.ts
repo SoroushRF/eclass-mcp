@@ -3,8 +3,13 @@ import { loadSession } from './session';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
-import { DeadlineItem, DeadlineItemType, AssignmentDetails, QuizDetails, ItemDetails } from '../types/deadlines';
-
+import {
+  DeadlineItem,
+  DeadlineItemType,
+  AssignmentDetails,
+  QuizDetails,
+  ItemDetails,
+} from '../types/deadlines';
 
 dotenv.config({ quiet: true });
 
@@ -31,7 +36,11 @@ export interface SectionTextData {
   title: string;
   mainText: string;
   mainLinks: Array<{ name: string; url: string }>;
-  tabs: Array<{ title: string; content: string; links: Array<{ name: string; url: string }> }>;
+  tabs: Array<{
+    title: string;
+    content: string;
+    links: Array<{ name: string; url: string }>;
+  }>;
 }
 
 export interface Assignment {
@@ -120,7 +129,9 @@ export interface CourseContent {
 
 export class SessionExpiredError extends Error {
   constructor() {
-    super('eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth');
+    super(
+      'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth'
+    );
     this.name = 'SessionExpiredError';
   }
 }
@@ -152,7 +163,8 @@ class EClassScraper {
     }
     const context = await browser.newContext({
       // Mimic a real Chrome on Windows — WAF bot detection checks UA heavily
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       viewport: { width: 1920, height: 1080 },
       locale: 'en-CA',
     });
@@ -160,7 +172,9 @@ class EClassScraper {
     await context.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
       // Spoof plugin count (0 plugins = dead giveaway for headless)
-      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+      Object.defineProperty(navigator, 'plugins', {
+        get: () => [1, 2, 3, 4, 5],
+      });
     });
     await context.addCookies(cookies);
     return context;
@@ -181,8 +195,10 @@ class EClassScraper {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
-      await page.goto(`${ECLASS_URL}/my/courses.php`, { waitUntil: 'networkidle' });
-      
+      await page.goto(`${ECLASS_URL}/my/courses.php`, {
+        waitUntil: 'networkidle',
+      });
+
       // Wait for either the dashboard list or login redirect
       if (page.url().includes('login')) {
         throw new SessionExpiredError();
@@ -190,15 +206,19 @@ class EClassScraper {
 
       // Selector for Moodle 4.x dashboard course cards
       // Often .course-listitem, .course-info-container, or specific York selectors
-      await page.waitForSelector('.course-listitem, .coursebox, .card-body', { timeout: 10000 }).catch(() => null);
-      
+      await page
+        .waitForSelector('.course-listitem, .coursebox, .card-body', {
+          timeout: 10000,
+        })
+        .catch(() => null);
+
       const courses = await page.evaluate(() => {
         // Try several common Moodle course list selectors
         const selectors = [
           '.course-listitem .coursename', // Moodle 4 Dashboard
-          '.coursebox .coursename a',      // Older Moodle style
-          '.card-body .coursename',       // Cards style
-          '.course_title a'                // Some custom variations
+          '.coursebox .coursename a', // Older Moodle style
+          '.card-body .coursename', // Cards style
+          '.course_title a', // Some custom variations
         ];
 
         let items: Element[] = [];
@@ -210,25 +230,30 @@ class EClassScraper {
           }
         }
 
-        return items.map(el => {
-          const link = (el instanceof HTMLAnchorElement ? el : el.querySelector('a')) as HTMLAnchorElement;
-          const url = link?.href || '';
-          const match = url.match(/id=(\d+)/);
-          
-          let name = el.textContent?.trim() || 'Unknown Course';
-          // Clean up accessibility boilerplate common in Moodle 4
-          name = name.replace(/Course is starred/g, '')
-                     .replace(/Course name/g, '')
-                     .replace(/\s+/g, ' ')
-                     .trim();
+        return items
+          .map((el) => {
+            const link = (
+              el instanceof HTMLAnchorElement ? el : el.querySelector('a')
+            ) as HTMLAnchorElement;
+            const url = link?.href || '';
+            const match = url.match(/id=(\d+)/);
 
-          return {
-            id: match ? match[1] : '',
-            name: name,
-            courseCode: '',
-            url: url
-          };
-        }).filter(c => c.id);
+            let name = el.textContent?.trim() || 'Unknown Course';
+            // Clean up accessibility boilerplate common in Moodle 4
+            name = name
+              .replace(/Course is starred/g, '')
+              .replace(/Course name/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+            return {
+              id: match ? match[1] : '',
+              name: name,
+              courseCode: '',
+              url: url,
+            };
+          })
+          .filter((c) => c.id);
       });
 
       const enrichedCourses = courses.map((course) => ({
@@ -248,7 +273,9 @@ class EClassScraper {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
-      await page.goto(`${ECLASS_URL}/course/view.php?id=${courseId}`, { waitUntil: 'networkidle' });
+      await page.goto(`${ECLASS_URL}/course/view.php?id=${courseId}`, {
+        waitUntil: 'networkidle',
+      });
 
       // Strategy 1: The Moodle 4 Course Index Sidebar
       // This is the most reliable source because it ignores all weird Grid/Tab/Section templates
@@ -256,26 +283,36 @@ class EClassScraper {
       const indexSectionsData = await page.evaluate(() => {
         const indexBlocks = document.querySelectorAll('.courseindex-section');
         if (indexBlocks.length > 0) {
-          return Array.from(indexBlocks).map(sec => {
-            const title = sec.querySelector('.courseindex-section-title .courseindex-link')?.textContent?.trim() || 'Topic / Week';
-            const links = Array.from(sec.querySelectorAll('.courseindex-item a.courseindex-link'));
-            
-            const items = links.map(a => {
-              const href = (a as HTMLAnchorElement).href;
-              let type: 'resource' | 'assign' | 'announcement' | 'other' = 'other';
-              if (href.includes('resource')) type = 'resource';
-              else if (href.includes('assign')) type = 'assign';
-              else if (href.includes('forum')) type = 'announcement';
-              
-              return {
-                type,
-                name: a.textContent?.trim() || 'Item',
-                url: href
-              };
-            }).filter(i => i.url);
+          return Array.from(indexBlocks)
+            .map((sec) => {
+              const title =
+                sec
+                  .querySelector('.courseindex-section-title .courseindex-link')
+                  ?.textContent?.trim() || 'Topic / Week';
+              const links = Array.from(
+                sec.querySelectorAll('.courseindex-item a.courseindex-link')
+              );
 
-            return { title, items };
-          }).filter(s => s.items.length > 0);
+              const items = links
+                .map((a) => {
+                  const href = (a as HTMLAnchorElement).href;
+                  let type: 'resource' | 'assign' | 'announcement' | 'other' =
+                    'other';
+                  if (href.includes('resource')) type = 'resource';
+                  else if (href.includes('assign')) type = 'assign';
+                  else if (href.includes('forum')) type = 'announcement';
+
+                  return {
+                    type,
+                    name: a.textContent?.trim() || 'Item',
+                    url: href,
+                  };
+                })
+                .filter((i) => i.url);
+
+              return { title, items };
+            })
+            .filter((s) => s.items.length > 0);
         }
         return null;
       });
@@ -286,8 +323,12 @@ class EClassScraper {
 
       // Strategy 2: Check if this course uses "One section per page" format
       const isOneSectionPerPage = await page.evaluate(() => {
-        const modules = document.querySelectorAll('.activityinstance a, .activity-item a');
-        const sections = document.querySelectorAll('a[href*="course/view.php?id="][href*="&section="]');
+        const modules = document.querySelectorAll(
+          '.activityinstance a, .activity-item a'
+        );
+        const sections = document.querySelectorAll(
+          'a[href*="course/view.php?id="][href*="&section="]'
+        );
         return modules.length === 0 && sections.length > 0;
       });
 
@@ -296,8 +337,12 @@ class EClassScraper {
       if (isOneSectionPerPage) {
         // Collect unique section links
         const sectionLinks = await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a[href*="course/view.php?id="][href*="&section="]')) as HTMLAnchorElement[];
-          return Array.from(new Set(links.map(a => a.href)));
+          const links = Array.from(
+            document.querySelectorAll(
+              'a[href*="course/view.php?id="][href*="&section="]'
+            )
+          ) as HTMLAnchorElement[];
+          return Array.from(new Set(links.map((a) => a.href)));
         });
 
         const gatheredSections: any[] = [];
@@ -305,26 +350,41 @@ class EClassScraper {
           try {
             await page.goto(link, { waitUntil: 'load' });
             const sec = await page.evaluate(() => {
-              const title = document.querySelector('h2, .sectionname, h3')?.textContent?.trim() || 'Topic / Week';
-              const moduleLinkEls = Array.from(document.querySelectorAll('.activityinstance a, .activity-item a'));
-              
-              const items = moduleLinkEls.map(a => {
-                const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'other' = 'other';
-                if (href.includes('resource')) type = 'resource';
-                else if (href.includes('assign')) type = 'assign';
-                else if (href.includes('forum')) type = 'announcement';
-                
-                return {
-                  type,
-                  name: a.querySelector('.instancename, .activityname')?.textContent?.trim() || a.textContent?.trim() || 'Item',
-                  url: href
-                };
-              }).filter(i => i.url);
+              const title =
+                document
+                  .querySelector('h2, .sectionname, h3')
+                  ?.textContent?.trim() || 'Topic / Week';
+              const moduleLinkEls = Array.from(
+                document.querySelectorAll(
+                  '.activityinstance a, .activity-item a'
+                )
+              );
+
+              const items = moduleLinkEls
+                .map((a) => {
+                  const href = (a as HTMLAnchorElement).href;
+                  let type: 'resource' | 'assign' | 'announcement' | 'other' =
+                    'other';
+                  if (href.includes('resource')) type = 'resource';
+                  else if (href.includes('assign')) type = 'assign';
+                  else if (href.includes('forum')) type = 'announcement';
+
+                  return {
+                    type,
+                    name:
+                      a
+                        .querySelector('.instancename, .activityname')
+                        ?.textContent?.trim() ||
+                      a.textContent?.trim() ||
+                      'Item',
+                    url: href,
+                  };
+                })
+                .filter((i) => i.url);
               return { title, items };
             });
             if (sec.items.length > 0) gatheredSections.push(sec);
-          } catch (err) {
+          } catch (_err) {
             // Ignore single section load failures
           }
         }
@@ -332,29 +392,45 @@ class EClassScraper {
       } else {
         // Selectors for normal single-page sections and their modules
         sectionsData = await page.evaluate(() => {
-          const sectionEls = Array.from(document.querySelectorAll('.section, .course-section'));
-          
-          return sectionEls.map(s => {
-            const title = s.querySelector('.sectionname, h3')?.textContent?.trim() || 'General';
-            const moduleLinkEls = Array.from(s.querySelectorAll('.activityinstance a, .activity-item a'));
-            
-            const items = moduleLinkEls.map(a => {
-              const href = (a as HTMLAnchorElement).href;
-              let type: 'resource' | 'assign' | 'announcement' | 'other' = 'other';
-              
-              if (href.includes('resource')) type = 'resource';
-              else if (href.includes('assign')) type = 'assign';
-              else if (href.includes('forum')) type = 'announcement';
+          const sectionEls = Array.from(
+            document.querySelectorAll('.section, .course-section')
+          );
 
-              return {
-                type,
-                name: a.querySelector('.instancename, .activityname')?.textContent?.trim() || a.textContent?.trim() || 'Item',
-                url: href
-              };
-            }).filter(i => i.url);
+          return sectionEls
+            .map((s) => {
+              const title =
+                s.querySelector('.sectionname, h3')?.textContent?.trim() ||
+                'General';
+              const moduleLinkEls = Array.from(
+                s.querySelectorAll('.activityinstance a, .activity-item a')
+              );
 
-            return { title, items };
-          }).filter(s => s.items.length > 0);
+              const items = moduleLinkEls
+                .map((a) => {
+                  const href = (a as HTMLAnchorElement).href;
+                  let type: 'resource' | 'assign' | 'announcement' | 'other' =
+                    'other';
+
+                  if (href.includes('resource')) type = 'resource';
+                  else if (href.includes('assign')) type = 'assign';
+                  else if (href.includes('forum')) type = 'announcement';
+
+                  return {
+                    type,
+                    name:
+                      a
+                        .querySelector('.instancename, .activityname')
+                        ?.textContent?.trim() ||
+                      a.textContent?.trim() ||
+                      'Item',
+                    url: href,
+                  };
+                })
+                .filter((i) => i.url);
+
+              return { title, items };
+            })
+            .filter((s) => s.items.length > 0);
         });
       }
 
@@ -369,44 +445,59 @@ class EClassScraper {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
-      const url = courseId 
+      const url = courseId
         ? `${ECLASS_URL}/calendar/view.php?view=upcoming&course=${courseId}`
         : `${ECLASS_URL}/calendar/view.php?view=upcoming`;
-        
+
       await page.goto(url, { waitUntil: 'networkidle' });
-      
+
       const deadlines = await page.evaluate(() => {
         const events = Array.from(document.querySelectorAll('.event'));
-        return events.map(ev => {
-          // New Moodle 4 / Moove theme Card structure
-          const title = ev.querySelector('h3.name')?.textContent?.trim() || 'Untitled Event';
-          
-          // The link to the actual assignment is usually in the footer button
-          const actionLink = ev.querySelector('.card-footer a.card-link') as HTMLAnchorElement;
-          const url = actionLink?.href || '';
-          
-          // Date is now in a div next to the clock icon
-          const dateIcon = ev.querySelector('.fa-clock-o');
-          const dateStr = dateIcon?.parentElement?.nextElementSibling?.textContent?.trim() || '';
-          
-          // Course info
-          const courseLink = ev.querySelector('a[href*="course/view.php"]') as HTMLAnchorElement;
-          const courseId = ev.getAttribute('data-course-id') || courseLink?.href.match(/id=(\d+)/)?.[1] || '';
-          const courseName = courseLink?.textContent?.trim() || '';
-          
-          return {
-            id: ev.getAttribute('data-event-id') || Math.random().toString(),
-            name: title,
-            dueDate: dateStr,
-            status: 'Upcoming',
-            ...({
-              courseId,
-              courseName,
-              courseCode: '',
-            }),
-            url: url
-          };
-        }).filter(d => d.url && (d.url.includes('assign') || d.url.includes('quiz')));
+        return events
+          .map((ev) => {
+            // New Moodle 4 / Moove theme Card structure
+            const title =
+              ev.querySelector('h3.name')?.textContent?.trim() ||
+              'Untitled Event';
+
+            // The link to the actual assignment is usually in the footer button
+            const actionLink = ev.querySelector(
+              '.card-footer a.card-link'
+            ) as HTMLAnchorElement;
+            const url = actionLink?.href || '';
+
+            // Date is now in a div next to the clock icon
+            const dateIcon = ev.querySelector('.fa-clock-o');
+            const dateStr =
+              dateIcon?.parentElement?.nextElementSibling?.textContent?.trim() ||
+              '';
+
+            // Course info
+            const courseLink = ev.querySelector(
+              'a[href*="course/view.php"]'
+            ) as HTMLAnchorElement;
+            const courseId =
+              ev.getAttribute('data-course-id') ||
+              courseLink?.href.match(/id=(\d+)/)?.[1] ||
+              '';
+            const courseName = courseLink?.textContent?.trim() || '';
+
+            return {
+              id: ev.getAttribute('data-event-id') || Math.random().toString(),
+              name: title,
+              dueDate: dateStr,
+              status: 'Upcoming',
+              ...{
+                courseId,
+                courseName,
+                courseCode: '',
+              },
+              url: url,
+            };
+          })
+          .filter(
+            (d) => d.url && (d.url.includes('assign') || d.url.includes('quiz'))
+          );
       });
 
       return (deadlines as Assignment[]).map((item) => ({
@@ -419,7 +510,11 @@ class EClassScraper {
     }
   }
 
-  async getMonthDeadlines(month: number, year: number, courseId?: string): Promise<DeadlineItem[]> {
+  async getMonthDeadlines(
+    month: number,
+    year: number,
+    courseId?: string
+  ): Promise<DeadlineItem[]> {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
@@ -431,56 +526,74 @@ class EClassScraper {
       await page.goto(url, { waitUntil: 'networkidle' });
 
       const items = await page.evaluate(() => {
-        const eventEls = Array.from(document.querySelectorAll('.calendar_event_course, .calendar_event, .event'));
+        const eventEls = Array.from(
+          document.querySelectorAll(
+            '.calendar_event_course, .calendar_event, .event'
+          )
+        );
 
-        return eventEls.map((el) => {
-          const links = Array.from(el.querySelectorAll('a[href]')) as HTMLAnchorElement[];
-          const hrefs = links.map((a) => a.href).filter(Boolean);
+        return eventEls
+          .map((el) => {
+            const links = Array.from(
+              el.querySelectorAll('a[href]')
+            ) as HTMLAnchorElement[];
+            const hrefs = links.map((a) => a.href).filter(Boolean);
 
-          const preferred =
-            hrefs.find((h) => h.includes('/mod/assign/')) ||
-            hrefs.find((h) => h.includes('/mod/quiz/')) ||
-            hrefs.find((h) => h.includes('assign')) ||
-            hrefs.find((h) => h.includes('quiz')) ||
-            hrefs.find((h) => h.includes('/calendar/')) ||
-            hrefs[0] ||
-            '';
+            const preferred =
+              hrefs.find((h) => h.includes('/mod/assign/')) ||
+              hrefs.find((h) => h.includes('/mod/quiz/')) ||
+              hrefs.find((h) => h.includes('assign')) ||
+              hrefs.find((h) => h.includes('quiz')) ||
+              hrefs.find((h) => h.includes('/calendar/')) ||
+              hrefs[0] ||
+              '';
 
-          const url = preferred;
+            const url = preferred;
 
-          const title =
-            (el.querySelector('.eventname, .name, .card-title, .calendar_event_name')?.textContent ||
-              links[0]?.textContent ||
-              '').trim() ||
-            'Untitled Event';
+            const title =
+              (
+                el.querySelector(
+                  '.eventname, .name, .card-title, .calendar_event_name'
+                )?.textContent ||
+                links[0]?.textContent ||
+                ''
+              ).trim() || 'Untitled Event';
 
-          // Month view date can be in time tags or aria labels; fall back to whatever text we can find.
-          const dateText =
-            (el.querySelector('time') as HTMLTimeElement | null)?.getAttribute('datetime') ||
-            (el.querySelector('time') as HTMLTimeElement | null)?.textContent ||
-            (el.getAttribute('aria-label') || '') ||
-            (el.textContent || '');
+            // Month view date can be in time tags or aria labels; fall back to whatever text we can find.
+            const dateText =
+              (
+                el.querySelector('time') as HTMLTimeElement | null
+              )?.getAttribute('datetime') ||
+              (el.querySelector('time') as HTMLTimeElement | null)
+                ?.textContent ||
+              el.getAttribute('aria-label') ||
+              '' ||
+              el.textContent ||
+              '';
 
-          const courseLink = el.querySelector('a[href*="course/view.php"]') as HTMLAnchorElement | null;
-          const courseId =
-            el.getAttribute('data-course-id') ||
-            courseLink?.href.match(/id=(\d+)/)?.[1] ||
-            '';
+            const courseLink = el.querySelector(
+              'a[href*="course/view.php"]'
+            ) as HTMLAnchorElement | null;
+            const courseId =
+              el.getAttribute('data-course-id') ||
+              courseLink?.href.match(/id=(\d+)/)?.[1] ||
+              '';
 
-          const id =
-            el.getAttribute('data-event-id') ||
-            url.match(/[?&]id=(\d+)/)?.[1] ||
-            Math.random().toString();
+            const id =
+              el.getAttribute('data-event-id') ||
+              url.match(/[?&]id=(\d+)/)?.[1] ||
+              Math.random().toString();
 
-          return {
-            id,
-            name: title,
-            dueDate: (dateText || '').trim(),
-            status: 'Calendar',
-            courseId,
-            url,
-          };
-        }).filter(d => d.url);
+            return {
+              id,
+              name: title,
+              dueDate: (dateText || '').trim(),
+              status: 'Calendar',
+              courseId,
+              url,
+            };
+          })
+          .filter((d) => d.url);
       });
 
       return (items as Assignment[]).map(toDeadlineItem);
@@ -490,47 +603,73 @@ class EClassScraper {
     }
   }
 
-  async getAssignmentIndexDeadlines(courseId: string, courseName?: string): Promise<DeadlineItem[]> {
+  async getAssignmentIndexDeadlines(
+    courseId: string,
+    courseName?: string
+  ): Promise<DeadlineItem[]> {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
       const url = `${ECLASS_URL}/mod/assign/index.php?id=${courseId}`;
       await page.goto(url, { waitUntil: 'networkidle' });
 
-      const rows = await page.evaluate(({ cid, cname }) => {
-        const headerCells = Array.from(document.querySelectorAll('.generaltable thead th'));
-        const headers = headerCells.map((th) => (th.textContent || '').trim());
-        const dataRows = Array.from(document.querySelectorAll('.generaltable tbody tr'));
+      const rows = await page.evaluate(
+        ({ cid, cname }) => {
+          const headerCells = Array.from(
+            document.querySelectorAll('.generaltable thead th')
+          );
+          const headers = headerCells.map((th) =>
+            (th.textContent || '').trim()
+          );
+          const dataRows = Array.from(
+            document.querySelectorAll('.generaltable tbody tr')
+          );
 
-        return dataRows.map((tr, idx) => {
-          const tds = Array.from(tr.querySelectorAll('td'));
-          const mapped: Record<string, string> = {};
-          headers.forEach((h, i) => {
-            mapped[h] = (tds[i]?.textContent || '').trim().replace(/\s+/g, ' ');
-          });
+          return dataRows
+            .map((tr, idx) => {
+              const tds = Array.from(tr.querySelectorAll('td'));
+              const mapped: Record<string, string> = {};
+              headers.forEach((h, i) => {
+                mapped[h] = (tds[i]?.textContent || '')
+                  .trim()
+                  .replace(/\s+/g, ' ');
+              });
 
-          const link = tr.querySelector('a[href*="/mod/assign/view.php?id="]') as HTMLAnchorElement | null;
-          const href = link?.href || '';
-          const name = (link?.textContent || mapped['Assignments'] || '').trim();
-          if (!href || !name) return null;
+              const link = tr.querySelector(
+                'a[href*="/mod/assign/view.php?id="]'
+              ) as HTMLAnchorElement | null;
+              const href = link?.href || '';
+              const name = (
+                link?.textContent ||
+                mapped['Assignments'] ||
+                ''
+              ).trim();
+              if (!href || !name) return null;
 
-          const idMatch = href.match(/[?&]id=(\d+)/);
-          return {
-            id: idMatch?.[1] || `${cid}_${idx}`,
-            name,
-            dueDate: mapped['Due date'] || mapped['Due Date'] || mapped['Due'] || '',
-            status: mapped['Submission'] || 'Unknown',
-            courseId: cid,
-            courseName: cname || '',
-            courseCode: '',
-            url: href,
-            type: 'assign' as const,
-            section: mapped['Section'] || '',
-            submission: mapped['Submission'] || '',
-            grade: mapped['Grade'] || '',
-          };
-        }).filter(Boolean);
-      }, { cid: courseId, cname: courseName || '' });
+              const idMatch = href.match(/[?&]id=(\d+)/);
+              return {
+                id: idMatch?.[1] || `${cid}_${idx}`,
+                name,
+                dueDate:
+                  mapped['Due date'] ||
+                  mapped['Due Date'] ||
+                  mapped['Due'] ||
+                  '',
+                status: mapped['Submission'] || 'Unknown',
+                courseId: cid,
+                courseName: cname || '',
+                courseCode: '',
+                url: href,
+                type: 'assign' as const,
+                section: mapped['Section'] || '',
+                submission: mapped['Submission'] || '',
+                grade: mapped['Grade'] || '',
+              };
+            })
+            .filter(Boolean);
+        },
+        { cid: courseId, cname: courseName || '' }
+      );
 
       return (rows as DeadlineItem[]).map((item) => ({
         ...item,
@@ -582,161 +721,204 @@ class EClassScraper {
         await page.waitForTimeout(1000).catch(() => {});
       }
 
-      const data = await page.evaluate(({ url: pageUrl }: { url: string }) => {
-        const title =
-          (document.querySelector('h1')?.textContent || document.title || '').trim() ||
-          'Assignment';
+      const data = await page.evaluate(
+        ({ url: pageUrl }: { url: string }) => {
+          const title =
+            (
+              document.querySelector('h1')?.textContent ||
+              document.title ||
+              ''
+            ).trim() || 'Assignment';
 
-        const courseId = (window as any).M?.cfg?.courseId?.toString() || 
-                        document.body.className.match(/course-(\d+)/)?.[1] || 
-                        '';
+          const courseId =
+            (window as any).M?.cfg?.courseId?.toString() ||
+            document.body.className.match(/course-(\d+)/)?.[1] ||
+            '';
 
-        // Task 3: Better selector for instructions to avoid catching feedback
-        const descEl =
-          (document.querySelector('.description .no-overflow') as HTMLElement | null) ||
-          (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
-          (document.querySelector('#intro') as HTMLElement | null) ||
-          (document.querySelector('.no-overflow') as HTMLElement | null);
+          // Task 3: Better selector for instructions to avoid catching feedback
+          const descEl =
+            (document.querySelector(
+              '.description .no-overflow'
+            ) as HTMLElement | null) ||
+            (document.querySelector(
+              '#intro .no-overflow'
+            ) as HTMLElement | null) ||
+            (document.querySelector('#intro') as HTMLElement | null) ||
+            (document.querySelector('.no-overflow') as HTMLElement | null);
 
-        const descriptionHtml = descEl?.innerHTML?.trim() || '';
-        const descriptionText = descEl?.textContent?.trim() || '';
+          const descriptionHtml = descEl?.innerHTML?.trim() || '';
+          const descriptionText = descEl?.textContent?.trim() || '';
 
-        // Extract instruction screenshot URLs (vision-only; no OCR).
-        const descriptionImageUrls: string[] = [];
-        if (descEl) {
-          const imgs = Array.from(descEl.querySelectorAll('img[src]')) as HTMLImageElement[];
-          for (const img of imgs) {
-            const src = img.getAttribute('src') || '';
-            if (!src) continue;
+          // Extract instruction screenshot URLs (vision-only; no OCR).
+          const descriptionImageUrls: string[] = [];
+          if (descEl) {
+            const imgs = Array.from(
+              descEl.querySelectorAll('img[src]')
+            ) as HTMLImageElement[];
+            for (const img of imgs) {
+              const src = img.getAttribute('src') || '';
+              if (!src) continue;
+              try {
+                descriptionImageUrls.push(new URL(src, pageUrl).href);
+              } catch {
+                // ignore invalid URLs
+              }
+            }
+          }
+          const descriptionImageUrlsUnique = Array.from(
+            new Set(descriptionImageUrls)
+          );
+
+          const descriptionImageSet = new Set(descriptionImageUrlsUnique);
+
+          // Extract downloadable resources linked from the page.
+          const pluginAnchors = Array.from(
+            document.querySelectorAll('a[href*="pluginfile.php"]')
+          ) as HTMLAnchorElement[];
+          const attachments: Array<{
+            url: string;
+            kind: any;
+            name?: string;
+            hint?: string;
+          }> = [];
+
+          const classifyKind = (href: string): any => {
+            const h = href.toLowerCase();
+            if (h.includes('.pdf')) return 'pdf';
+            if (h.includes('.docx')) return 'docx';
+            if (h.includes('.pptx')) return 'pptx';
+            if (h.match(/\.(png|jpe?g|gif|webp)(\?|#|$)/i)) return 'image';
+            if (h.includes('.csv')) return 'csv';
+            return 'other';
+          };
+
+          for (const a of pluginAnchors) {
+            const href = a.href || a.getAttribute('href') || '';
+            if (!href) continue;
+            let abs = href;
             try {
-              descriptionImageUrls.push(new URL(src, pageUrl).href);
+              abs = new URL(href, pageUrl).href;
             } catch {
-              // ignore invalid URLs
+              // ignore
             }
-          }
-        }
-        const descriptionImageUrlsUnique = Array.from(new Set(descriptionImageUrls));
 
-        const descriptionImageSet = new Set(descriptionImageUrlsUnique);
+            // Don't double-count instruction screenshots as attachments.
+            if (descriptionImageSet.has(abs)) continue;
 
-        // Extract downloadable resources linked from the page.
-        const pluginAnchors = Array.from(document.querySelectorAll('a[href*="pluginfile.php"]')) as HTMLAnchorElement[];
-        const attachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+            if (attachments.length >= 20) break;
 
-        const classifyKind = (href: string): any => {
-          const h = href.toLowerCase();
-          if (h.includes('.pdf')) return 'pdf';
-          if (h.includes('.docx')) return 'docx';
-          if (h.includes('.pptx')) return 'pptx';
-          if (h.match(/\.(png|jpe?g|gif|webp)(\?|#|$)/i)) return 'image';
-          if (h.includes('.csv')) return 'csv';
-          return 'other';
-        };
-
-        for (const a of pluginAnchors) {
-          const href = a.href || a.getAttribute('href') || '';
-          if (!href) continue;
-          let abs = href;
-          try {
-            abs = new URL(href, pageUrl).href;
-          } catch {
-            // ignore
+            const name = (a.textContent || '').trim() || '';
+            const kind = classifyKind(abs);
+            attachments.push({
+              url: abs,
+              kind,
+              name: name || undefined,
+              hint: 'Use the get_file_text tool to read this file.',
+            });
           }
 
-          // Don't double-count instruction screenshots as attachments.
-          if (descriptionImageSet.has(abs)) continue;
+          const uniqueAttachments: Array<{
+            url: string;
+            kind: any;
+            name?: string;
+            hint?: string;
+          }> = [];
+          const seen = new Set<string>();
+          for (const att of attachments) {
+            if (seen.has(att.url)) continue;
+            seen.add(att.url);
+            uniqueAttachments.push(att);
+          }
 
-          if (attachments.length >= 20) break;
+          const tables = Array.from(
+            document.querySelectorAll(
+              '.submissionstatustable, .feedbacktable, .generaltable'
+            )
+          );
+          const fields: Record<string, string> = {};
 
-          const name = (a.textContent || '').trim() || '';
-          const kind = classifyKind(abs);
-          attachments.push({
-            url: abs,
-            kind,
-            name: name || undefined,
-            hint: 'Use the get_file_text tool to read this file.'
-          });
-        }
+          for (const table of tables) {
+            const rows = Array.from(table.querySelectorAll('tr'));
+            for (const r of rows) {
+              const k = (r.querySelector('th')?.textContent || '').trim();
+              let v = (r.querySelector('td')?.textContent || '').trim();
 
-        const uniqueAttachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
-        const seen = new Set<string>();
-        for (const att of attachments) {
-          if (seen.has(att.url)) continue;
-          seen.add(att.url);
-          uniqueAttachments.push(att);
-        }
+              if (!k) continue;
 
-        const tables = Array.from(document.querySelectorAll('.submissionstatustable, .feedbacktable, .generaltable'));
-        const fields: Record<string, string> = {};
-        
-        for (const table of tables) {
-          const rows = Array.from(table.querySelectorAll('tr'));
-          for (const r of rows) {
-            const k = (r.querySelector('th')?.textContent || '').trim();
-            let v = (r.querySelector('td')?.textContent || '').trim();
-            
-            if (!k) continue;
-
-            // Task 1: If this is "Submission comments", look deeper for hidden text
-            if (k === 'Submission comments') {
-                const commentMessages = Array.from(r.querySelectorAll('.comment-message, .commentscontainer .text'));
+              // Task 1: If this is "Submission comments", look deeper for hidden text
+              if (k === 'Submission comments') {
+                const commentMessages = Array.from(
+                  r.querySelectorAll(
+                    '.comment-message, .commentscontainer .text'
+                  )
+                );
                 if (commentMessages.length > 0) {
-                    const cleanMsgs = commentMessages
-                        .map(m => m.textContent?.trim())
-                        .filter(txt => txt && !txt.includes('___'));
-                    if (cleanMsgs.length > 0) v = cleanMsgs.join('\n');
+                  const cleanMsgs = commentMessages
+                    .map((m) => m.textContent?.trim())
+                    .filter((txt) => txt && !txt.includes('___'));
+                  if (cleanMsgs.length > 0) v = cleanMsgs.join('\n');
                 } else {
-                    v = v.replace(/Show comments/g, '')
-                         .replace(/Comments\s*\(\d+\)/g, '')
-                         .replace(/Save comment\s*\|\s*Cancel/g, '')
-                         .trim();
+                  v = v
+                    .replace(/Show comments/g, '')
+                    .replace(/Comments\s*\(\d+\)/g, '')
+                    .replace(/Save comment\s*\|\s*Cancel/g, '')
+                    .trim();
                 }
-            }
-            
-            fields[k] = v;
-          }
-        }
+              }
 
-        // Task 3: Capture standalone Feedback Comments blocks (multi-line)
-        const dedicatedFeedback = document.querySelector('.assignfeedback_comments, .feedback-comments, .feedback .no-overflow');
-        let extraFeedback = '';
-        if (dedicatedFeedback) {
+              fields[k] = v;
+            }
+          }
+
+          // Task 3: Capture standalone Feedback Comments blocks (multi-line)
+          const dedicatedFeedback = document.querySelector(
+            '.assignfeedback_comments, .feedback-comments, .feedback .no-overflow'
+          );
+          let extraFeedback = '';
+          if (dedicatedFeedback) {
             extraFeedback = dedicatedFeedback.textContent?.trim() || '';
             // If it's already in the table fields as 'Feedback comments', don't double count it
-            if (fields['Feedback comments'] && extraFeedback.includes(fields['Feedback comments'])) {
-                extraFeedback = '';
+            if (
+              fields['Feedback comments'] &&
+              extraFeedback.includes(fields['Feedback comments'])
+            ) {
+              extraFeedback = '';
             }
-        }
+          }
 
-        // Try to derive grade/feedback from the table when present.
-        const grade =
-          fields['Grade'] ||
-          fields['Grading status'] ||
-          '';
+          // Try to derive grade/feedback from the table when present.
+          const grade = fields['Grade'] || fields['Grading status'] || '';
 
-        const finalFeedback = [
-          fields['Feedback'],
-          fields['Feedback comments'],
-          fields['Submission comments'],
-          extraFeedback
-        ].filter(f => f && f.length > 0)
-         .filter((v, i, a) => a.indexOf(v) === i) // Unique
-         .join('\n---\n');
+          const finalFeedback = [
+            fields['Feedback'],
+            fields['Feedback comments'],
+            fields['Submission comments'],
+            extraFeedback,
+          ]
+            .filter((f) => f && f.length > 0)
+            .filter((v, i, a) => a.indexOf(v) === i) // Unique
+            .join('\n---\n');
 
-        return {
-          kind: 'assign' as const,
-          url: pageUrl,
-          courseId: courseId || undefined,
-          title,
-          descriptionHtml: descriptionHtml || undefined,
-          descriptionText: descriptionText || undefined,
-          descriptionImageUrls: descriptionImageUrlsUnique.length ? descriptionImageUrlsUnique : undefined,
-          attachments: uniqueAttachments.length ? (uniqueAttachments as any) : undefined,
-          fields: Object.keys(fields).length ? fields : undefined,
-          grade: grade || undefined,
-          feedbackText: finalFeedback || undefined,
-        };
-      }, { url });
+          return {
+            kind: 'assign' as const,
+            url: pageUrl,
+            courseId: courseId || undefined,
+            title,
+            descriptionHtml: descriptionHtml || undefined,
+            descriptionText: descriptionText || undefined,
+            descriptionImageUrls: descriptionImageUrlsUnique.length
+              ? descriptionImageUrlsUnique
+              : undefined,
+            attachments: uniqueAttachments.length
+              ? (uniqueAttachments as any)
+              : undefined,
+            fields: Object.keys(fields).length ? fields : undefined,
+            grade: grade || undefined,
+            feedbackText: finalFeedback || undefined,
+          };
+        },
+        { url }
+      );
 
       return data;
     } finally {
@@ -752,14 +934,20 @@ class EClassScraper {
       await page.goto(url, { waitUntil: 'networkidle' });
       const data = await page.evaluate((pageUrl) => {
         const title =
-          (document.querySelector('h1')?.textContent || document.title || '').trim() ||
-          'Quiz';
-        const courseId = (window as any).M?.cfg?.courseId?.toString() || 
-                        document.body.className.match(/course-(\d+)/)?.[1] || 
-                        '';
+          (
+            document.querySelector('h1')?.textContent ||
+            document.title ||
+            ''
+          ).trim() || 'Quiz';
+        const courseId =
+          (window as any).M?.cfg?.courseId?.toString() ||
+          document.body.className.match(/course-(\d+)/)?.[1] ||
+          '';
 
         const descEl =
-          (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
+          (document.querySelector(
+            '#intro .no-overflow'
+          ) as HTMLElement | null) ||
           (document.querySelector('#intro') as HTMLElement | null) ||
           (document.querySelector('.no-overflow') as HTMLElement | null);
 
@@ -769,7 +957,9 @@ class EClassScraper {
         // Extract quiz instruction screenshot URLs (vision-only; no OCR).
         const descriptionImageUrls: string[] = [];
         if (descEl) {
-          const imgs = Array.from(descEl.querySelectorAll('img[src]')) as HTMLImageElement[];
+          const imgs = Array.from(
+            descEl.querySelectorAll('img[src]')
+          ) as HTMLImageElement[];
           for (const img of imgs) {
             const src = img.getAttribute('src') || '';
             if (!src) continue;
@@ -780,12 +970,21 @@ class EClassScraper {
             }
           }
         }
-        const descriptionImageUrlsUnique = Array.from(new Set(descriptionImageUrls));
+        const descriptionImageUrlsUnique = Array.from(
+          new Set(descriptionImageUrls)
+        );
         const descriptionImageSet = new Set(descriptionImageUrlsUnique);
 
         // Best-effort downloadable resources from quiz page.
-        const pluginAnchors = Array.from(document.querySelectorAll('a[href*="pluginfile.php"]')) as HTMLAnchorElement[];
-        const attachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+        const pluginAnchors = Array.from(
+          document.querySelectorAll('a[href*="pluginfile.php"]')
+        ) as HTMLAnchorElement[];
+        const attachments: Array<{
+          url: string;
+          kind: any;
+          name?: string;
+          hint?: string;
+        }> = [];
 
         const classifyKind = (href: string): any => {
           const h = href.toLowerCase();
@@ -817,11 +1016,16 @@ class EClassScraper {
             url: abs,
             kind,
             name: name || undefined,
-            hint: 'Use the get_file_text tool to read this file.'
+            hint: 'Use the get_file_text tool to read this file.',
           });
         }
 
-        const uniqueAttachments: Array<{ url: string; kind: any; name?: string; hint?: string }> = [];
+        const uniqueAttachments: Array<{
+          url: string;
+          kind: any;
+          name?: string;
+          hint?: string;
+        }> = [];
         const seen = new Set<string>();
         for (const att of attachments) {
           if (seen.has(att.url)) continue;
@@ -831,12 +1035,20 @@ class EClassScraper {
 
         // Try to extract grade/score from the page text first. This is more robust
         // than our key/value table mapping because Moodle structures can vary.
-        const pageText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+        const pageText = (document.body?.innerText || '')
+          .replace(/\s+/g, ' ')
+          .trim();
 
         const num = `(\\d+(?:\\.\\d+)?)`;
-        const highestGradeMatch = pageText.match(new RegExp(`Highest grade:\\s*${num}\\s*\\/\\s*${num}`, 'i'));
-        const gradeToPassMatch = pageText.match(new RegExp(`Grade to pass:\\s*${num}\\s*out of\\s*${num}`, 'i'));
-        const markPercentMatch = pageText.match(new RegExp(`(?:Mark|Score):\\s*${num}\\s*%`, 'i'));
+        const highestGradeMatch = pageText.match(
+          new RegExp(`Highest grade:\\s*${num}\\s*\\/\\s*${num}`, 'i')
+        );
+        const gradeToPassMatch = pageText.match(
+          new RegExp(`Grade to pass:\\s*${num}\\s*out of\\s*${num}`, 'i')
+        );
+        const markPercentMatch = pageText.match(
+          new RegExp(`(?:Mark|Score):\\s*${num}\\s*%`, 'i')
+        );
 
         let grade: string | undefined;
         if (highestGradeMatch) {
@@ -852,8 +1064,12 @@ class EClassScraper {
         // Additionally, collect a small set of key/value facts from quizattemptsummary
         // when the DOM is accessible.
         const table =
-          (document.querySelector('table.quizattemptsummary') as HTMLTableElement | null) ||
-          (document.querySelector('table.generaltable.quizattemptsummary') as HTMLTableElement | null) ||
+          (document.querySelector(
+            'table.quizattemptsummary'
+          ) as HTMLTableElement | null) ||
+          (document.querySelector(
+            'table.generaltable.quizattemptsummary'
+          ) as HTMLTableElement | null) ||
           (document.querySelector('.quizattemptsummary') as HTMLElement | null);
 
         const fields: Record<string, string> = {};
@@ -874,7 +1090,12 @@ class EClassScraper {
             if (cells.length >= 2) {
               const k = cells[0];
               const v = cells.slice(1).join(' ').trim();
-              if (k && v && (/(grade|mark|attempt|state)/i.test(k) || /\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?/.test(v))) {
+              if (
+                k &&
+                v &&
+                (/(grade|mark|attempt|state)/i.test(k) ||
+                  /\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?/.test(v))
+              ) {
                 fields[k] = v;
               }
             }
@@ -883,7 +1104,9 @@ class EClassScraper {
 
         // If text-based grade failed, attempt to derive it from captured fields.
         if (!grade) {
-          const candidateKeys = Object.keys(fields).filter((k) => /grade|mark/i.test(k));
+          const candidateKeys = Object.keys(fields).filter((k) =>
+            /grade|mark/i.test(k)
+          );
           for (const k of candidateKeys) {
             const v = fields[k];
             if (/\d/.test(v) && (v.includes('/') || v.includes('%'))) {
@@ -904,8 +1127,12 @@ class EClassScraper {
           title,
           descriptionHtml: descriptionHtml || undefined,
           descriptionText: descriptionText || undefined,
-          descriptionImageUrls: descriptionImageUrlsUnique.length ? descriptionImageUrlsUnique : undefined,
-          attachments: uniqueAttachments.length ? (uniqueAttachments as any) : undefined,
+          descriptionImageUrls: descriptionImageUrlsUnique.length
+            ? descriptionImageUrlsUnique
+            : undefined,
+          attachments: uniqueAttachments.length
+            ? (uniqueAttachments as any)
+            : undefined,
           fields: Object.keys(fields).length ? fields : undefined,
           grade: grade || undefined,
           feedbackText: feedbackText || undefined,
@@ -924,72 +1151,108 @@ class EClassScraper {
     const page = await context.newPage();
     try {
       const isOverview = !courseId;
-      const url = courseId 
+      const url = courseId
         ? `${ECLASS_URL}/grade/report/user/index.php?id=${courseId}`
         : `${ECLASS_URL}/grade/report/overview/index.php`;
-        
-      await page.goto(url, { waitUntil: 'networkidle' });
-      
-      const grades = await page.evaluate(({ cid, isOverviewMode }: { cid: string | undefined, isOverviewMode: boolean }) => {
-        if (isOverviewMode) {
-          // Task 1: Overview Report Scraper
-          const table = document.querySelector('.generaltable, #overview-grade, .user-grade');
-          if (!table) return [];
-          
-          const rows = Array.from(table.querySelectorAll('tr')).slice(1); // Skip header row
-          return rows.map(r => {
-            const cells = Array.from(r.querySelectorAll('td'));
-            if (cells.length < 2) return null;
-            
-            const link = cells[0].querySelector('a');
-            const name = link?.textContent?.trim() || cells[0].textContent?.trim() || 'Unknown Course';
-            const gradeVal = cells[1].textContent?.trim() || '-';
-            
-            // Extract the actual course id from the href: .../user.php?mode=grade&id=148691&...
-            const href = link?.href || '';
-            const idMatch = href.match(/[?&]id=(\d+)/);
-            const extractedCid = idMatch ? idMatch[1] : '';
 
-            return {
-              courseId: extractedCid,
-              itemName: name,
-              grade: gradeVal,
-              range: '-',
-              percentage: '-',
-              feedback: ''
-            };
-          }).filter(Boolean);
-        } else {
-          // Task 2: User Report Scraper (Moodle 4.x)
-          const rows = Array.from(document.querySelectorAll('tr'));
-          return rows.map(r => {
-            const itemCell = r.querySelector('.column-itemname');
-            const gradeCell = r.querySelector('.column-grade');
-            if (!itemCell || !gradeCell) return null;
-            
-            let name = itemCell.textContent?.trim() || 'Item';
-            // Moodle 4 often prepends "Manual item", "Assignment", etc. to labels. Strip them.
-            name = name.replace(/^(Manual item|Assignment|Quiz|Forum|Resource|Category|Grade item)\s*/i, '').trim();
-            
-            return {
-              courseId: cid || '',
-              itemName: name,
-              grade: gradeCell.textContent?.trim() || '-',
-              range: r.querySelector('.column-range')?.textContent?.trim() || '-',
-              percentage: r.querySelector('.column-percentage')?.textContent?.trim() || '-',
-              feedback: r.querySelector('.column-feedback')?.textContent?.trim() || ''
-            };
-          }).filter(g => g !== null && g.itemName && g.itemName !== 'Grade item' && g.itemName !== 'Category');
-        }
-      }, { cid: courseId, isOverviewMode: isOverview });
+      await page.goto(url, { waitUntil: 'networkidle' });
+
+      const grades = await page.evaluate(
+        ({
+          cid,
+          isOverviewMode,
+        }: {
+          cid: string | undefined;
+          isOverviewMode: boolean;
+        }) => {
+          if (isOverviewMode) {
+            // Task 1: Overview Report Scraper
+            const table = document.querySelector(
+              '.generaltable, #overview-grade, .user-grade'
+            );
+            if (!table) return [];
+
+            const rows = Array.from(table.querySelectorAll('tr')).slice(1); // Skip header row
+            return rows
+              .map((r) => {
+                const cells = Array.from(r.querySelectorAll('td'));
+                if (cells.length < 2) return null;
+
+                const link = cells[0].querySelector('a');
+                const name =
+                  link?.textContent?.trim() ||
+                  cells[0].textContent?.trim() ||
+                  'Unknown Course';
+                const gradeVal = cells[1].textContent?.trim() || '-';
+
+                // Extract the actual course id from the href: .../user.php?mode=grade&id=148691&...
+                const href = link?.href || '';
+                const idMatch = href.match(/[?&]id=(\d+)/);
+                const extractedCid = idMatch ? idMatch[1] : '';
+
+                return {
+                  courseId: extractedCid,
+                  itemName: name,
+                  grade: gradeVal,
+                  range: '-',
+                  percentage: '-',
+                  feedback: '',
+                };
+              })
+              .filter(Boolean);
+          } else {
+            // Task 2: User Report Scraper (Moodle 4.x)
+            const rows = Array.from(document.querySelectorAll('tr'));
+            return rows
+              .map((r) => {
+                const itemCell = r.querySelector('.column-itemname');
+                const gradeCell = r.querySelector('.column-grade');
+                if (!itemCell || !gradeCell) return null;
+
+                let name = itemCell.textContent?.trim() || 'Item';
+                // Moodle 4 often prepends "Manual item", "Assignment", etc. to labels. Strip them.
+                name = name
+                  .replace(
+                    /^(Manual item|Assignment|Quiz|Forum|Resource|Category|Grade item)\s*/i,
+                    ''
+                  )
+                  .trim();
+
+                return {
+                  courseId: cid || '',
+                  itemName: name,
+                  grade: gradeCell.textContent?.trim() || '-',
+                  range:
+                    r.querySelector('.column-range')?.textContent?.trim() ||
+                    '-',
+                  percentage:
+                    r
+                      .querySelector('.column-percentage')
+                      ?.textContent?.trim() || '-',
+                  feedback:
+                    r.querySelector('.column-feedback')?.textContent?.trim() ||
+                    '',
+                };
+              })
+              .filter(
+                (g) =>
+                  g !== null &&
+                  g.itemName &&
+                  g.itemName !== 'Grade item' &&
+                  g.itemName !== 'Category'
+              );
+          }
+        },
+        { cid: courseId, isOverviewMode: isOverview }
+      );
 
       // Task 4: Removal of Excessive Filtering
       // For Overview mode, we filter out '-' to keep the summary concise (only courses with real marks).
       // For User mode (specific course), we return everything so the user can see their full assignment list.
-      return (grades as Grade[]).filter(g => {
+      return (grades as Grade[]).filter((g) => {
         if (!g) return false;
         if (isOverview) return g.grade !== '-';
-        return true; 
+        return true;
       });
     } finally {
       await page.close();
@@ -997,7 +1260,10 @@ class EClassScraper {
     }
   }
 
-  async getAnnouncements(courseId?: string, limit: number = 10): Promise<Announcement[]> {
+  async getAnnouncements(
+    courseId?: string,
+    limit: number = 10
+  ): Promise<Announcement[]> {
     const context = await this.getAuthenticatedContext();
     const page = await context.newPage();
     try {
@@ -1005,12 +1271,21 @@ class EClassScraper {
 
       if (courseId) {
         // Step 1: Navigate to the course forum index to reliably find the "Announcements" or module ID
-        await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${courseId}`, { waitUntil: 'networkidle' });
-        
+        await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${courseId}`, {
+          waitUntil: 'networkidle',
+        });
+
         forumUrl = await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('.generaltable a[href*="mod/forum/view.php"]')) as HTMLAnchorElement[];
+          const links = Array.from(
+            document.querySelectorAll(
+              '.generaltable a[href*="mod/forum/view.php"]'
+            )
+          ) as HTMLAnchorElement[];
           // Try to find one named Announcements or News, otherwise take the first forum available.
-          const target = links.find(l => /announcement|news|forum/i.test(l.textContent || '')) || links[0];
+          const target =
+            links.find((l) =>
+              /announcement|news|forum/i.test(l.textContent || '')
+            ) || links[0];
           return target ? target.href : '';
         });
 
@@ -1026,45 +1301,64 @@ class EClassScraper {
 
       // If we are on a course page acting as a fallback, look for a forum link there
       if (forumUrl.includes('course/view')) {
-         const foundLink = await page.evaluate(() => {
-            const links = Array.from(document.querySelectorAll('a[href*="mod/forum/view.php"]')) as HTMLAnchorElement[];
-            const target = links.find(l => /announcement|news|forum/i.test(l.textContent || '')) || links[0];
-            return target?.href || '';
-         });
-         if (foundLink) {
-           await page.goto(foundLink, { waitUntil: 'networkidle' });
-         } else {
-           return []; // No forum found
-         }
+        const foundLink = await page.evaluate(() => {
+          const links = Array.from(
+            document.querySelectorAll('a[href*="mod/forum/view.php"]')
+          ) as HTMLAnchorElement[];
+          const target =
+            links.find((l) =>
+              /announcement|news|forum/i.test(l.textContent || '')
+            ) || links[0];
+          return target?.href || '';
+        });
+        if (foundLink) {
+          await page.goto(foundLink, { waitUntil: 'networkidle' });
+        } else {
+          return []; // No forum found
+        }
       }
 
       // Step 2: Extract the List of Discussions
       const announcementsMeta = await page.evaluate(() => {
-        const topics = Array.from(document.querySelectorAll('.topic, .discussion'));
-        return topics.map(row => {
-          // Classic Moodle or Moove theme support
-          const titleLink = row.querySelector('.subject a, .topic-name a, th.topic a') as HTMLAnchorElement;
-          
-          let authorText = row.querySelector('.author')?.textContent?.trim() || '';
-          if (!authorText) {
-             const authorDiv = row.querySelectorAll('.author-info .text-truncate');
-             if (authorDiv.length > 0) authorText = authorDiv[0].textContent?.trim() || '';
-          }
+        const topics = Array.from(
+          document.querySelectorAll('.topic, .discussion')
+        );
+        return topics
+          .map((row) => {
+            // Classic Moodle or Moove theme support
+            const titleLink = row.querySelector(
+              '.subject a, .topic-name a, th.topic a'
+            ) as HTMLAnchorElement;
 
-          let dateText = row.querySelector('.lastpost date, .modified')?.textContent?.trim() || '';
-          if (!dateText) {
-             const times = row.querySelectorAll('time');
-             if (times.length > 0) dateText = times[0].textContent?.trim() || '';
-          }
+            let authorText =
+              row.querySelector('.author')?.textContent?.trim() || '';
+            if (!authorText) {
+              const authorDiv = row.querySelectorAll(
+                '.author-info .text-truncate'
+              );
+              if (authorDiv.length > 0)
+                authorText = authorDiv[0].textContent?.trim() || '';
+            }
 
-          return {
-            id: titleLink?.href.match(/[?&]d=(\d+)/)?.[1] || '',
-            title: titleLink?.textContent?.trim() || 'Untitled',
-            discussionUrl: titleLink?.href || '',
-            date: dateText,
-            author: authorText
-          };
-        }).filter(a => a.id && a.discussionUrl);
+            let dateText =
+              row
+                .querySelector('.lastpost date, .modified')
+                ?.textContent?.trim() || '';
+            if (!dateText) {
+              const times = row.querySelectorAll('time');
+              if (times.length > 0)
+                dateText = times[0].textContent?.trim() || '';
+            }
+
+            return {
+              id: titleLink?.href.match(/[?&]d=(\d+)/)?.[1] || '',
+              title: titleLink?.textContent?.trim() || 'Untitled',
+              discussionUrl: titleLink?.href || '',
+              date: dateText,
+              author: authorText,
+            };
+          })
+          .filter((a) => a.id && a.discussionUrl);
       });
 
       const topDiscussions = announcementsMeta.slice(0, limit);
@@ -1076,13 +1370,17 @@ class EClassScraper {
         try {
           await page.goto(meta.discussionUrl, { waitUntil: 'networkidle' });
           content = await page.evaluate(() => {
-            const post = document.querySelector('.forumpost, article.forum-post');
+            const post = document.querySelector(
+              '.forumpost, article.forum-post'
+            );
             if (!post) return '';
-            const body = post.querySelector('.post-content-container, .posting') as HTMLElement;
-            let text = body?.textContent || body?.innerText || '';
+            const body = post.querySelector(
+              '.post-content-container, .posting'
+            ) as HTMLElement;
+            const text = body?.textContent || body?.innerText || '';
             return text.replace(/\n\s*\n/g, '\n').trim(); // clean up extra whitespace
           });
-        } catch (err) {
+        } catch (_err) {
           // ignore page navigation errors for a single post
         }
 
@@ -1092,7 +1390,7 @@ class EClassScraper {
           content: content || 'Could not fetch content.',
           date: meta.date,
           author: meta.author,
-          discussionUrl: meta.discussionUrl
+          discussionUrl: meta.discussionUrl,
         });
       }
 
@@ -1103,7 +1401,9 @@ class EClassScraper {
     }
   }
 
-  async downloadFile(fileUrl: string): Promise<{ buffer: Buffer, mimeType: string, filename: string }> {
+  async downloadFile(
+    fileUrl: string
+  ): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
     const context = await this.getAuthenticatedContext();
     try {
       // --- Phase 1: Fast HTTP request (works for direct file URLs) ---
@@ -1123,7 +1423,9 @@ class EClassScraper {
 
         // Pattern 2: Forced download link
         if (!directUrl) {
-          const downloadMatch = html.match(/<div class="resourceworkaround"><a href="([^"]+)"/i);
+          const downloadMatch = html.match(
+            /<div class="resourceworkaround"><a href="([^"]+)"/i
+          );
           if (downloadMatch?.[1]) directUrl = downloadMatch[1];
         }
 
@@ -1170,7 +1472,8 @@ class EClassScraper {
               if (isFile && !isNoise) {
                 try {
                   const body = await res.body();
-                  if (body.length > 500) { // skip tiny/empty responses
+                  if (body.length > 500) {
+                    // skip tiny/empty responses
                     interceptedBuffer = body;
                     interceptedMime = ct || 'application/octet-stream';
                     const cd = res.headers()['content-disposition'] || '';
@@ -1179,26 +1482,41 @@ class EClassScraper {
                       ? decodeURIComponent(fnMatch[1].trim())
                       : path.basename(new URL(url).pathname);
                   }
-                } catch { /* response body may be unavailable, skip */ }
+                } catch {
+                  /* response body may be unavailable, skip */
+                }
               }
             });
 
-            await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+            await page.goto(fileUrl, {
+              waitUntil: 'domcontentloaded',
+              timeout: 20000,
+            });
 
             // Detect AWS WAF Bot Control challenge and wait for its auto-reload.
             // The challenge JS calls getToken() then window.location.reload() —
             // we need to wait for THAT second navigation to complete.
-            const isWafChallenge = await page.evaluate(() =>
-              typeof (window as any).awsWafCookieDomainList !== 'undefined'
-            ).catch(() => false);
+            const isWafChallenge = await page
+              .evaluate(
+                () =>
+                  typeof (window as any).awsWafCookieDomainList !== 'undefined'
+              )
+              .catch(() => false);
 
             if (isWafChallenge) {
-              console.error('[downloadFile] WAF challenge detected — waiting for auto-reload...');
+              console.error(
+                '[downloadFile] WAF challenge detected — waiting for auto-reload...'
+              );
               try {
                 // Wait for the challenge to complete and the page to reload
-                await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 20000 });
+                await page.waitForNavigation({
+                  waitUntil: 'networkidle',
+                  timeout: 20000,
+                });
               } catch {
-                console.error('[downloadFile] WAF challenge reload timed out — bot detection may have blocked us.');
+                console.error(
+                  '[downloadFile] WAF challenge reload timed out — bot detection may have blocked us.'
+                );
               }
             } else {
               // No WAF, just wait for everything to settle
@@ -1207,32 +1525,45 @@ class EClassScraper {
 
             if (interceptedBuffer) {
               await page.close();
-      // Resolve extension from filename if mime is generic
+              // Resolve extension from filename if mime is generic
               let resolvedMime = interceptedMime;
               const ext = path.extname(interceptedFilename).toLowerCase();
               if (resolvedMime === 'application/octet-stream') {
                 if (ext === '.pdf') resolvedMime = 'application/pdf';
-                else if (ext === '.docx') resolvedMime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-                else if (ext === '.pptx') resolvedMime = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-        else if (ext === '.png') resolvedMime = 'image/png';
-        else if (ext === '.jpg' || ext === '.jpeg') resolvedMime = 'image/jpeg';
-        else if (ext === '.gif') resolvedMime = 'image/gif';
-        else if (ext === '.webp') resolvedMime = 'image/webp';
+                else if (ext === '.docx')
+                  resolvedMime =
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+                else if (ext === '.pptx')
+                  resolvedMime =
+                    'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+                else if (ext === '.png') resolvedMime = 'image/png';
+                else if (ext === '.jpg' || ext === '.jpeg')
+                  resolvedMime = 'image/jpeg';
+                else if (ext === '.gif') resolvedMime = 'image/gif';
+                else if (ext === '.webp') resolvedMime = 'image/webp';
               }
-              return { buffer: interceptedBuffer, mimeType: resolvedMime, filename: interceptedFilename };
+              return {
+                buffer: interceptedBuffer,
+                mimeType: resolvedMime,
+                filename: interceptedFilename,
+              };
             }
 
             // Response interception missed it — try reading the live DOM as last resort
             directUrl = await page.evaluate(() => {
-              const obj = document.querySelector<HTMLObjectElement>('object[data]');
+              const obj =
+                document.querySelector<HTMLObjectElement>('object[data]');
               if (obj?.data) return obj.data;
-              const iframe = document.querySelector<HTMLIFrameElement>('iframe[src]');
+              const iframe =
+                document.querySelector<HTMLIFrameElement>('iframe[src]');
               if (iframe?.src) return iframe.src;
               const workaround = document.querySelector<HTMLAnchorElement>(
                 '.resourceworkaround a, a[href*="forcedownload=1"]'
               );
               if (workaround?.href) return workaround.href;
-              const pluginLink = document.querySelector<HTMLAnchorElement>('a[href*="pluginfile.php"]');
+              const pluginLink = document.querySelector<HTMLAnchorElement>(
+                'a[href*="pluginfile.php"]'
+              );
               if (pluginLink?.href) return pluginLink.href;
               return null;
             });
@@ -1248,14 +1579,18 @@ class EClassScraper {
           mimeType = headers['content-type'] || 'application/octet-stream';
           buffer = await response.body();
         } else {
-          throw new Error('Hit an HTML wrapper page but could not extract a direct file URL even after JS rendering.');
+          throw new Error(
+            'Hit an HTML wrapper page but could not extract a direct file URL even after JS rendering.'
+          );
         }
       }
 
       // Extract filename from content-disposition header
       const contentDisposition = headers['content-disposition'] || '';
       const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/);
-      let filename = filenameMatch ? decodeURIComponent(filenameMatch[1].trim()) : '';
+      let filename = filenameMatch
+        ? decodeURIComponent(filenameMatch[1].trim())
+        : '';
 
       // Fallback: extract from the final resolved URL path
       if (!filename) {
@@ -1287,60 +1622,91 @@ class EClassScraper {
       await page.goto(url, { waitUntil: 'networkidle' });
 
       return await page.evaluate((sectionUrl) => {
-        const title = document.querySelector('.sectionname, h2, h3')?.textContent?.trim() || 'Section Details';
+        const title =
+          document.querySelector('.sectionname, h2, h3')?.textContent?.trim() ||
+          'Section Details';
 
         const extractLinks = (element: Element) => {
-          return Array.from(element.querySelectorAll('a[href]')).map(a => ({
-            name: a.textContent?.trim() || a.getAttribute('href') || 'Link',
-            url: (a as HTMLAnchorElement).href
-          })).filter(l => l.name.length > 0 && l.url && !l.url.startsWith('javascript:'));
+          return Array.from(element.querySelectorAll('a[href]'))
+            .map((a) => ({
+              name: a.textContent?.trim() || a.getAttribute('href') || 'Link',
+              url: (a as HTMLAnchorElement).href,
+            }))
+            .filter(
+              (l) =>
+                l.name.length > 0 && l.url && !l.url.startsWith('javascript:')
+            );
         };
 
         // 1. Extract raw descriptions (text outside tabs)
-        const summaryBox = document.querySelector('.summary, .course-description, .section-summary, .description');
+        const summaryBox = document.querySelector(
+          '.summary, .course-description, .section-summary, .description'
+        );
         let mainText = '';
         let mainLinks: any[] = [];
-        
+
         if (summaryBox) {
           const clone = summaryBox.cloneNode(true) as HTMLElement;
-          const tabsContainers = clone.querySelectorAll('.nav-tabs, .tab-content, .tab-pane, [role="tablist"], [role="tabpanel"]');
-          tabsContainers.forEach(n => n.remove());
+          const tabsContainers = clone.querySelectorAll(
+            '.nav-tabs, .tab-content, .tab-pane, [role="tablist"], [role="tabpanel"]'
+          );
+          tabsContainers.forEach((n) => n.remove());
           mainText = clone.textContent?.replace(/\n\s*\n/g, '\n').trim() || '';
           mainLinks = extractLinks(clone);
         }
 
         // 2. Extract hidden tab grids (.nav-tabs / .tab-content)
-        const tabs: Array<{ title: string; content: string; links: Array<{ name: string; url: string }> }> = [];
-        
-        const navLinks = Array.from(document.querySelectorAll('.nav-tabs .nav-link, [role="tablist"] [role="tab"]'));
-        const tabPanes = Array.from(document.querySelectorAll('.tab-content .tab-pane, [role="tabpanel"]'));
+        const tabs: Array<{
+          title: string;
+          content: string;
+          links: Array<{ name: string; url: string }>;
+        }> = [];
+
+        const navLinks = Array.from(
+          document.querySelectorAll(
+            '.nav-tabs .nav-link, [role="tablist"] [role="tab"]'
+          )
+        );
+        const tabPanes = Array.from(
+          document.querySelectorAll('.tab-content .tab-pane, [role="tabpanel"]')
+        );
 
         if (navLinks.length > 0 && navLinks.length === tabPanes.length) {
           for (let i = 0; i < navLinks.length; i++) {
             const tabTitle = navLinks[i].textContent?.trim() || `Tab ${i + 1}`;
-            const tabContent = tabPanes[i].textContent?.replace(/\n\s*\n/g, '\n').trim() || '';
+            const tabContent =
+              tabPanes[i].textContent?.replace(/\n\s*\n/g, '\n').trim() || '';
             const tabLinks = extractLinks(tabPanes[i]);
-            
+
             if (tabContent || tabLinks.length > 0) {
-              tabs.push({ title: tabTitle, content: tabContent, links: tabLinks });
+              tabs.push({
+                title: tabTitle,
+                content: tabContent,
+                links: tabLinks,
+              });
             }
           }
         } else if (tabPanes.length > 0) {
           tabPanes.forEach((pane, i) => {
-             const tabContent = pane.textContent?.replace(/\n\s*\n/g, '\n').trim() || '';
-             const tabLinks = extractLinks(pane);
-             if (tabContent || tabLinks.length > 0) {
-               tabs.push({ title: `Panel ${i + 1}`, content: tabContent, links: tabLinks });
-             }
+            const tabContent =
+              pane.textContent?.replace(/\n\s*\n/g, '\n').trim() || '';
+            const tabLinks = extractLinks(pane);
+            if (tabContent || tabLinks.length > 0) {
+              tabs.push({
+                title: `Panel ${i + 1}`,
+                content: tabContent,
+                links: tabLinks,
+              });
+            }
           });
         }
-        
+
         return {
           url: sectionUrl,
           title,
           mainText,
           mainLinks,
-          tabs
+          tabs,
         };
       }, url);
     } finally {

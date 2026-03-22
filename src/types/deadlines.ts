@@ -34,7 +34,13 @@ export interface ItemDetailsBase {
   attachments?: Array<Attachment>;
 }
 
-export type AttachmentKind = 'pdf' | 'docx' | 'pptx' | 'image' | 'csv' | 'other';
+export type AttachmentKind =
+  | 'pdf'
+  | 'docx'
+  | 'pptx'
+  | 'image'
+  | 'csv'
+  | 'other';
 
 export interface Attachment {
   url: string;

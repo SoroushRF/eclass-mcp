@@ -47,7 +47,10 @@ function parseBoundaryDate(raw: string, isEndBoundary: boolean): Date {
   return d;
 }
 
-export async function getUpcomingDeadlines(_daysAhead: number = 30, courseId?: string) {
+export async function getUpcomingDeadlines(
+  _daysAhead: number = 30,
+  courseId?: string
+) {
   try {
     const cacheKey = `deadlines_${DEADLINES_CACHE_VERSION}_${courseId || 'all'}`;
     let deadlines = cache.get<Assignment[]>(cacheKey) || [];
@@ -59,7 +62,9 @@ export async function getUpcomingDeadlines(_daysAhead: number = 30, courseId?: s
 
     // eClass's 'Upcoming events' page only shows future events anyway.
     // Let's just return what the scraper found without extra filtering bugs.
-    return { content: [{ type: 'text' as const, text: JSON.stringify(deadlines) }] };
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(deadlines) }],
+    };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
@@ -69,7 +74,11 @@ export async function getUpcomingDeadlines(_daysAhead: number = 30, courseId?: s
   }
 }
 
-function deadlineCacheKey(scope: DeadlineScope, courseId?: string, extra?: string) {
+function deadlineCacheKey(
+  scope: DeadlineScope,
+  courseId?: string,
+  extra?: string
+) {
   const coursePart = courseId || 'all';
   return `deadlines_${DEADLINES_CACHE_VERSION}_${scope}_${coursePart}${extra ? `_${extra}` : ''}`;
 }
@@ -150,7 +159,8 @@ export async function getDeadlines(params: {
       if (hasUsableItems(cached)) {
         items = cached;
       } else {
-        const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
+        const allAssignments =
+          await scraper.getAllAssignmentDeadlines(courseId);
         items = allAssignments.filter((it) => {
           const d = parseEClassDate(it.dueDate);
           return d ? isSameMonthYear(d, m, y) : false;
@@ -172,7 +182,8 @@ export async function getDeadlines(params: {
       if (hasUsableItems(cached)) {
         items = cached;
       } else {
-        const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
+        const allAssignments =
+          await scraper.getAllAssignmentDeadlines(courseId);
         const filtered = allAssignments.filter((it) => {
           const d = parseEClassDate(it.dueDate);
           if (!d) return false;
@@ -207,7 +218,9 @@ export async function getDeadlines(params: {
       items = [...withDetails, ...items.slice(n)];
     }
 
-    return { content: [{ type: 'text' as const, text: JSON.stringify(items) }] };
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(items) }],
+    };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
@@ -248,21 +261,34 @@ export async function getItemDetails(params: {
 
     // Backwards compatible mode: return only the JSON payload.
     if (!includeImages && !includeCsv) {
-      return { content: [{ type: 'text' as const, text: JSON.stringify(details) }] };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(details) }],
+      };
     }
 
     const content: any[] = [];
     const meta: any = { ...details };
 
     // --- CSV inlining (optional) ---
-    let csvAttachments = Array.isArray(details.attachments) ? details.attachments : [];
+    let csvAttachments = Array.isArray(details.attachments)
+      ? details.attachments
+      : [];
     csvAttachments = csvAttachments.filter((a: any) => a?.kind === 'csv');
 
-    const csvIncluded: Array<{ name?: string; url: string; mode: string; bytes: number; truncated: boolean }> = [];
+    const csvIncluded: Array<{
+      name?: string;
+      url: string;
+      mode: string;
+      bytes: number;
+      truncated: boolean;
+    }> = [];
     let csvSkippedCount = 0;
 
     if (includeCsv && csvAttachments.length) {
-      const limitedCsv = csvAttachments.slice(0, Math.max(0, maxCsvAttachments));
+      const limitedCsv = csvAttachments.slice(
+        0,
+        Math.max(0, maxCsvAttachments)
+      );
       for (const att of limitedCsv) {
         try {
           const downloaded = await scraper.downloadFile(att.url);
@@ -284,7 +310,12 @@ export async function getItemDetails(params: {
           }
 
           const bufferForDecode =
-            mode === 'preview' ? downloaded.buffer.slice(0, Math.min(downloaded.buffer.length, maxCsvBytes)) : downloaded.buffer;
+            mode === 'preview'
+              ? downloaded.buffer.slice(
+                  0,
+                  Math.min(downloaded.buffer.length, maxCsvBytes)
+                )
+              : downloaded.buffer;
 
           // Decode as UTF-8 (best effort). Moodle CSVs are usually UTF-8; if not, we at least return something.
           let finalText = bufferForDecode.toString('utf-8');
@@ -300,9 +331,21 @@ export async function getItemDetails(params: {
           // Final hard cap: never inline more than maxCsvBytes characters.
           if (finalText.length > maxCsvBytes) {
             finalText = finalText.slice(0, maxCsvBytes);
-            csvIncluded.push({ name: att.name, url: att.url, mode, bytes, truncated: true });
+            csvIncluded.push({
+              name: att.name,
+              url: att.url,
+              mode,
+              bytes,
+              truncated: true,
+            });
           } else {
-            csvIncluded.push({ name: att.name, url: att.url, mode, bytes, truncated: truncatedBySize });
+            csvIncluded.push({
+              name: att.name,
+              url: att.url,
+              mode,
+              bytes,
+              truncated: truncatedBySize,
+            });
           }
 
           content.push({
@@ -422,7 +465,6 @@ export async function getItemDetails(params: {
       // Note: this is acceptable because includeImages is capped and expensive steps are limited.
       const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
       let usedBytes = 0;
-      let imagesSkipped = 0;
       for (let i = 0; i < slice.length; i++) {
         if (downloadedImages.length >= maxImages) break;
         const imageUrl = slice[i];
@@ -443,19 +485,17 @@ export async function getItemDetails(params: {
             urlLower.includes('.webp?');
 
           if (!isImageByMime && !isImageByExt) {
-            imagesSkipped++;
             continue;
           }
           const base64 = buffer.toString('base64');
           const estBytes = base64.length;
           if (usedBytes + estBytes > maxTotalImageBytes) {
-            imagesSkipped++;
             break;
           }
           downloadedImages.push({ base64, mimeType });
           usedBytes += estBytes;
         } catch {
-          imagesSkipped++;
+          // skip failed image download
         }
       }
 

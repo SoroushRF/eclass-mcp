@@ -36,14 +36,18 @@ export function startAuthServer() {
         // AWS WAF bot challenge and acquires the aws-waf-token cookie.
         // Without this, headless requests to /mod/resource/view.php get blocked.
         try {
-          await page.goto(`${ECLASS_URL}/mod/resource/view.php`, { timeout: 15000, waitUntil: 'networkidle' });
-        } catch { /* page might 404, that's fine — we just need the WAF cookie */ }
+          await page.goto(`${ECLASS_URL}/mod/resource/view.php`, {
+            timeout: 15000,
+            waitUntil: 'networkidle',
+          });
+        } catch {
+          /* page might 404, that's fine — we just need the WAF cookie */
+        }
 
         const cookies = await context.cookies();
         saveSession(cookies as any);
 
         await browser.close();
-
 
         // Sending complete HTML in one block
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -81,6 +85,11 @@ export function startAuthServer() {
 
 export function openAuthWindow() {
   const url = `http://localhost:${AUTH_PORT}/auth`;
-  const cmd = process.platform === 'win32' ? `start ${url}` : process.platform === 'darwin' ? `open ${url}` : `xdg-open ${url}`;
+  const cmd =
+    process.platform === 'win32'
+      ? `start ${url}`
+      : process.platform === 'darwin'
+        ? `open ${url}`
+        : `xdg-open ${url}`;
   exec(cmd);
 }

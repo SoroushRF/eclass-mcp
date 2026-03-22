@@ -2,7 +2,6 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
-
 dotenv.config({ quiet: true });
 
 const SESSION_FILE = path.resolve(__dirname, '../../.eclass-mcp/session.json');
@@ -50,9 +49,9 @@ export function loadSession(): Cookie[] | null {
   try {
     const content = fs.readFileSync(SESSION_FILE, 'utf-8');
     const data: SessionData = JSON.parse(content);
-    
+
     if (!_isSessionFresh(data)) {
-        return null;
+      return null;
     }
 
     return data.cookies;
@@ -66,11 +65,11 @@ export function loadSession(): Cookie[] | null {
  * Internal check for session staleness
  */
 function _isSessionFresh(data: SessionData): boolean {
-    const savedAt = new Date(data.saved_at);
-    const now = new Date();
-    const diffHours = (now.getTime() - savedAt.getTime()) / (1000 * 60 * 60);
+  const savedAt = new Date(data.saved_at);
+  const now = new Date();
+  const diffHours = (now.getTime() - savedAt.getTime()) / (1000 * 60 * 60);
 
-    return diffHours < SESSION_STALE_HOURS;
+  return diffHours < SESSION_STALE_HOURS;
 }
 
 /**
@@ -85,7 +84,7 @@ export function isSessionValid(): boolean {
     const content = fs.readFileSync(SESSION_FILE, 'utf-8');
     const data: SessionData = JSON.parse(content);
     return _isSessionFresh(data);
-  } catch (error) {
+  } catch (_error) {
     return false;
   }
 }

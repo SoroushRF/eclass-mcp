@@ -1,4 +1,4 @@
-# E01 — Continuous Integration (see docs/PROJECT_MASTER.md §2.9.1)
+# E01 + E02 — CI, lint, test (see docs/PROJECT_MASTER.md §2.9.1)
 name: CI
 on:
   push:
@@ -33,8 +33,8 @@ jobs:
       - name: Build
         run: npm run build
 
-      # E02: uncomment when `npm run lint` and `npm test` exist (E03 / E08)
-      # - name: Lint
-      #   run: npm run lint
-      # - name: Test
-      #   run: npm test -- --run
+      - name: Lint
+        run: npm run lint
+
+      - name: Test
+        run: npm test
