@@ -44,9 +44,10 @@ This section is the **standing implementation plan**: one serial numbering schem
 
 | Range | Origin |
 |-------|--------|
-| **T01?T13** | Original v1 implementation plan (`eclass-mcp-implementation-plan.md`) |
-| **T14?T22** | v1.1 extension ? SIS, RateMyProfessors, Reddit (`mcp v2.md`), **nine** tasks in strict order |
-| **T23-T25** | Optional product polish (parallel track; does not block T14-T22) |
+| **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
+| **T14-T21** | v1.1 extension — SIS, RateMyProfessors, Reddit |
+| **T22** | v1.2 Automation — Cron / proactive notifications |
+| **T23-T25** | Optional product polish (parallel track; does not block T14-T21) |
 | **T26** | Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` ? [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
 | **T27** | Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool) |
 | **T28** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) |
@@ -69,32 +70,32 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** — **Formal Claude Desktop E2E verification** — **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
-- [ ] **T12** ? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`) ? **not implemented** in `src/`.
+- [ ] **T12** — **SIS cookies in auth** — Extend `src/auth/server.ts` to visit SIS URLs before saving session.
 - [x] **T13** ? README and user-facing onboarding (iterate as features land).
 
 ---
 
-### 2.3 Tracker ? product v1.1 (T14-T22)
+### 2.3 Tracker — product v1.1: Intelligence (T14-T21)
 
 Execute **in order**; do not skip inspect/research tasks.
 
-- [ ] **T14** ? Extend `src/auth/server.ts` to visit SIS URLs before `context.cookies()` so `session.json` includes `w2prod.sis.yorku.ca`; users re-auth once after deploy.
-- [ ] **T15** ? Add `scripts/inspect-sis.ts`: load session, headless navigate exam + timetable URLs, dump HTML + structure probe to `.eclass-mcp/debug/`; **no production scrape code** until findings reviewed.
-- [ ] **T16** ? Implement `src/scraper/sis.ts` (`getExamSchedule`, `getTimetable`) from T15 findings (WebObjects: forms, hidden fields, fragile URLs).
-- [ ] **T17** ? Add `src/tools/sis.ts`, register `get_exam_schedule` + `get_timetable` in `index.ts`, add `TTL.EXAM_SCHEDULE` / `TTL.TIMETABLE`, versioned cache keys.
-- [ ] **T18** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token; document results.
-- [ ] **T19** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`, cache keys `rmp_v1_*`.
-- [ ] **T20** ? Implement `src/tools/reddit.ts` (`fetch`, User-Agent, r/yorku search), register `search_york_reddit`, `TTL.REDDIT`.
-- [ ] **T21** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
-- [ ] **T22** ? **E2E v1.1**: four new tools verified in Claude Desktop (see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md)).
+- [ ] **T14** ? Add `scripts/inspect-sis.ts`: load session, headless navigate exam + timetable URLs, dump HTML + structure probe to `.eclass-mcp/debug/`.
+- [ ] **T15** ? Implement `src/scraper/sis.ts` (`getExamSchedule`, `getTimetable`) from T14 findings.
+- [ ] **T16** ? Add `src/tools/sis.ts`, register `get_exam_schedule` + `get_timetable` in `index.ts`, add TTLs, versioned cache keys.
+- [ ] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
+- [ ] **T18** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`.
+- [ ] **T19** ? Implement `src/tools/reddit.ts` (`fetch`, User-Agent, r/yorku search), register `search_york_reddit`, `TTL.REDDIT`.
+- [ ] **T20** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
+- [ ] **T21** ? **E2E v1.1**: four new tools verified in Claude Desktop (see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md)).
 
 ---
 
-### 2.4 Tracker ? product polish stream (T23-T28)
+### 2.4 Tracker — product polish / v1.2 / Automation (T22-T28)
 
-Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor work; **T27** is automatic cache policy + `clear_cache`; **T28** (after T27) is an optional **explicit pin** tier with disk quota.
+Optional parallel work (does not block T14-T21).
 
-- [ ] **T23** ? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
+- [ ] **T22** — **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
+- [ ] **T23** — PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
 - [ ] **T24** ? Deadlines: harden quiz + date selectors across themes; document test courses.
 - [ ] **T25** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)).
 - [ ] **T26** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
@@ -143,93 +144,74 @@ Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor 
 
 ---
 
-### 2.7 Detailed plan ? **T12** Cron notifications
+### 2.7 Detailed plan — **T12** SIS cookies in auth (Immediate Foundation)
 
-**Goal:** Optional morning (or scheduled) reminder of deadlines in the next **48 hours**, via desktop notification + optional JSON file.
+**Goal:** Extend `src/auth/server.ts` to navigate to SIS URLs during the visible login flow so Playwright captures the necessary cookies for future SIS-based tools.
 
-#### 2.7.1 Dependencies
-
-- `node-cron` (already in original plan deps; verify `package.json`).
-- `node-notifier` + types ? add if implementing.
-
-#### 2.7.2 Implementation sketch
-
-1. Create **`src/notifications/cron.ts`** exporting `startDeadlineCron()`:
-   - Schedule `0 8 * * *` (08:00 local) or env-configurable cron string.
-   - Call existing scraper path used by tools (reuse `scraper.getDeadlines` / shared function ? avoid duplicating HTTP).
-   - Filter to due within **48 hours** (same semantics as original plan).
-2. If any matches: build short string list; call `node-notifier`; write `.eclass-mcp/notifications.json` (shape documented in code).
-3. Wire from `src/index.ts` **after** MCP transport connected ? ensure cron does **not** write to stdout (use `console.error` only if needed).
-
-#### 2.7.3 Safety & UX
-
-- **Opt-in env flag** e.g. `DEADLINE_CRON=1` default off until user enables.
-- **Failure isolation:** cron errors must not crash MCP process (try/catch, log to stderr).
-- **Privacy:** notification text should list **titles + courses**, not internal URLs, if displayed on shared screens.
-
-#### 2.7.4 Verification
-
-- Temporarily set cron to `* * * * *` for **one** minute in dev; confirm single fire; revert.
-- Confirm no MCP stdio pollution.
-
-#### 2.7.5 Definition of done for T12
-
-- [ ] Code merged behind env flag; documented in README.
-- [ ] Manual test note in `docs/e2e-run-log.md` or tool doc.
+**Steps**
+1. Identify post-login redirect triggers in `auth/server.ts`.
+2. Insert navigation loop to `w2prod.sis.yorku.ca` URLs (see [?10.3](#103-architecture-deltas-v2-specific)).
+3. Verify `session.json` now contains `w2prod.sis.yorku.ca` host entries.
+4. Update `SessionExpiredError` text if users need specific instructions for the new cookies.
 
 ---
 
-### 2.8 Detailed plan ? **T14?T22** (v1.1) procedure
+### 2.8 Detailed plan — **T14-T21** (v1.1 Intelligence) procedure
 
-**T14 ? SIS cookies in auth**
+**T14 — inspect-sis**
 
-1. Locate post-login WAF/resource navigation in `auth/server.ts`.
-2. Insert SIS URL loop (see [?10.3](#103-architecture-deltas-v2-specific) for URLs); swallow navigation errors.
-3. Save session; grep `session.json` for `w2prod.sis.yorku.ca`.
-4. `npx tsc --noEmit`; manual re-auth test.
+1. Implement script per v1.1 spec; output HTML + console probe to `.eclass-mcp/debug/`.
+2. Document: final URL after redirect, login vs data page, table counts.
 
-**T15 ? inspect-sis**
+**T15 — sis scraper**
 
-1. Implement script per v1.1 spec; output HTML + console probe.
-2. Document: final URL after redirect, login vs data page, table counts, whether semester selection is required.
-
-**T16 ? sis scraper**
-
-1. Implement parsers only from T15 facts; handle WebObjects forms if required.
+1. Implement parsers for Exam Schedule and Timetable.
 2. Add `scripts/test-sis.ts`; print sample rows.
 
-**T17 ? sis tools**
+**T16 — sis tools**
 
-1. Mirror other tools: cache, `SessionExpiredError`, `openAuthWindow`.
-2. Register tools; update TTL in `store.ts`.
+1. Register `get_exam_schedule` + `get_timetable`.
+2. Ensure `loadSession()` correctly propagates SIS cookies.
 
-**T18 ? inspect-rmp**
+**T17 — inspect-rmp**
 
 1. Run GraphQL school search; record York `schoolID`.
-2. Probe professor search; note if `Authorization: Basic dGVzdDp0ZXN0` still valid ? if 401, capture current token from browser DevTools and update plan + code.
+2. Probe professor search headers/tokens.
 
-**T19 ? RMP tool**
+**T18 — RMP tool**
 
 1. Implement `searchRMP`; cache by normalized name key.
 2. Register tool + schema.
 
-**T20 ? Reddit tool**
+**T19 — Reddit tool**
 
-1. Implement search with `User-Agent: eclass-mcp/1.0 (?)`; cap `limit` ? 25.
+1. Implement search with custom `User-Agent`.
 2. Register tool + schema.
 
-**T21 ? Docs**
+**T20 — Docs**
 
-1. README tools table 13 rows; troubleshooting for SIS cookies.
-2. Update this file's executive snapshot tool count when merged.
+1. README tools table 13 rows.
+2. Update executive snapshot tool counts.
 
-**T22 ? E2E v1.1**
+**T21 — E2E v1.1**
 
-Use [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) for the exact operator flow and record outcomes in [`docs/e2e-run-log.md`](./e2e-run-log.md).
+Full verification of the 4 new tools (SIS x2, RMP, Reddit) in Claude Desktop.
 
 ---
 
-### 2.9 Detailed plan ? **E01-E19** engineering (9+), including CI/CD
+### 2.9 Detailed plan — **T22** Cron notifications (v1.2 Automation)
+
+**Goal:** Optional morning reminder of deadlines in the next **48 hours**, via desktop notification.
+
+1. Install `node-notifier`.
+2. Implement `src/notifications/cron.ts` using `node-cron`.
+3. Reuse `getDeadlines` logic (filter to 48h).
+4. Wire to `src/index.ts` avoiding stdio pollution.
+5. Add `DEADLINE_CRON=1` opt-in flag.
+
+---
+
+### 2.10 Detailed plan — **E01-E19** engineering (9+), including CI/CD
 
 #### 2.9.1 E01?E02 ? Continuous Integration (GitHub Actions)
 

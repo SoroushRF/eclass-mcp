@@ -239,10 +239,10 @@ rm -rf dist && npm run build
 - [x] CSV attachment inlining (full/preview) with byte/line limits
 - [x] Smart PDF extraction — hybrid text + image rendering pipeline
 - [x] DOCX and PPTX parsers
+- [x] **Grades tool** — full gradebook scraping with feedback (`get_grades`)
+- [x] **Announcements tool** — recent post extraction (`get_announcements`)
 - [ ] **Harden quiz page selectors** — grade extraction missing in some cases *(P3)*
 - [ ] **Richer assignment descriptions** — extract authored content, not just boilerplate *(P4)*
-- [ ] **Grades tool** — full gradebook scraping with feedback
-- [ ] **Announcements tool** — full post body extraction
 - [ ] **Smart image detection** — entropy/vision-based diagram isolation for PDFs
 
 ---
