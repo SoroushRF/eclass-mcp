@@ -1,4 +1,4 @@
-import { Cookie, loadSession } from './session';
+import { loadSession } from './session';
 import { chromium, Page } from 'playwright';
 
 export interface SISExam {
