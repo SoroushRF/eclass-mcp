@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "keywords": [],
-  "author": "",
+  "author": "Soroush Baraouf",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {

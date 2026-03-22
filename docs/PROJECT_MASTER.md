@@ -110,7 +110,7 @@ Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor 
 | [x] **E01** | CI workflow: push + PR, `npm ci`, `npm run build`, `npx tsc --noEmit` | A |
 | [x] **E02** | Add `npm run lint` + `npm run test` to CI when available | A |
 | [x] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check` | A |
-| [ ] **E04** | Add `LICENSE` (verify SPDX matches `package.json`) | A |
+| [x] **E04** | Add `LICENSE` (verify SPDX matches `package.json`) | A |
 | [ ] **E05** | Add `SECURITY.md` (reporting contact, scope, safe harbor) | A |
 | [ ] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
 | [ ] **E07** | Branch rename `master` ? `main` (or document decision) + update refs | A |
