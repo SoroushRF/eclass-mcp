@@ -112,7 +112,7 @@ Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor 
 | [x] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check` | A |
 | [x] **E04** | Add `LICENSE` (verify SPDX matches `package.json`) | A |
 | [x] **E05** | Add `SECURITY.md` (reporting contact, scope, safe harbor) | A |
-| [ ] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
+| [x] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
 | [ ] **E07** | Branch rename `master` ? `main` (or document decision) + update refs | A |
 | [x] **E08** | Test framework (Vitest/Jest) + coverage script | B |
 | [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
