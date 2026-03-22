@@ -1,28 +1,23 @@
-# Development scripts
+# Scripts (minimal)
 
-Runnable helpers for debugging scrapers and parsers against a **real** eClass session. They are not part of the MCP server.
+Only **setup** and a few **smoke tests** stay in the repo. One-off debug probes were removed to keep GitHub lean; recreate locally if needed (see `docs/PROJECT_MASTER.md` T26 / tool roadmaps).
 
-**Prerequisites:** `npm run build` (or `ts-node` paths as below), valid `.eclass-mcp/session.json`, and `npx playwright install chromium` on the machine.
-
-| Script | Purpose |
-|--------|---------|
-| `test-scraper.ts` | Smoke-test core scraper methods |
-| `test-deadlines.ts` / `test-month-view.ts` | Deadline flows |
-| `test-item-details.ts` | Assignment/quiz detail pages |
-| `test-section-text.ts` | Section text + tabs |
-| `test-announcements.ts` | Announcements |
-| `test-pdf-read.ts` / `test-pdf-parser.ts` | PDF pipeline |
-| `debug-*.ts`, `discover-*.ts` | One-off selector or layout probes |
-| `check-course-id.ts` | Resolve or verify course IDs |
-| `setup.mjs`, `setup-claude.sh` | Claude Desktop MCP registration |
-
-Run examples:
+| File | Purpose |
+|------|---------|
+| `setup.mjs` | Invoked by `npm run setup` — build + Claude Desktop config merge |
+| `setup-claude.sh` | Writes/merges `eclass` into `claude_desktop_config.json` |
+| `tsconfig.json` | TypeScript for `ts-node` when running tests below |
+| `test-scraper.ts` | Smoke-test core scraper (`getCourses`, etc.) |
+| `test-deadlines.ts` | Live deadline scrape |
+| `test-month-view.ts` | Month-scoped deadlines |
+| `test-item-details.ts` | Single assignment/quiz URL details |
+| `test-pdf-parser.ts` | Local PDF file → parser (no eClass) |
+| `debug-file-url.ts` | Trace download/parsing for one `fileUrl` |
 
 ```bash
-npx ts-node scripts/test-deadlines.ts
+npm run build
 npx ts-node -P scripts/tsconfig.json scripts/test-scraper.ts
+npx ts-node scripts/test-deadlines.ts
 ```
 
-Write large HTML/JSON/text dumps under `scripts/output/` (gitignored), not next to source files.
-
-Cross-cutting plans and history: [`docs/PROJECT_MASTER.md`](../docs/PROJECT_MASTER.md).
+Large dumps go under `scripts/output/` (gitignored).

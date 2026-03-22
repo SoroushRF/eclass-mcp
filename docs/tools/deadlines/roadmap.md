@@ -36,8 +36,7 @@ Evolve the Deadlines tool into a dynamic system that can view past/future assign
     - optionally inlined CSV `text` blocks (when `includeCsv=true`)
 
 ### Local scripts (verification)
-- `scripts/test-month-view.ts`
-- `scripts/test-item-details.ts`
+- `scripts/test-month-view.ts` · `scripts/test-item-details.ts` · `scripts/test-deadlines.ts`
 
 ---
 
@@ -116,7 +115,7 @@ Expect:
 - [x] **Task 1: Core Scraper Implementation**
     - Add `getMonthDeadlines(month, year)` to `EClassScraper`.
     - Use selector `.calendar_event_course` (confirmed from discovery).
-    - Create `scripts/test-month-view.ts` to verify data extraction.
+    - Verify with `scripts/test-month-view.ts` (or `test-deadlines.ts`).
 - [x] **Task 2: Tool Logic Refactoring**
     - Add `get_deadlines` routing for `upcoming|month|range`.
     - Replace month/range calendar dependency with assignment-index aggregation.

@@ -710,7 +710,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 
 ## Appendix B — Scripts directory policy
 
-- **Keep:** Runnable diagnostics and setup — `test-*.ts`, `debug-*.ts`, `discover-*.ts`, `check-course-id.ts`, `setup.mjs`, `setup-claude.sh`, `tsconfig.json` for scripts, etc.  
+- **Keep:** `setup.mjs`, `setup-claude.sh`, `tsconfig.json`, and the small set listed in [`scripts/README.md`](../scripts/README.md) (`test-scraper`, deadlines/month/item-details, `test-pdf-parser`, `debug-file-url`).  
 - **Remove from git or move to gitignored `scripts/output/`:** Captured dumps — `*.txt`, `*.json`, `.html` that are probe outputs.  
 - **Optional:** `scripts/archive/` for one-off investigations + [`scripts/README.md`](../scripts/README.md).  
 
