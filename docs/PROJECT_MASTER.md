@@ -30,7 +30,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [§2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (E2E, v1.1 SIS/RMP/Reddit, **T26** `eclass.ts` modularization, 9+ engineering).
+- **What to build next:** use [§2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (E2E, v1.1 SIS/RMP/Reddit, **T26** `eclass.ts` modularization, **T27** smart cache + `clear_cache`, optional **T28** user-pinned cache + quota, 9+ engineering).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
 - **Deduplication:** stack, session paths, and tool lists appear once in [§3](#3-executive-snapshot) and [§4](#4-architecture-reference-single-source-of-truth).
 
@@ -48,6 +48,8 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T14–T22** | v1.1 extension — SIS, RateMyProfessors, Reddit (`mcp v2.md`), **nine** tasks in strict order |
 | **T23-T25** | Optional product polish (parallel track; does not block T14-T22) |
 | **T26** | Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — [§2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
+| **T27** | Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — [§2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool) |
+| **T28** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools — [§2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) |
 | **E01-E19** | Engineering “gap to 9+” work items (mapped from former `review.md` epics A-D) |
 
 Status: `[x]` done in repo today · `[ ]` not done / not verified to standard.
@@ -88,14 +90,16 @@ Execute **in order**; do not skip inspect/research tasks.
 
 ---
 
-### 2.4 Tracker — product polish stream (T23-T26)
+### 2.4 Tracker — product polish stream (T23-T28)
 
-Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor work, not a user-facing feature.
+Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor work; **T27** is automatic cache policy + `clear_cache`; **T28** (after T27) is an optional **explicit pin** tier with disk quota.
 
 - [ ] **T23** — PDF pipeline: intelligent diagram / image detection and payload strategy — [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
 - [ ] **T24** — Deadlines: harden quiz + date selectors across themes; document test courses.
 - [ ] **T25** — Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [§6](#6-mvp-vs-post-v1--perfection-backlog)).
 - [ ] **T26** — **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin façade) — **no functional regressions**; see [§2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
+- [ ] **T27** — **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** — [§2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
+- [ ] **T28** — **Pinned cache (user-directed):** structured pin/unpin/list/refresh, single-store discipline vs TTL cache, on-disk **quota** with machine-readable “full” errors — [§2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools). **Depends on T27.**
 
 ---
 
@@ -426,6 +430,135 @@ jobs:
 
 ---
 
+### 2.11 Detailed plan — **T27** Smart cache, metadata, `clear_cache` tool
+
+#### Design review (agreements and pushback)
+
+- **Agree:** TTL should differ by **volatility** (announcements/deadlines vs course outline vs expensive file parse). Users deserve to know **when** data was fetched.
+- **Pushback — “hit eClass on login or whenever user calls the tool”:** Hitting eClass on **every** tool call removes most cache benefit and increases ban/WAF risk. Prefer: **(1)** shorter TTLs for hot data, **(2)** **clear volatile cache after successful auth** (new session ⇒ stale assumptions), **(3)** optional **`force_refresh`** on selected tools, **(4)** explicit **`clear_cache`** when the user asks for the freshest data.
+- **Pushback — “syllabus vs announcements” without signals:** The cache layer does not reliably know if a PDF is a syllabus or a lecture; same URL can be overwritten. **Phase 1 of T27:** tier by **tool/resource type** (not filename NLP). **Phase 2 (optional later):** shorter TTL when `get_file_text` detects “outline” patterns or user flags — out of scope for T27 DoD unless time allows.
+- **Metadata in responses:** Add a **small, stable envelope** to the JSON each tool already returns (e.g. top-level `_cache: { hit, fetched_at, expires_at }` plus existing payload fields) so Claude can quote freshness. Avoid a **second** MCP content block for every call (noisier protocol-wise); the model can summarize `_cache` in natural language for the user.
+- **`clear_cache` tool:** **Agree** — register a **10th** tool `clear_cache` with `scope`: `all` \| `volatile` \| `deadlines` \| `announcements` \| `grades` \| `content` \| `files` \| `courses` (exact enum to match key prefixes). Return a short JSON summary of what was removed.
+
+#### Target TTLs (minutes) — replace current `TTL` in `store.ts`
+
+| Tier | Tools / keys | Minutes | Rationale |
+|------|----------------|---------|-----------|
+| **Hot** | Deadlines (`get_deadlines`, `get_upcoming_deadlines`), announcements | **30** | Instructor posts and due dates change often. |
+| **Warm** | `get_item_details` | **20** | Submission status / visible grades change after student actions. |
+| **Course shell** | `get_course_content`, `get_section_text` | **180** (3h) | Section lists change occasionally; fresher than old 6h is enough without hammering. |
+| **Enrollment** | `list_courses` | **360** (6h) | Add/drop is rare mid-week; half old 24h default. |
+| **Grades** | `get_grades` | **180** (3h) | Between “live” and old 12h. |
+| **Parsed files** | `get_file_text` | **2880** (48h) | Parsing is expensive; same URL can be replaced — 48h balances speed vs staleness (was 7d). *Team may keep 7d if bandwidth is the bottleneck — document choice in PR.* |
+
+*Tune after dogfooding; values are defaults, not physics.*
+
+#### Cache file schema extension
+
+- Extend `CacheEntry` in [`src/cache/store.ts`](../src/cache/store.ts): `fetched_at` (ISO8601, set on `set`), keep `expires_at` and `data`.
+- **`get`** returns `{ data, fetched_at, expires_at } | null` **or** keep `get` as today and add **`getWithMeta`** — pick one pattern and use everywhere tools need meta.
+- Old cache files without `fetched_at`: treat as miss **or** set `fetched_at` from `expires_at - ttl` best-effort; simplest is **invalidate on first read after upgrade** if field missing.
+
+#### Key naming — remove manual `_v2` / `_v3` / `_v4` / `_v5`
+
+- Single exported **`CACHE_SCHEMA_VERSION`** (integer, bump in **CHANGELOG** when JSON payload shape changes).
+- Keys like: `deadlines:${CACHE_SCHEMA_VERSION}:${scope}:…` — **no** scattered string bumps in tool files.
+
+#### Auth integration
+
+- After **`saveSession`** succeeds in [`src/auth/server.ts`](../src/auth/server.ts), call **`cache.clearVolatile()`** (new method): removes entries for deadlines, announcements, grades, content, section text, details prefix — **not** necessarily full `files` (expensive to re-parse) unless `scope=all` or product decision says yes. Document behavior in README.
+
+#### Tool implementations
+
+- **Helper** `attachCacheMeta(payload, meta)` building consistent `_cache` object.
+- **Each cached tool** returns JSON including `_cache` on every response (hit or miss; on miss `hit: false`, `fetched_at` = now of scrape).
+- **Optional `force_refresh` boolean** on the heaviest tools (`get_deadlines`, `get_course_content`, `get_item_details`, `get_announcements`) — skip `get` when true, then `set`. *If omitted from v1 of T27, note as follow-up.*
+- **`clear_cache`:** implement in `src/tools/cache.ts` (or `maintenance.ts`), register in [`src/index.ts`](../src/index.ts); uses `cache.clear()` / prefix deletes.
+
+#### Documentation
+
+- Update **README** tool table (**10 tools**), explain freshness + `clear_cache`.
+- Update **§3.1** executive snapshot when T27 ships.
+
+#### Definition of done (T27)
+
+- [ ] TTL table applied in `store.ts` + tools updated.
+- [ ] `CACHE_SCHEMA_VERSION` + key refactor; legacy `*_vN` orphan files acceptable (user may delete `.eclass-mcp/cache` once).
+- [ ] `_cache` (or agreed envelope) on **all** cache-backed eClass tools.
+- [ ] `clear_cache` tool with **scope** + safe behavior documented.
+- [ ] **Volatile** cache clear on successful auth (exact prefix list documented).
+- [ ] `npm run build` / `tsc` clean; brief note in CHANGELOG or README “Cache behavior changed”.
+- *Optional follow-on (not part of T27 DoD):* **T28** user-pinned tier + quota — [§2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools); start only after the T27 checkboxes above are met.
+
+---
+
+### 2.12 Detailed plan — **T28** User-pinned cache, quota, and tools
+
+**Intent:** Let a user (via natural language → model-invoked tools) **retain** specific eClass resources across TTL expiry so heavy paths (e.g. parsed files) are not refetched from scratch—**without** treating chat as the source of truth.
+
+**Prerequisite:** Land **T27** first (`CACHE_SCHEMA_VERSION`, `_cache` metadata envelope, `clear_cache`, volatile clear on auth). T28 layers **policy and tools** on top of a coherent cache story; designing it before T27 risks two divergent persistence models.
+
+#### Problem framing (why “just say pin this lecture” is insufficient)
+
+- **Stable identity:** Pins must be keyed on **structured IDs** the scraper already understands (course id, resource/mod URL, `cmid` where applicable, etc.). Natural language is only **intent**; the assistant must call tools with **explicit parameters**. Wrong keys ⇒ wrong cache hits (worse than a miss).
+- **Same URL, new bytes:** eClass can replace a file at an **unchanged URL**. A pin is an **assume-immutability** snapshot unless refreshed. Product copy and tool responses should expose **`pinned_at`** / last fetch metadata (aligned with T27 `_cache` or a sibling `_pin` field) so staleness is visible.
+- **Not a second copy of the world:** Prefer **one on-disk store** where a pin is **metadata + pointer** into the same blob the normal file cache uses (or a single record with “pinned ⇒ exempt from TTL eviction”), rather than duplicating parsed text under a parallel “mini DB.”
+
+#### Proposed surface (names indicative)
+
+Register **small, explicit MCP tools** (exact names TBD in implementation):
+
+| Tool | Role |
+|------|------|
+| `cache_pin` | Mark a resource as pinned; persists registry entry + ensures payload retained per quota rules. |
+| `cache_unpin` | Remove pin; underlying cache entry may revert to normal TTL eviction unless otherwise referenced. |
+| `cache_list_pins` | List pinned keys + labels + sizes + `pinned_at` (for user and model). |
+| `cache_refresh_pin` | Optional but **recommended**: refetch from eClass, update content/hash, keep pin. |
+
+*Alternative:* one `manage_cache` tool with a `mode` enum—trade-off is fewer registered tools vs. noisier schemas.
+
+#### Pin record (minimum fields)
+
+- **`resource_type`** — e.g. `file` \| `section` \| *(only types we can key reliably; start narrow)*  
+- **Stable resource key** — tuple agreed per type (e.g. `courseId` + canonical file URL, not “lecture 3” titles alone)  
+- **`pinned_at`** (ISO8601)  
+- **Optional `note`** — short user/agent label  
+- **Optional integrity hints** — `etag`, `Last-Modified`, or **content hash** from last successful fetch (helps detect silent URL replacement when refresh is run)
+
+#### Quota and “storage full”
+
+- **Configurable limits:** e.g. global **`max_pin_bytes`** (and optionally **`max_single_object_bytes`**) under `.eclass-mcp/` config or env; defaults documented in README.
+- **What counts:** Define explicitly: raw downloaded bytes, parsed text / JSON cache entries, and pin-registry overhead—**one accounting model**, documented.
+- **On exceed:** Return **structured JSON** (e.g. `ok: false`, `reason: "quota_exceeded"`, `used_bytes`, `limit_bytes`, `would_use_bytes`, optional `largest_pins`). The MCP host does not guarantee a GUI prompt; the **model** explains the failure to the user—so payloads must be **precise** to avoid hallucinated remediation.
+- **Policy choice (document in PR):** hard **reject** new pins when full vs. **evict unpinned cache first** vs. **LRU among pins**—pick one default; hard reject is simplest but can deadlock until user unpins.
+
+#### Interaction with T27
+
+- **`clear_cache`:** Specify whether scopes like `all` or `files` **remove pinned content** or pins **survive** until `cache_unpin` / dedicated scope (e.g. `pins`). Users will expect predictable rules; document in README and tool descriptions.
+- **Auth / volatile clear:** Decide if successful login clears **pin registry** (unlikely) vs. only **volatile** keys (likely)—pins probably **survive** session refresh but **refresh_pin** may be required if cookies rotated and fetches fail.
+
+#### Risks called out (non-goals unless expanded)
+
+- **Credentials:** Pin registry and payloads must **never** store session secrets; same discipline as today’s cache.
+- **Privacy:** Longer retention of extracted text increases local exposure if device is shared—same as “longer TTL,” but more explicit.
+- **Scope creep:** Pinning “whole course” bundles is tempting but ambiguous; **ship narrow** (e.g. files first), extend later.
+
+#### Documentation
+
+- README: pin semantics (“immutable until refresh”), quota env vars, interaction with `clear_cache`.
+- Update **§3.1** tool count and planned rows when T28 ships.
+
+#### Definition of done (T28)
+
+- [ ] **T27 complete** (or explicitly listed exceptions documented)—no parallel cache key story.
+- [ ] Pin registry on disk + integration with **single** cache architecture (no duplicate blobs for the same logical file without justification).
+- [ ] `cache_pin` / `cache_unpin` / `cache_list_pins` (+ `cache_refresh_pin` or documented equivalent).
+- [ ] Quota enforcement + **structured** over-quota errors (bytes used/limit/would-use).
+- [ ] Responses include freshness/pin metadata consistent with T27 style where applicable.
+- [ ] README + **§3.1** updated; `clear_cache` + auth behavior w.r.t. pins documented.
+
+---
+
 ## 3. Executive snapshot
 
 ### 3.1 MCP tools currently registered (9)
@@ -441,6 +574,10 @@ jobs:
 | `get_item_details` | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining) |
 | `get_grades` | Grade report |
 | `get_announcements` | Recent announcements |
+
+**Planned ([T27](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool)):** `clear_cache` — user-requested invalidation; all tools gain JSON **`_cache`** freshness metadata.
+
+**Planned ([T28](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools)):** optional **`cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin`** (or equivalent)—user-directed long retention with **on-disk quota** and structured errors when full. **After T27.**
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -494,7 +631,7 @@ try {
 
 ### 4.3 Cache keys
 
-Version suffixes on cache keys (e.g. `_v2`, `_v3`) are used so scraper or schema changes do not serve stale structured data. New features should follow the same convention.
+**Current code** still uses ad-hoc `_v2` / `_v3` suffixes in some tools. **Target (T27):** a single **`CACHE_SCHEMA_VERSION`** in [`src/cache/store.ts`](../src/cache/store.ts) plus key builders — bump only when the **JSON shape** of cached data changes; see [§2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
 
 ---
 
@@ -576,12 +713,14 @@ The original spec targeted **6 tools**; the repo now ships **9**. Optional follo
 
 ## 9. Phase A — Active product backlog (themes)
 
-For **checkbox execution**, use [§2.3](#23-tracker--product-v11-t14-t22) and [§2.4](#24-tracker--product-polish-stream-t23-t26) (T23-T26) and tool roadmaps:
+For **checkbox execution**, use [§2.3](#23-tracker--product-v11-t14-t22) and [§2.4](#24-tracker--product-polish-stream-t23-t28) (T23–T28) and tool roadmaps:
 
 1. **PDF / files** — [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).  
 2. **Deadlines** — Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).  
 3. **Post-v1 tool depth** — [§6.2](#62-upcoming-tools-section--reinterpretation).  
 4. **Scraper structure** — **T26** / [§2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
+5. **Cache / freshness (automatic)** — **T27** / [§2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).  
+6. **User-pinned cache + quota** — **T28** / [§2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T27)*.  
 
 ---
 
