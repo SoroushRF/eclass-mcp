@@ -68,7 +68,7 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 - [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **9 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
-- [ ] **T11** ? **Formal Claude Desktop E2E verification** ? see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md); not completed to documentation standard.
+- [x] **T11** — **Formal Claude Desktop E2E verification** — **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
 - [ ] **T12** ? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`) ? **not implemented** in `src/`.
 - [x] **T13** ? README and user-facing onboarding (iterate as features land).
 
@@ -243,9 +243,9 @@ Use [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) for the exact operator f
 name: CI
 on:
   push:
-    branches: [main, master]
+    branches: [master]
   pull_request:
-    branches: [main, master]
+    branches: [master]
 
 jobs:
   build:
@@ -312,7 +312,7 @@ jobs:
 - **E04 LICENSE:** Choose ISC/MIT/etc., match `package.json` `"license"`.
 - **E05 SECURITY.md:** Include how to report vulnerabilities, supported versions, and that session files are local-sensitive.
 - **E06 CONTRIBUTING:** PR flow, `npm ci`, `tsc`, how to run E2E checklist.
-- **E07 main branch:** Renaming to `main` was considered; decision reached to stay on `master` for this repository. All references updated to explicitly use `master`. (Completed)`.
+- **E07 branch naming:** Renaming to `main` was considered; decision reached to stay on `master` for this repository. All references updated to explicitly use `master`. (Completed)`.
 
 #### 2.9.4 E08?E12 ? Tests and contracts
 
@@ -389,6 +389,7 @@ jobs:
 - **Pushback ? ?syllabus vs announcements?? without signals:** The cache layer does not reliably know if a PDF is a syllabus or a lecture; same URL can be overwritten. **Phase 1 of T27:** tier by **tool/resource type** (not filename NLP). **Phase 2 (optional later):** shorter TTL when `get_file_text` detects "outline" patterns or user flags ? out of scope for T27 DoD unless time allows.
 - **Metadata in responses:** Add a **small, stable envelope** to the JSON each tool already returns (e.g. top-level `_cache: { hit, fetched_at, expires_at }` plus existing payload fields) so Claude can quote freshness. Avoid a **second** MCP content block for every call (noisier protocol-wise); the model can summarize `_cache` in natural language for the user.
 - **`clear_cache` tool:** **Agree** ? register a **10th** tool `clear_cache` with `scope`: `all` \| `volatile` \| `deadlines` \| `announcements` \| `grades` \| `content` \| `files` \| `courses` (exact enum to match key prefixes). Return a short JSON summary of what was removed.
+- **"Cache-first" discipline:** Tools must check for a valid, unexpired cache **before** triggering a session check or login flow. If valid cache exists, return it instantly; only force login if cache is missing or expired.
 
 #### Target TTLs (minutes) ? replace current `TTL` in `store.ts`
 
@@ -437,6 +438,7 @@ jobs:
 - [ ] `_cache` (or agreed envelope) on **all** cache-backed eClass tools.
 - [ ] `clear_cache` tool with **scope** + safe behavior documented.
 - [ ] **Volatile** cache clear on successful auth (exact prefix list documented).
+- [ ] **Cache-first enforcement:** Verified that all tools return valid cache (if present) without forcing a login.
 - [ ] `npm run build` / `tsc` clean; brief note in CHANGELOG or README "Cache behavior changed".
 - *Optional follow-on (not part of T27 DoD):* **T28** user-pinned tier + quota ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools); start only after the T27 checkboxes above are met.
 

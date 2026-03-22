@@ -73,6 +73,22 @@ flowchart LR
 
 ---
 
+### 🧪 Testing & Validation
+
+For server-level validation (verifying raw JSON before putting it into a host like Claude):
+
+1.  Stop any running server instances.
+2.  Launch the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+    ```powershell
+    npx @modelcontextprotocol/inspector node dist/index.js
+    ```
+3.  Open `http://localhost:3000` in your browser.
+4.  Test individual tools and inspect JSON payloads.
+
+*For formal E2E test runs, see the **[E2E Handbook](docs/t11-e2e-handbook.md)** and the **[E2E Run Log](docs/e2e-run-log.md)**.*
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites

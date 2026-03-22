@@ -11,6 +11,7 @@ T11 proves the real MCP server works through the real host, Claude Desktop, with
 What this handbook covers:
 - prerequisites and environment capture
 - the exact prompt matrix
+- **Phase A.1: Inspector Smoke Pass (Server-only)**
 - pass/fail/skip rules
 - session-expiry regression
 - how to record evidence and file failures
@@ -18,7 +19,14 @@ What this handbook covers:
 What this handbook does not do:
 - it does not replace CI
 - it does not replace unit or fixture tests
-- it does not define scraper internals
+---
+
+### 1.1 Status & History
+- **Run [1]:** Successfully executed on **2026-03-22**. 
+- **Environment:** Node v24.11.0, repo `c885853`.
+- **Result:** 10/10 tools passed Inspector (Server) and Claude (Host) verification.
+
+---
 
 ## 2. Preconditions
 
