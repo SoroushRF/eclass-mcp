@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are applied to the **latest commit on the default branch** (`main` or `master`, whichever this repository uses). There is no separate long-term support (LTS) line yet; use the newest release or tip of default branch.
+Security fixes are applied to the **latest commit on the default branch** (`master`). There is no separate long-term support (LTS) line yet; use the newest release or tip of default branch.
 
 ## Scope
 

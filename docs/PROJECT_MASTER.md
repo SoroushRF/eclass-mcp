@@ -113,7 +113,7 @@ Optional parallel work (does not block T14-T22). **T26** is maintainer/refactor 
 | [x] **E04** | Add `LICENSE` (verify SPDX matches `package.json`) | A |
 | [x] **E05** | Add `SECURITY.md` (reporting contact, scope, safe harbor) | A |
 | [x] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
-| [ ] **E07** | Branch rename `master` ? `main` (or document decision) + update refs | A |
+| [x] **E07** | Branch rename `master` ? `main` (Decision: kept `master`) | A |
 | [x] **E08** | Test framework (Vitest/Jest) + coverage script | B |
 | [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
 | [ ] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants) | B |
@@ -283,7 +283,7 @@ jobs:
 3. **`npm run build`** runs `tsc` (typecheck + emit); a separate `tsc --noEmit` step is optional and was omitted to avoid duplicate compiler work.
 4. **Why Node matrix:** catches platform-specific path or optional dependency issues (Windows vs Linux).
 5. **Playwright in CI:** only add `npx playwright install chromium` to CI when **automated browser tests** exist (E10); otherwise skip to keep CI fast.
-6. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `main`/`master`.
+6. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `master`.
 7. **Badge (optional):** Add workflow status badge to README after first green run.
 8. **`timeout-minutes: 15`** on the job avoids hung installs (e.g. future Playwright in CI).
 
@@ -312,7 +312,7 @@ jobs:
 - **E04 LICENSE:** Choose ISC/MIT/etc., match `package.json` `"license"`.
 - **E05 SECURITY.md:** Include how to report vulnerabilities, supported versions, and that session files are local-sensitive.
 - **E06 CONTRIBUTING:** PR flow, `npm ci`, `tsc`, how to run E2E checklist.
-- **E07 main branch:** Rename + update any docs/scripts referencing `master`.
+- **E07 main branch:** Renaming to `main` was considered; decision reached to stay on `master` for this repository. All references updated to explicitly use `master`. (Completed)`.
 
 #### 2.9.4 E08?E12 ? Tests and contracts
 

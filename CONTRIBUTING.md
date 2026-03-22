@@ -29,7 +29,7 @@ npm run format         # fix with Prettier
 ## Pull request flow
 
 1. **Fork** the repository (or use a branch if you have write access).
-2. **Branch** from the default branch (`main` or `master`) with a short descriptive name (e.g. `fix/deadlines-month-range`).
+2. **Branch** from the default branch (`master`) with a short descriptive name (e.g. `fix/deadlines-month-range`).
 3. **Implement** with small, reviewable commits if you like; ensure:
    - `npm run lint` passes (`--max-warnings 0`)
    - `npm test` passes
