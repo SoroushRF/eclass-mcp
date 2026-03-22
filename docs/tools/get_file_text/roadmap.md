@@ -1,7 +1,7 @@
 # 🗺️ PDF Extraction Pipeline: Master Roadmap
 
 > [!IMPORTANT]
-> **PURPOSE:** This document is for **future strategy, brainstorming, and research**. It tracks high-level goals and pending technical challenges. For the history of completed tasks and current architecture, see [pdf-extraction-pipeline.md](./pdf-extraction-pipeline.md).
+> **PURPOSE:** This document is for **future strategy, brainstorming, and research**. It tracks high-level goals and pending technical challenges. For the history of completed tasks and current architecture, see [history.md](./history.md).
 
 This document serves as the "source of truth" for the intelligent PDF pipeline. It tracks our architectural decisions, technical constraints, test results, and future research.
 

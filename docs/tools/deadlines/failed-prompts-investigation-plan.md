@@ -181,7 +181,7 @@ For each prompt:
 2. Capture evidence (HTML/selectors/output).
 3. Implement minimal fix.
 4. Run script tests + MCP prompt test.
-5. Update docs (`history.md`, this file, `TODO.md`) with outcome.
+5. Update docs (`history.md`, this file, `docs/PROJECT_MASTER.md` if cross-cutting) with outcome.
 
 ---
 

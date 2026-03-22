@@ -3,3 +3,6 @@ dist/
 .env
 .eclass-mcp/
 *.json.bak
+
+# Local script probe output (keep repo clean)
+scripts/output/

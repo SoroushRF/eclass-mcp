@@ -61,6 +61,7 @@ flowchart LR
 |------|---------|---------------|
 | `list_courses` | List enrolled courses | — |
 | `get_course_content` | Sections, files, assignments for one course | `courseId` |
+| `get_section_text` | Section page text, links, and tabbed content | `url` |
 | `get_upcoming_deadlines` | Assignments due in the next N days | `daysAhead?`, `courseId?` |
 | `get_deadlines` | Deadlines by scope: upcoming / month / range | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?` |
 | `get_item_details` | Full instructions + status + grade for one assignment or quiz URL | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?` |
@@ -68,7 +69,7 @@ flowchart LR
 | `get_grades` | Grade report (all courses or one) | `courseId?` |
 | `get_announcements` | Recent course announcements | `courseId?`, `limit?` |
 
-> 📖 Deep-dive: [Deadlines & Details tool docs](docs/tools/deadlines/roadmap.md) · [PDF pipeline docs](docs/tools/get_file_text/history.md)
+> 📖 **Master plan (roadmaps, history, v2, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
 ---
 
@@ -207,7 +208,7 @@ rm -rf dist && npm run build
 | Deadlines — vision instruction screenshots (no OCR) | [`docs/tools/deadlines/vision-image-reading.md`](docs/tools/deadlines/vision-image-reading.md) |
 | PDF pipeline — engineering deep-dive | [`docs/tools/get_file_text/history.md`](docs/tools/get_file_text/history.md) |
 | PDF pipeline — future roadmap (smart image detection) | [`docs/tools/get_file_text/roadmap.md`](docs/tools/get_file_text/roadmap.md) |
-| Master TODO | [`TODO.md`](TODO.md) |
+| **Project master** (plans, merged history, v2, 9+ engineering) | [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) |
 
 ---
 
@@ -254,7 +255,7 @@ npx ts-node scripts/debug-file-url.ts "https://eclass.yorku.ca/mod/resource/view
 
 All scraping tests require a valid session (`npm run setup` + authenticate via `/auth` first).
 
-**One task at a time.** Each feature area has its own roadmap doc — read it before changing anything in that area. Update `docs/` and `TODO.md` after completing a task.
+**One task at a time.** Each feature area has its own roadmap under `docs/tools/` — read it before changing that area. Update `docs/` (and [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) for cross-cutting status) when you complete meaningful work.
 
 ---
 
