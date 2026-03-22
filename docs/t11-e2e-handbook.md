@@ -22,9 +22,10 @@ What this handbook does not do:
 ---
 
 ### 1.1 Status & History
-- **Run [1]:** Successfully executed on **2026-03-22**. 
+- **Run [1]:** Successfully executed on **2026-03-22**. 10/10 tools passed.
+- **Run [2]:** Successfully executed on **2026-03-22** (SIS Integration). 12/12 tools passed.
 - **Environment:** Node v24.11.0, repo `c885853`.
-- **Result:** 10/10 tools passed Inspector (Server) and Claude (Host) verification.
+- **Result:** SIS integration verified in Inspector and Claude Desktop.
 
 ---
 
@@ -99,6 +100,8 @@ Use these prompts as written unless the local data forces a small adjustment.
 | 8 | Get full details for this assignment URL <url> | `get_item_details` | Has `kind` and at least one of `instructions` or `fields` |
 | 9 | What are my grades? | `get_grades` | Rows include item names and grade values |
 | 10 | Recent announcements | `get_announcements` | Non-empty array; each entry has `title`, `date`, and `body` |
+| 11 | What are my upcoming exams? | `get_exam_schedule` | List of exams with codes, dates, and times |
+| 12 | What is my class schedule? | `get_class_timetable` | List of LECT/LAB/TUTR entries for the session |
 
 ## 6. Session Expiry Regression
 

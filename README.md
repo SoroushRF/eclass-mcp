@@ -28,7 +28,8 @@
 - 🏆 **Grades** — per-course or overview grade reports
 - 📣 **Announcements** — course news and forum posts
 - 🗂️ **Course Content** — file/resource listings per course section
-- 🔐 **Session Auth** — one-click login via a local browser window; sessions cached for ~60 hours
+- 🎓 **SIS Integration** — personal exam schedules and class timetables (lectures, labs, tutorials)
+- 🔐 **Session Auth** — one-click login via a local browser window; session bridging for both eClass and SIS domains
 - 💾 **Smart Caching** — file-based JSON cache with per-resource TTLs (7 days for files, 1–24 hours for live data)
 
 ---
@@ -46,6 +47,7 @@ flowchart LR
     E --> G
     F --> G
     G -- cookies --> H[eclass.yorku.ca]
+    G -- cookies --> S[sis.yorku.ca]
     E --> I[PDF Analyzer\npdfjs-dist + @napi-rs/canvas]
     E --> J[DOCX / PPTX Parsers]
     B --> K[Cache Store\n.eclass-mcp/cache/]
@@ -68,6 +70,8 @@ flowchart LR
 | `get_file_text` | Extract text (and rendered images) from PDF, DOCX, or PPTX | `courseId`, `fileUrl`, `startPage?`, `endPage?` |
 | `get_grades` | Grade report (all courses or one) | `courseId?` |
 | `get_announcements` | Recent course announcements | `courseId?`, `limit?` |
+| `get_exam_schedule` | List your upcoming personal exam schedule from York SIS | — |
+| `get_class_timetable` | List your personal class timetable (lectures/labs) from York SIS | — |
 
 > 📖 **Master plan (roadmaps, history, v2, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
@@ -154,6 +158,8 @@ You're done. Ask Claude anything about your courses.
 "Read the lecture slides from EECS 1028 — Week 5."
 "What are my current grades in all courses?"
 "Any recent announcements from my professors?"
+"What are my upcoming exams?"
+"What is my class schedule this week?"
 ```
 
 For large PDFs, Claude will automatically paginate:
@@ -267,6 +273,9 @@ npx ts-node scripts/test-pdf-parser.ts ./path/to/file.pdf
 
 # Debug a specific file URL
 npx ts-node scripts/debug-file-url.ts "https://eclass.yorku.ca/mod/resource/view.php?id=XXXXX"
+
+# Test SIS (Exam/Timetable) scraping
+npx ts-node scripts/test-sis-scraper.ts
 ```
 
 All scraping tests require a valid session (`npm run setup` + authenticate via `/auth` first).

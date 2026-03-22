@@ -48,6 +48,33 @@
 
 ---
 
+## Run [2] — 2026-03-22 (Phase 1.1: SIS Integration)
+
+### Environment
+| Field | Value |
+|-------|-------|
+| Date | 2026-03-22 |
+| OS | Windows (PowerShell) |
+| Node version | v24.11.1 |
+| Claude Version | Stable |
+| Repo commit | c885853 |
+| Cache state | warm |
+| Session state | reused (SIS cookies bridged) |
+
+### Inspector Smoke Pass (Server-only)
+| # | Tool | Status | Findings |
+|---|------|--------|----------|
+| I-11 | `get_exam_schedule` | Pass | Successfully parsed 4 undergrad exams; dual course codes handled (`SC MATH 1028 / LE EECS 1028`) |
+| I-12 | `get_class_timetable` | Pass | Successfully navigated session selection; returned 11 timetable entries (LECT, LAB, TUTR) |
+
+### Claude Desktop Tool Matrix (E2E)
+| # | Tool | Prompt used | Result | Evidence | Issue # | Notes |
+|---|------|-------------|--------|----------|---------|-------|
+| 11 | `get_exam_schedule` | "What are my upcoming exams?" | Pass | Claude correctly listed dates/times for 4 exams; identified 3:00 credit weight | | |
+| 12 | `get_class_timetable` | "What is my class schedule?" | Pass | Detailed summary of 11 items; Claude identified morning/evening splits correctly | | |
+
+---
+
 ## 📋 Run Link Template (Phase: March 22, 2026)
 
 *Use this template for future runs. The "Inspector Smoke Pass" was added on 2026-03-22 to ensure server stability before host testing.*
@@ -76,6 +103,8 @@
 | I-8 | `get_item_details` | | |
 | I-9 | `get_grades` | | |
 | I-10| `get_announcements` | | |
+| I-11| `get_exam_schedule` | | |
+| I-12| `get_class_timetable` | | |
 
 ### Claude Desktop Tool Matrix (E2E)
 | # | Tool | Prompt used | Result | Evidence | Issue # | Notes |
@@ -90,6 +119,8 @@
 | 8 | `get_item_details` | | | | | |
 | 9 | `get_grades` | | | | | |
 | 10 | `get_announcements` | | | | | |
+| 11 | `get_exam_schedule` | | | | | |
+| 12 | `get_class_timetable` | | | | | |
 | S | Session expiry | | | | | |
 
 ### Definitions

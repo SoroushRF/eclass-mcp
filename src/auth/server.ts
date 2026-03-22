@@ -44,12 +44,32 @@ export function startAuthServer() {
           /* page might 404, that's fine — we just need the WAF cookie */
         }
 
+        // --- SIS Cookie Bridging (Task 12) ---
+        // Bridge to York SIS to capture SSO cookies for Exam Schedule and Timetable.
+        // DirectAction URLs are more stable than the session-based WO URLs.
+        const SIS_URLS = [
+          'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/cde', // Course Timetable
+          'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/ede', // Exam Schedule
+        ];
+
+        console.error('Login detected. Starting SIS cookie bridge...');
+        for (const sisUrl of SIS_URLS) {
+          try {
+            console.error(`Navigating to SIS: ${sisUrl}...`);
+            await page.goto(sisUrl, { timeout: 10000, waitUntil: 'load' });
+            console.error(`Successfully hit ${sisUrl}`);
+          } catch (e) {
+            console.error(`SIS bridge skipped for ${sisUrl}:`, (e as Error).message);
+          }
+        }
+
+        console.error('Capturing context cookies...');
         const cookies = await context.cookies();
+        
+        console.error(`Saving session with ${cookies.length} cookies...`);
         saveSession(cookies as any);
 
-        await browser.close();
-
-        // Sending complete HTML in one block
+        // Sending complete HTML in one block so the user sees success immediately.
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
@@ -60,6 +80,20 @@ export function startAuthServer() {
             </body>
           </html>
         `);
+
+        console.error('Sent Connected message to user browser.');
+
+        console.error('Waiting 3 seconds before closing auth browser...');
+        setTimeout(async () => {
+          try {
+            await browser.close();
+            console.error('Auth browser closed successfully.');
+          } catch (e) {
+            console.error('Error closing auth browser:', e);
+          }
+        }, 3000);
+        
+        console.error('Auth flow complete (browser closing in 3s).');
       } catch (error: any) {
         console.error('Auth error:', error);
         res.writeHead(500, { 'Content-Type': 'text/html' });

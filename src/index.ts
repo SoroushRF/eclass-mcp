@@ -19,6 +19,7 @@ import {
 } from './tools/deadlines';
 import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
+import { getExamSchedule, getClassTimetable } from './tools/sis';
 
 // Create the MCP server
 const server = new McpServer({
@@ -223,6 +224,20 @@ server.tool(
   },
   (async ({ courseId, limit }: any) =>
     await getAnnouncements(courseId, limit)) as any
+);
+
+server.tool(
+  'get_exam_schedule',
+  "Fetches the current student's personal exam schedule from York SIS.",
+  {},
+  (async () => await getExamSchedule()) as any
+);
+
+server.tool(
+  'get_class_timetable',
+  "Fetches the current student's personal class timetable from York SIS for the current session.",
+  {},
+  (async () => await getClassTimetable()) as any
 );
 
 // Main startup

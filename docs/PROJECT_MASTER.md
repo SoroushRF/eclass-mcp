@@ -70,7 +70,7 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** — **Formal Claude Desktop E2E verification** — **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
-- [ ] **T12** — **SIS cookies in auth** — Extend `src/auth/server.ts` to visit SIS URLs before saving session.
+- [x] **T12** — **SIS cookies in auth** — Extend `src/auth/server.ts` to visit SIS URLs before saving session. **Completed 2026-03-22**.
 - [x] **T13** ? README and user-facing onboarding (iterate as features land).
 
 ---
@@ -79,9 +79,9 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
 Execute **in order**; do not skip inspect/research tasks.
 
-- [ ] **T14** ? Add `scripts/inspect-sis.ts`: load session, headless navigate exam + timetable URLs, dump HTML + structure probe to `.eclass-mcp/debug/`.
-- [ ] **T15** ? Implement `src/scraper/sis.ts` (`getExamSchedule`, `getTimetable`) from T14 findings.
-- [ ] **T16** ? Add `src/tools/sis.ts`, register `get_exam_schedule` + `get_timetable` in `index.ts`, add TTLs, versioned cache keys.
+- [x] **T14** — **SIS Inspection** — Created `scripts/inspect-sis.ts`, analyzed HTML structure for exams and timetable selection. **Completed 2026-03-22**.
+- [x] **T15** — **SIS Scraper** — Implemented `src/scraper/sis.ts` with `scrapeExams` and `scrapeTimetable` logic. Handles session selection. **Completed 2026-03-22**.
+- [x] **T16** — **SIS Tools** — Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
 - [ ] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [ ] **T18** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`.
 - [ ] **T19** ? Implement `src/tools/reddit.ts` (`fetch`, User-Agent, r/yorku search), register `search_york_reddit`, `TTL.REDDIT`.
@@ -799,6 +799,3 @@ The following were deleted from the repo root; use this file instead:
 ---
 
 *End of project master document.*
-
-
-
