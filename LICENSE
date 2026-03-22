@@ -1,15 +1,17 @@
-ISC License
+Copyright (c) 2026 Soroush Baraouf. All Rights Reserved.
 
-Copyright (c) 2026 eclass-mcp contributors
+LIMITED PERSONAL USE LICENSE
 
-Permission to use, copy, modify, and/or distribute this software for any
-purpose with or without fee is hereby granted, provided that the above
-copyright notice and this permission notice appear in all copies.
+This software is provided for personal, non-commercial use only. 
 
-THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
-REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
-AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
-INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
-OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
-TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
-THIS SOFTWARE.
+By using, cloning, or downloading this software, you agree to the following:
+
+1. PERSONAL USE ONLY: You may clone and run this software for your own personal educational use.
+2. NO REDISTRIBUTION: You may not redistribute, publish, or host this software for use by others without express written permission from the author.
+3. NO DERIVATIVES: You may not modify, transform, or build upon this work for the purpose of creating a separate project or product.
+4. NO COMMERCIAL USE: You may not use this software, or any portion of it, for any commercial purpose, including but not limited to selling access, charging for its use, or building a for-profit service.
+5. NO RE-MARKING: You may not remove the author's name or copyright notice, nor may you claim ownership of this software.
+
+IF YOU ARE FOUND TO BE IN VIOLATION OF THESE TERMS, A DMCA TAKEDOWN NOTICE OR LEGAL CEASE-AND-DESIST WILL BE ISSUED TO REMOVE THE WORK FROM ANY PUBLIC PLATFORMS.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.

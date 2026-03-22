@@ -17,7 +17,7 @@
   },
   "keywords": [],
   "author": "Soroush Baraouf",
-  "license": "ISC",
+  "license": "SEE LICENSE IN LICENSE",
   "type": "commonjs",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
