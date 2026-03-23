@@ -66,7 +66,7 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 - [x] **T05** ? eClass scraper core (`src/scraper/eclass.ts`, `SessionExpiredError`, real scraping APIs; evolved well beyond original mock stage).
 - [x] **T06** ? File parsers (`src/parser/pdf.ts`, `docx.ts`, `pptx.ts`; PDF path later upgraded ? see file-tool docs).
 - [x] **T07** ? MCP tool modules (`src/tools/*.ts`, cache + session error handling).
-- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **9 tools** today vs original 6).
+- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **13 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** — **Formal Claude Desktop E2E verification** — **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
@@ -83,9 +83,9 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T15** — **SIS Scraper** — Implemented `src/scraper/sis.ts` with `scrapeExams` and `scrapeTimetable` logic. Handles session selection. **Completed 2026-03-22**.
 - [x] **T16** — **SIS Tools** — Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
-- [x] **T18** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`.
+- [x] **T18** ? Implement `src/tools/rmp.ts`, register `search_professors` and `get_professor_details`, `TTL.PROFESSOR`.
 - [x] **T19** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
-- [ ] **T20** ? **E2E v1.1**: three new tools verified in Claude Desktop (see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md)).
+- [ ] **T20** ? **E2E v1.1**: four new tools verified in Claude Desktop (SIS x2 + RMP x2), see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
 ---
 
@@ -169,7 +169,7 @@ Optional parallel work (does not block T14-T19).
 
 **T16 — sis tools**
 
-1. Register `get_exam_schedule` + `get_timetable`.
+1. Register `get_exam_schedule` + `get_class_timetable`.
 2. Ensure `loadSession()` correctly propagates SIS cookies.
 
 **T17 — inspect-rmp**
@@ -189,7 +189,7 @@ Optional parallel work (does not block T14-T19).
 
 **T20 — E2E v1.1**
 
-Full verification of the 3 new tools (SIS x2, RMP) in Claude Desktop.
+Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop.
 
 ---
 
@@ -615,7 +615,7 @@ Treat them as **post-v1 excellence**, not greenfield:
 
 **Checkbox status** for T01?T13: see [?2.2](#22-tracker--v1-foundation-t01t13).
 
-The original spec targeted **6 tools**; the repo now ships **9**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20** and engineering track **E\***.
+The original spec targeted **6 tools**; the repo now ships **13**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20** and engineering track **E\***.
 
 ---
 
@@ -770,7 +770,8 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 | Topic | Path |
 |-------|------|
 | **This master plan** | `docs/PROJECT_MASTER.md` |
-| T11 / T21 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md` |
+| Tool-by-tool docs index (13 tools) | `docs/tools/README.md` |
+| T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md` |
 | E2E run log (create when running T11) | `docs/e2e-run-log.md` |
 | Deadlines tool ? roadmap & testing | `docs/tools/deadlines/roadmap.md` |
 | Deadlines ? history | `docs/tools/deadlines/history.md` |

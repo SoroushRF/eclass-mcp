@@ -23,7 +23,7 @@ What this handbook does not do:
 
 ### 1.1 Status & History
 - **Run [1]:** Successfully executed on **2026-03-22**. 10/10 tools passed.
-- **Run [2]:** Successfully executed on **2026-03-22** (SIS Integration). 12/12 tools passed.
+- **Run [2]:** Successfully executed on **2026-03-22** (SIS integration phase, pre-RMP). 12/12 tools passed.
 - **Environment:** Node v24.11.0, repo `c885853`.
 - **Result:** SIS integration verified in Inspector and Claude Desktop.
 
@@ -191,7 +191,7 @@ Title: T11 E2E failure - <tool name> - <short symptom>
 
 T11 is complete when all of the following are true:
 - the run log exists and is filled in
-- all 10 matrix rows are marked Pass, Fail, or Skip
+- all 14 matrix rows are marked Pass, Fail, or Skip
 - the session-expiry row is recorded
 - every non-Skip row has evidence
 - every Fail has an issue number

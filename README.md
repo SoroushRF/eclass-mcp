@@ -228,6 +228,7 @@ rm -rf dist && npm run build
 
 | Topic | Location |
 |-------|----------|
+| Tool-by-tool docs index (all 13 tools) | [`docs/tools/README.md`](docs/tools/README.md) |
 | Deadlines tool — full roadmap & architecture | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md) |
 | Deadlines — implementation history | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md) |
 | Deadlines — known issues & investigation log | [`docs/tools/deadlines/failed-prompts-investigation-plan.md`](docs/tools/deadlines/failed-prompts-investigation-plan.md) |
@@ -300,7 +301,7 @@ Everything runs **entirely on your machine**:
 
 ## 📄 License
 
-ISC — see `LICENSE` file.
+Limited Personal Use License — see `LICENSE` file.
 
 ---
 
