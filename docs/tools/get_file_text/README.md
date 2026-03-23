@@ -2,13 +2,14 @@
 
 ## Features
 - Extracts content from PDF/DOCX/PPTX course files.
-- PDF path uses hybrid analyzer (`text` + rendered images when needed).
+- PDF path uses the shipped hybrid analyzer (`text` + rendered images when needed).
+- T22 PDF pipeline work is complete: page-level image detection, payload strategy, and mixed content blocks are implemented.
 - Supports page ranges via `startPage` / `endPage`.
 - Cache key format: `file_<md5(url)>_v2[_pX-Y]`.
 
 ## Known Problems
 - Very large files can produce big payloads.
-- Cached schema still uses manual version suffix (`v2`).
+- Cached schema still uses manual version suffix (`v2`); this is a separate cache task, not a PDF pipeline gap.
 
 ## Tests
 - MCP prompt: "Read this file: <fileUrl>."

@@ -98,7 +98,7 @@ Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are *
 #### 2.4.1 Automation, scraper, cache (T21-T27)
 
 - [ ] **T21** ??? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
-- [ ] **T22** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
+- [x] **T22** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md). **Completed 2026-03-23**.
 - [x] **T23** ? Deadlines: harden quiz + date selectors across themes; document test courses. **Completed 2026-03-23**.
 - [x] **T24** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)). **Completed 2026-03-23**.
 - [ ] **T25** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
@@ -647,7 +647,7 @@ The legacy **CoYork TODO** mixed **accurate deferred work** with **checkboxes th
 
 | Area | Status | Notes |
 |------|--------|--------|
-| PDF: pdfjs-style page intelligence, payload tuning | **Open** | Deferred past MVP; see [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md). |
+| PDF: pdfjs-style page intelligence, payload tuning | **Completed** | Baseline shipped in `get_file_text`; see [`get_file_text/history.md`](tools/get_file_text/history.md) and [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md) for the completed baseline plus future refinements. |
 | Deadlines: Moodle 4 upcoming + month + range + item details | **Shipped** | See [?8](#8-shipped-feature-history-deadlines--file-pipeline). |
 | Ops: `npx playwright install chromium` on each machine | **Open** | Environment prerequisite, not optional for scraping. |
 | Harden quiz + month/date selectors across themes | **Open** | Quality beyond first ship. |
@@ -697,7 +697,7 @@ The original spec targeted **6 tools**; the repo now ships **13**. Optional foll
 
 **Docs:** [`docs/tools/get_file_text/history.md`](tools/get_file_text/history.md), [`roadmap.md`](tools/get_file_text/roadmap.md).  
 
-**Current direction (from roadmap):** pdfjs + `@napi-rs/canvas`, text-density heuristic (~250 chars), DPI/payload caps, hybrid text + PNG output, paginated fetches. **Future:** smarter diagram detection (see roadmap).
+**Current direction (implemented):** pdfjs + `@napi-rs/canvas`, text-density heuristic (~250 chars), DPI/payload caps, hybrid text + PNG output, paginated fetches. **T22 is complete**; the roadmap now tracks only future refinements beyond the shipped baseline.
 
 ---
 

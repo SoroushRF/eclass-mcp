@@ -1,9 +1,9 @@
 # 🗺️ PDF Extraction Pipeline: Master Roadmap
 
 > [!IMPORTANT]
-> **PURPOSE:** This document is for **future strategy, brainstorming, and research**. It tracks high-level goals and pending technical challenges. For the history of completed tasks and current architecture, see [history.md](./history.md).
+> **PURPOSE:** This document is for **future strategy, brainstorming, and research**. It tracks high-level goals and pending technical challenges. As of 2026-03-23, the baseline T22 PDF pipeline work is complete; for the shipped implementation and history, see [history.md](./history.md).
 
-This document serves as the "source of truth" for the intelligent PDF pipeline. It tracks our architectural decisions, technical constraints, test results, and future research.
+This document serves as the "source of truth" for the intelligent PDF pipeline. It tracks our architectural decisions, technical constraints, test results, the completed T22 baseline, and future refinements.
 
 ---
 
@@ -41,15 +41,17 @@ This document serves as the "source of truth" for the intelligent PDF pipeline. 
 
 ---
 
-## 🎯 Upcoming Items & Research
+## Completed Baseline and Future Refinements
 
-### **Item 1: Intelligent Image & Diagram Detection (Computer Vision)**
-**Problem:** The 250-character rule is a "blunt instrument." A page can have 500 characters of text AND a vital diagram (the "3-paragraph" problem). We need to identify *useful* images while ignoring decorative logos.
+### **Item 1: Intelligent Image & Diagram Detection (T22)**
+**Status:** Implemented in `src/parser/pdf-analyzer.ts` and wired through `get_file_text` as of 2026-03-23.
 
-- [ ] **To-Do:**
-    - [ ] Explore **Option A: Visual Entropy.** Measure the binary size of a 20 DPI thumbnail. Complex diagrams = large file, logos = tiny file.
-    - [ ] Explore **Option B: Vision API.** Pass a 20 DPI thumbnail to Gemini 1.5 Flash to classify "Meaningful Diagram: YES/NO."
-    - [ ] Explore **Option C: Splicing.** Extract text AND crop only the *region* of the page containing the image to save payload size.
+**Result:** The 250-character rule now works as a shipped baseline alongside page-level image detection, mixed text/image output, and payload caps. The remaining ideas below are future refinements beyond T22.
+
+- Future refinements:
+    - Explore **Option A: Visual Entropy.** Measure the binary size of a 20 DPI thumbnail. Complex diagrams = large file, logos = tiny file.
+    - Explore **Option B: Vision API.** Pass a 20 DPI thumbnail to a vision model to classify "Meaningful Diagram: YES/NO."
+    - Explore **Option C: Splicing.** Extract text AND crop only the *region* of the page containing the image to save payload size.
 - **Brainstorming:**
     - We want the "Perfect Result": 100% text searchable + High-res diagrams ONLY.
     - Splicing (Smart Cropping) is the ultimate goal. If we can isolate a 300x300 diagram, that’s only ~30KB, vs ~200KB for a full-page render.

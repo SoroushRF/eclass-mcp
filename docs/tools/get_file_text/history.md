@@ -4,8 +4,8 @@
 > **PURPOSE:** This document is the historical log of completed tasks and the current stable architecture. For future brainstorming, research, and technical roadmaps, see [roadmap.md](./roadmap.md).
 
 > This document explains eClass MCP's file extraction pipeline end-to-end, diagnoses the
-> image-content limitation, and lays out a multi-task plan to implement intelligent
-> per-page extraction with image support.
+> image-content limitation, and records the implementation path that completed the
+> intelligent per-page extraction with image support on 2026-03-23.
 
 ---
 
@@ -160,6 +160,9 @@ For each page, we classify it using both signals:
 ---
 
 ## 4. Implementation Tasks
+
+Status note: the baseline T22 pipeline described below is now implemented in the repo.
+The remaining roadmap items are future refinements beyond the shipped baseline.
 
 > **Rules for implementation:**
 > 1. Complete ONE task at a time.
