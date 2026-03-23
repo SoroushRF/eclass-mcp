@@ -82,8 +82,8 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T14** — **SIS Inspection** — Created `scripts/inspect-sis.ts`, analyzed HTML structure for exams and timetable selection. **Completed 2026-03-22**.
 - [x] **T15** — **SIS Scraper** — Implemented `src/scraper/sis.ts` with `scrapeExams` and `scrapeTimetable` logic. Handles session selection. **Completed 2026-03-22**.
 - [x] **T16** — **SIS Tools** — Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
-- [ ] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
-- [ ] **T18** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`.
+- [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
+- [x] **T18** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`.
 - [ ] **T19** ? Implement `src/tools/reddit.ts` (`fetch`, User-Agent, r/yorku search), register `search_york_reddit`, `TTL.REDDIT`.
 - [ ] **T20** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
 - [ ] **T21** ? **E2E v1.1**: four new tools verified in Claude Desktop (see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md)).

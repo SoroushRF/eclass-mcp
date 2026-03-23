@@ -20,6 +20,7 @@ import {
 import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 import { getExamSchedule, getClassTimetable } from './tools/sis';
+import { searchProfessorsTool, getProfessorDetailsTool } from './tools/rmp';
 
 // Create the MCP server
 const server = new McpServer({
@@ -238,6 +239,28 @@ server.tool(
   "Fetches the current student's personal class timetable from York SIS for the current session.",
   {},
   (async () => await getClassTimetable()) as any
+);
+
+server.tool(
+  'search_professors',
+  'Finds professor profiles on RateMyProfessors for York University campuses.',
+  {
+    name: z.string().describe('The name of the professor'),
+    campus: z
+      .enum(['Keele', 'Glendon', 'Markham'])
+      .optional()
+      .describe('Optional York campus filter'),
+  },
+  (async (args: any) => await searchProfessorsTool(args)) as any
+);
+
+server.tool(
+  'get_professor_details',
+  'Fetches detailed ratings, difficulty, and student comments for a specific professor from RateMyProfessors.',
+  {
+    teacherId: z.string().describe('The RMP teacher ID (from search_professors)'),
+  },
+  (async (args: any) => await getProfessorDetailsTool(args)) as any
 );
 
 // Main startup
