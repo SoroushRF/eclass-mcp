@@ -1,5 +1,5 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { RMPClient } from "../scraper/rmp.js";
+import { RMPClient, type RMPTeacherSearch } from "../scraper/rmp.js";
 import { cache } from "../cache/store.js";
 
 const rmpClient = new RMPClient();
@@ -163,7 +163,7 @@ export async function searchProfessorsTool(args: any) {
         const report = await rmpClient.searchTeachersWithDiagnostics(name, campus);
 
         const response = {
-            matches: report.matches.map(t => ({
+            matches: report.matches.map((t: RMPTeacherSearch) => ({
                 teacherId: t.id,
                 legacyId: t.legacyId,
                 name: `${t.firstName} ${t.lastName}`,

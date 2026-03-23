@@ -34,9 +34,9 @@ What this handbook does not do:
 All of these must be true before you start the run:
 
 1. Record environment metadata.
-2. Confirm `npm run build` succeeds.
-3. Confirm `npx tsc --noEmit` is clean.
-4. Confirm `npx playwright install chromium` has already been done on the machine.
+2. Confirm `npm.cmd run build` succeeds if you are using PowerShell on Windows.
+3. Confirm `npx.cmd tsc --noEmit` is clean if you are using PowerShell on Windows.
+4. Confirm `npx.cmd playwright install chromium` has already been done on the machine.
 5. Confirm Claude Desktop points the `eclass` server at `dist/index.js` or a documented equivalent using an absolute path.
 6. Confirm auth is valid by checking `GET http://localhost:<AUTH_PORT>/status` after visiting `/auth` and logging in.
 7. Optionally clear `.eclass-mcp/cache/*` if you want a cold-cache run.
@@ -48,8 +48,8 @@ If any precondition fails, stop and fix it before running the matrix.
 Quick sanity check before opening Claude Desktop:
 
 - [ ] I know which commit I am testing.
-- [ ] `npm run build` is green.
-- [ ] `npx tsc --noEmit` is green.
+- [ ] `npm.cmd run build` is green in PowerShell, or the equivalent shell-safe build command is green.
+- [ ] `npx.cmd tsc --noEmit` is green in PowerShell, or the equivalent shell-safe TypeScript check is green.
 - [ ] Chromium is installed for Playwright.
 - [ ] Claude Desktop is pointed at `dist/index.js` or the documented equivalent.
 - [ ] Auth is valid or I know how to re-auth.

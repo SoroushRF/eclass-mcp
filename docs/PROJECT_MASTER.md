@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-03-22  
+**Last updated:** 2026-03-23  
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1.1 SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -30,7 +30,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (E2E, v1.1 SIS/RMP, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, 9+ engineering).
+- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (E2E, v1.1 SIS/RMP, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, **v1.2 write tools (T28-T31)** behind **E20** gates, 9+ engineering **E01-E21**).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
 - **Deduplication:** stack, session paths, and tool lists appear once in [?3](#3-executive-snapshot) and [?4](#4-architecture-reference-single-source-of-truth).
 
@@ -45,13 +45,15 @@ This section is the **standing implementation plan**: one serial numbering schem
 | Range | Origin |
 |-------|--------|
 | **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
-| **T14-T19** | v1.1 extension — SIS, RateMyProfessors |
-| **T21** | v1.2 Automation — Cron / proactive notifications |
+| **T14-T19** | v1.1 extension ??? SIS, RateMyProfessors |
+| **T21** | v1.2 Automation ??? Cron / proactive notifications |
 | **T22-T24** | Optional product polish (parallel track; does not block T14-T19) |
 | **T25** | Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` ? [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
 | **T26** | Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool) |
 | **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) |
+| **T28-T31** | v1.2 **write tools** (assignment preflight, submit, calendar, E2E) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D) |
+| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -69,19 +71,19 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 - [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **13 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
-- [x] **T11** — **Formal Claude Desktop E2E verification** — **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
-- [x] **T12** — **SIS cookies in auth** — Extend `src/auth/server.ts` to visit SIS URLs before saving session. **Completed 2026-03-22**.
+- [x] **T11** ??? **Formal Claude Desktop E2E verification** ??? **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
+- [x] **T12** ??? **SIS cookies in auth** ??? Extend `src/auth/server.ts` to visit SIS URLs before saving session. **Completed 2026-03-22**.
 - [x] **T13** ? README and user-facing onboarding (iterate as features land).
 
 ---
 
-### 2.3 Tracker — product v1.1: Intelligence (T14-T19)
+### 2.3 Tracker ??? product v1.1: Intelligence (T14-T19)
 
 Execute **in order**; do not skip inspect/research tasks.
 
-- [x] **T14** — **SIS Inspection** — Created `scripts/inspect-sis.ts`, analyzed HTML structure for exams and timetable selection. **Completed 2026-03-22**.
-- [x] **T15** — **SIS Scraper** — Implemented `src/scraper/sis.ts` with `scrapeExams` and `scrapeTimetable` logic. Handles session selection. **Completed 2026-03-22**.
-- [x] **T16** — **SIS Tools** — Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
+- [x] **T14** ??? **SIS Inspection** ??? Created `scripts/inspect-sis.ts`, analyzed HTML structure for exams and timetable selection. **Completed 2026-03-22**.
+- [x] **T15** ??? **SIS Scraper** ??? Implemented `src/scraper/sis.ts` with `scrapeExams` and `scrapeTimetable` logic. Handles session selection. **Completed 2026-03-22**.
+- [x] **T16** ??? **SIS Tools** ??? Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [x] **T18** ? Implement `src/tools/rmp.ts`, register `search_professors` and `get_professor_details`, `TTL.PROFESSOR`.
 - [x] **T19** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
@@ -89,21 +91,32 @@ Execute **in order**; do not skip inspect/research tasks.
 
 ---
 
-### 2.4 Tracker — product polish / v1.2 / Automation (T21-T27)
+### 2.4 Tracker ??? product polish / v1.2 (T21-T31)
 
-Optional parallel work (does not block T14-T19).
+Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are **v1.2** and are gated by **E20** (see [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)).
 
-- [ ] **T21** — **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
-- [ ] **T22** — PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
+#### 2.4.1 Automation, scraper, cache (T21-T27)
+
+- [ ] **T21** ??? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
+- [ ] **T22** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
 - [ ] **T23** ? Deadlines: harden quiz + date selectors across themes; document test courses.
 - [ ] **T24** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)).
 - [ ] **T25** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
 - [ ] **T26** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
 - [ ] **T27** ? **Pinned cache (user-directed):** structured pin/unpin/list/refresh, single-store discipline vs TTL cache, on-disk **quota** with machine-readable "full" errors ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools). **Depends on T26.**
 
+#### 2.4.2 v1.2 write tools (T28-T31)
+
+**Prerequisites:** **E20** satisfied before registering or implementing destructive tools; **E11** / **E12** are part of E20. **E21** must land **with** the first write tool merge (same PR or immediately after). **E13** (session at-rest hardening) is **strongly recommended** before relying on writes on shared machines.
+
+- [ ] **T28** ? **Assignment submission preflight:** scraper + MCP tool(s) to resolve an assignment activity (from course/URL/cm id), return **read-only** constraints (due date, allowed types/size, draft vs final, current submission summary). No upload. Supports human-in-the-loop workflows.
+- [ ] **T29** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`**; tool registered **only** when opt-in env is set (see **E20**). Depends on **T28** for validation path reuse.
+- [ ] **T30** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **confirm** + env gate as T29. Inspect script + selectors before implementation.
+- [ ] **T31** ? **E2E v1.2 writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T28-T30** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
+
 ---
 
-### 2.5 Tracker ? engineering gap to 9+ (E01-E19)
+### 2.5 Tracker ? engineering gap to 9+ (E01-E21)
 
 | ID | Item | Epic |
 |----|------|------|
@@ -117,8 +130,8 @@ Optional parallel work (does not block T14-T19).
 | [x] **E08** | Test framework (Vitest/Jest) + coverage script | B |
 | [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
 | [ ] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants) | B |
-| [ ] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope | B |
-| [ ] **E12** | Structured error types + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, ?) | B |
+| [ ] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**) | B |
+| [ ] **E12** | Structured error types + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, ?) (**required** for write tools via **E20**) | B |
 | [ ] **E13** | Session at-rest hardening + secure wipe on logout | C |
 | [ ] **E14** | Structured logging + correlation ID + redaction | C |
 | [ ] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode | C |
@@ -126,8 +139,10 @@ Optional parallel work (does not block T14-T19).
 | [ ] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config | D |
 | [ ] **E18** | `CHANGELOG.md` + tagging / GitHub Release template | D |
 | [ ] **E19** | Document timeouts, concurrency, rate limits for external calls | D |
+| [ ] **E20** | **Write tools ? pre-ship gates:** **E11** + **E12** complete for every write tool; `SECURITY.md` + README subsection (risks, misuse, no warranty); **opt-in env** (e.g. `ECLASS_MCP_ENABLE_WRITES=1`) ? write tools **not registered** when unset; link to [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) | C |
+| [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T26** when present) | C |
 
-*(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D.)*
+*(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-tool safety, Epic C.)*
 
 ---
 
@@ -143,7 +158,7 @@ Optional parallel work (does not block T14-T19).
 
 ---
 
-### 2.7 Detailed plan — **T12** SIS cookies in auth (Immediate Foundation)
+### 2.7 Detailed plan ??? **T12** SIS cookies in auth (Immediate Foundation)
 
 **Goal:** Extend `src/auth/server.ts` to navigate to SIS URLs during the visible login flow so Playwright captures the necessary cookies for future SIS-based tools.
 
@@ -155,45 +170,45 @@ Optional parallel work (does not block T14-T19).
 
 ---
 
-### 2.8 Detailed plan — **T14-T19** (v1.1 Intelligence) procedure
+### 2.8 Detailed plan ??? **T14-T19** (v1.1 Intelligence) procedure
 
-**T14 — inspect-sis**
+**T14 ??? inspect-sis**
 
 1. Implement script per v1.1 spec; output HTML + console probe to `.eclass-mcp/debug/`.
 2. Document: final URL after redirect, login vs data page, table counts.
 
-**T15 — sis scraper**
+**T15 ??? sis scraper**
 
 1. Implement parsers for Exam Schedule and Timetable.
 2. Add `scripts/test-sis.ts`; print sample rows.
 
-**T16 — sis tools**
+**T16 ??? sis tools**
 
 1. Register `get_exam_schedule` + `get_class_timetable`.
 2. Ensure `loadSession()` correctly propagates SIS cookies.
 
-**T17 — inspect-rmp**
+**T17 ??? inspect-rmp**
 
 1. Run GraphQL school search; record York `schoolID`.
 2. Probe professor search headers/tokens.
 
-**T18 — RMP tool**
+**T18 ??? RMP tool**
 
 1. Implement `searchRMP`; cache by normalized name key.
 2. Register tool + schema.
 
-**T19 — Docs**
+**T19 ??? Docs**
 
 1. README tools table 13 rows.
 2. Update executive snapshot tool counts.
 
-**T20 — E2E v1.1**
+**T20 ??? E2E v1.1**
 
 Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop.
 
 ---
 
-### 2.9 Detailed plan — **T21** Cron notifications (v1.2 Automation)
+### 2.9 Detailed plan ??? **T21** Cron notifications (v1.2 Automation)
 
 **Goal:** Optional morning reminder of deadlines in the next **48 hours**, via desktop notification.
 
@@ -205,7 +220,7 @@ Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop.
 
 ---
 
-### 2.10 Detailed plan — **E01-E19** engineering (9+), including CI/CD
+### 2.10 Detailed plan ??? **E01-E21** engineering (9+), including CI/CD
 
 #### 2.9.1 E01?E02 ? Continuous Integration (GitHub Actions)
 
@@ -310,6 +325,11 @@ jobs:
 - **E17 setup:** Parse-merge Claude JSON with backup `*.bak` timestamp; `--dry-run` prints diff only.
 - **E18 releases:** Keep a `CHANGELOG.md` (Keep a Changelog format); tag `vX.Y.Z`; GitHub Release body = changelog section.
 - **E19:** Document default timeouts per `page.goto`; max concurrent pages; backoff for RMP if HTTP 429.
+
+#### 2.9.7 E20?E21 ? Write-tool safety (v1.2)
+
+- **E20:** Pre-ship **gates** for **T28-T30**: **E11** + **E12** done for write tools; opt-in env for registration; README + `SECURITY.md` copy. Full checklist: [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31).
+- **E21:** **After** a successful write: append-only **audit log** (redaction aligned with **E14**); **invalidate** scrape cache entries that would otherwise lie (scopes per **T26** / `clear_cache` once available).
 
 ---
 
@@ -487,6 +507,42 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 ---
 
+### 2.13 Detailed plan ? **v1.2 write tools + safety (T28-T31, E20-E21)**
+
+**Goal:** Add **opt-in** MCP tools that **mutate** eClass state (assignment submission, personal calendar), without turning the default install into an autonomous submission bot.
+
+#### Safety before implementation (E20)
+
+1. **Contracts:** Complete **E11** (Zod) and **E12** (structured errors) for **all** write tools before merge. Machine-readable failures beat prose when the host retries or summarizes.
+2. **Registration gate:** `ListTools` / `index.ts` registers write tools **only** when an explicit env var is set (name **`ECLASS_MCP_ENABLE_WRITES`** unless renamed in implementation; document in `.env.example`).
+3. **User-facing risk:** README subsection + **SECURITY.md** bullet: writes are **irreversible** in normal use; users are responsible for confirming paths and course context; no institutional warranty.
+4. **Session posture:** Treat **E13** as a **recommended** prerequisite for write tools on laptops that are not single-user private.
+
+#### Product shape (T28-T30)
+
+- **Preflight first (T28):** A read-only tool (or extension of existing detail fetch) that returns **constraints** and **current submission state** so the model and user can sanity-check before any upload.
+- **Submit (T29):** One tool, narrow parameters (course/activity identity + local file path or agreed payload shape), mandatory **`confirm: true`**, strict MIME/size checks against preflight when feasible.
+- **Calendar (T30):** Start with events the **student role** can create in Moodle; same confirm + env gate. Expand scope only after inspect script proves permissions.
+
+#### Safety after a successful write (E21)
+
+1. **Audit log:** Append one JSON line per write under `.eclass-mcp/` (exact filename in implementation); fields: `tool`, `outcome`, `timestamp`, stable resource ids; **never** log cookies, full filesystem paths (basename only unless user opts into verbose diagnostics).
+2. **Cache coherence:** After success, **invalidate** scraped cache entries that would otherwise show stale submission or deadline state (prefixes aligned with **T26** / `clear_cache` scopes once those exist).
+
+#### Verification (T31)
+
+- Extend the E2E handbook with **safe** scenarios (test course / sandbox if available); document **Skip** when no fixture course.
+- Rows for: preflight happy path, submit with writes **disabled** (env off), session expired mid-flow.
+
+#### Definition of done (writes track)
+
+- [ ] **E20** checkboxes satisfied; write tools absent from default registration.
+- [ ] **E21** audit + invalidation behavior documented in README.
+- [ ] **T28-T30** implemented with shared validation helpers.
+- [ ] **T31** handbook + run log updated (or explicit Skip with reason).
+
+---
+
 ## 3. Executive snapshot
 
 ### 3.1 MCP tools currently registered (13)
@@ -510,6 +566,8 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 **Planned ([T26](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool)):** `clear_cache` ? user-requested invalidation; all tools gain JSON **`_cache`** freshness metadata.
 
 **Planned ([T27](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools)):** optional **`cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin`** (or equivalent)?user-directed long retention with **on-disk quota** and structured errors when full. **After T26.**
+
+**Planned v1.2 writes ([T28-T31](#213-detailed-plan--v12-write-tools--safety-t28-t31), gated by **E20-E21** in ?2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -645,7 +703,7 @@ The original spec targeted **6 tools**; the repo now ships **13**. Optional foll
 
 ## 9. Phase A ? Active product backlog (themes)
 
-For **checkbox execution**, use [?2.3](#23-tracker--product-v11-t14-t22) and [?2.4](#24-tracker--product-polish-stream-t23-t28) (T22?T27) and tool roadmaps:
+For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-implementation-plans): v1.1 **T14-T20**, polish / v1.2 **T21-T31**, engineering **E01-E21**, and tool roadmaps:
 
 1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).  
 2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).  
@@ -653,6 +711,7 @@ For **checkbox execution**, use [?2.3](#23-tracker--product-v11-t14-t22) and [?2
 4. **Scraper structure** ? **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
 5. **Cache / freshness (automatic)** ? **T26** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).  
 6. **User-pinned cache + quota** ? **T27** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T26)*.  
+7. **v1.2 write tools (opt-in)** ? **T28-T31** + **E20-E21** / [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) *(after E11/E12; E13 recommended)*.  
 
 ---
 
@@ -713,7 +772,7 @@ for (const sisUrl of SIS_URLS) {
 
 ## 11. Phase C ? Engineering excellence reference (gap to 9.0+)
 
-**Full procedural steps:** [?2.5](#25-tracker--engineering-gap-to-9-e01-e19) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd).
+**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool gates **E20-E21** in [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) and **?2.9.7**.
 
 ### 11.1 Executive summary
 
@@ -739,7 +798,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 - **SWOR:** strengths = York value, modular tools, Playwright realism; weaknesses = quality gates, drift, session security; opportunities = fixtures, doctor, releases; risks = untested scope growth, silent breakage, leaks.  
 - **9.0+ means:** reliable, CI-tested, secure-enough local session, operable errors/logs, lifecycle docs, portable setup.  
 - **KPIs:** CI pass rate, regression detection in one PR cycle, >70% critical-path coverage, zero cookie leaks in logs.  
-- **Three-sprint sketch:** Sprint 1 = E01?E07 + start E08; Sprint 2 = E08?E12 + early E14; Sprint 3 = E13?E15 + E16?E19.  
+- **Three-sprint sketch:** Sprint 1 = E01?E07 + start E08; Sprint 2 = E08?E12 + early E14; Sprint 3 = E13?E15 + E16?E19; **write tools:** land **E20-E21** with **T28-T31** when E11/E12 are green.  
 
 ### 11.4 Score projection (after roadmap)
 
@@ -760,7 +819,8 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 
 ## 12. Phase D ? Maintainer / codebase health
 
-- **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in [?2.4](#24-tracker--product-polish-stream-t23-t26); full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
+- **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in **?2.4**; full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
+- **T28-T31 v1.2 writes:** **?2.4.2** + [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31); gates **E20-E21** in **?2.5**.  
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
 ---
