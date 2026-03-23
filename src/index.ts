@@ -266,7 +266,7 @@ server.tool(
 // Main startup
 async function main() {
   // Always start auth server in background so it's ready for redirects
-  startAuthServer();
+  await startAuthServer();
 
   if (!isSessionValid()) {
     console.error('eClass session not found or stale. Opening login window...');

@@ -4,7 +4,8 @@ import dotenv from 'dotenv';
 
 dotenv.config({ quiet: true });
 
-const CACHE_DIR = path.resolve(__dirname, '../../.eclass-mcp/cache');
+const CACHE_ROOT = path.resolve(__dirname, '../../.eclass-mcp');
+const CACHE_DIR = path.join(CACHE_ROOT, 'cache');
 
 export const TTL = {
   COURSES: 60 * 24, // 24 hours

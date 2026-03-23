@@ -12,8 +12,35 @@ const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 let authServerInstance: http.Server | null = null;
+let authServerPort: number | null = null;
 
-export function startAuthServer() {
+function getAuthServerPort(): number {
+  return authServerPort ?? AUTH_PORT;
+}
+
+function listenOnPort(server: http.Server, port: number): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const onError = (error: NodeJS.ErrnoException) => {
+      server.off('error', onError);
+      reject(error);
+    };
+
+    server.once('error', onError);
+    server.listen(port, () => {
+      server.off('error', onError);
+
+      const address = server.address();
+      if (address && typeof address === 'object') {
+        resolve(address.port);
+        return;
+      }
+
+      reject(new Error('Auth server failed to report a listening port.'));
+    });
+  });
+}
+
+export async function startAuthServer() {
   if (authServerInstance) return authServerInstance;
 
   const server = http.createServer(async (req, res) => {
@@ -109,16 +136,28 @@ export function startAuthServer() {
     }
   });
 
-  server.listen(AUTH_PORT, () => {
-    console.error(`Auth server running at http://localhost:${AUTH_PORT}`);
-  });
+  try {
+    authServerPort = await listenOnPort(server, AUTH_PORT);
+  } catch (error) {
+    const err = error as NodeJS.ErrnoException;
+    if (err.code !== 'EADDRINUSE') {
+      throw error;
+    }
+
+    console.error(
+      `Auth port ${AUTH_PORT} is already in use; using a free port instead.`
+    );
+    authServerPort = await listenOnPort(server, 0);
+  }
+
+  console.error(`Auth server running at http://localhost:${authServerPort}`);
 
   authServerInstance = server;
   return server;
 }
 
 export function openAuthWindow() {
-  const url = `http://localhost:${AUTH_PORT}/auth`;
+  const url = `http://localhost:${getAuthServerPort()}/auth`;
   const cmd =
     process.platform === 'win32'
       ? `start ${url}`
