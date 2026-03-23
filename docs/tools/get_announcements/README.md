@@ -6,8 +6,8 @@
 - Cached per `(courseId, limit)` combination.
 
 ## Known Problems
-- Duplicate rows can occur from forum/thread summary overlap.
-- Announcement body formatting can vary by course theme/plugin.
+- Announcement body formatting can still vary by course theme/plugin.
+- Duplicate-row behavior has been handled well enough for current Claude usage, but it is still worth watching on new course layouts.
 
 ## Tests
 - Prompt: "Recent announcements" (optionally for a specific course).
@@ -21,3 +21,4 @@
 - Source: `src/tools/announcements.ts`.
 - Cache key format: `announcements_<course|all>_<limit>`.
 - TTL: `TTL.ANNOUNCEMENTS`.
+- Verified against the current Claude Desktop flow on 2026-03-23.

@@ -6,8 +6,8 @@
 - Uses standard auth recovery behavior on expired sessions.
 
 ## Known Problems
-- Course-specific gradebook layouts can vary.
-- Some feedback/extra columns may not normalize consistently.
+- Course-specific gradebook layouts can vary slightly.
+- Feedback/extra columns are best-effort normalized, but the main grade rows are now stable in Claude.
 
 ## Tests
 - Prompt: "What are my grades?" or "What are my grades for course <ID>?"
@@ -21,3 +21,4 @@
 - Source: `src/tools/grades.ts`.
 - Cache key format: `grades_v2_<course|all>`.
 - TTL: `TTL.GRADES`.
+- Verified against the current Claude Desktop flow on 2026-03-23.
