@@ -1,5 +1,7 @@
 # E2E Run Log
 
+Status note: **T20 (E2E v1.1)** is complete as of **2026-03-23**. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward.
+
 ## Run [1] — 2026-03-22 (Phase: Initial E2E Integration)
 
 ### Environment

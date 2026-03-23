@@ -30,7 +30,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (E2E, v1.1 SIS/RMP, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, **v1.2 write tools (T28-T31)** behind **E20** gates, 9+ engineering **E01-E21**).
+- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-v1 polish, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, **v1.2 write tools (T28-T31)** behind **E20** gates, 9+ engineering **E01-E21**).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
 - **Deduplication:** stack, session paths, and tool lists appear once in [?3](#3-executive-snapshot) and [?4](#4-architecture-reference-single-source-of-truth).
 
@@ -87,7 +87,7 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [x] **T18** ? Implement `src/tools/rmp.ts`, register `search_professors` and `get_professor_details`, `TTL.PROFESSOR`.
 - [x] **T19** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
-- [ ] **T20** ? **E2E v1.1**: four new tools verified in Claude Desktop (SIS x2 + RMP x2), see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
+- [x] **T20** ? **E2E v1.1**: four new tools verified in Claude Desktop (SIS x2 + RMP x2). **Completed 2026-03-23**; see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
 ---
 
@@ -204,7 +204,7 @@ Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are *
 
 **T20 ??? E2E v1.1**
 
-Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop.
+Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop. **Completed 2026-03-23**.
 
 ---
 

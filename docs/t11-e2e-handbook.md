@@ -24,6 +24,7 @@ What this handbook does not do:
 ### 1.1 Status & History
 - **Run [1]:** Successfully executed on **2026-03-22**. 10/10 tools passed.
 - **Run [2]:** Successfully executed on **2026-03-22** (SIS integration phase, pre-RMP). 12/12 tools passed.
+- **T20 completion:** Verified in stages across Inspector and Claude Desktop; SIS tools were already validated, and RMP professor search/details were verified on **2026-03-23**.
 - **Environment:** Node v24.11.0, repo `c885853`.
 - **Result:** SIS integration verified in Inspector and Claude Desktop.
 
@@ -196,6 +197,8 @@ T11 is complete when all of the following are true:
 - every non-Skip row has evidence
 - every Fail has an issue number
 - `npx tsc --noEmit` was clean for the tested commit
+
+T20 is complete as of **2026-03-23** after SIS and RMP verification finished.
 
 ## 11. Notes For Reviewers
 
