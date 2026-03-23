@@ -25,7 +25,7 @@ import { searchProfessorsTool, getProfessorDetailsTool } from './tools/rmp';
 // Create the MCP server
 const server = new McpServer({
   name: 'eclass-mcp',
-  version: '1.1.0',
+  version: '1.0.0-beta.1',
 });
 
 // Register all tools with any casting to bypass literal-type inference issues

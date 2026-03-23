@@ -1,6 +1,11 @@
 # E2E Run Log
 
-Status note: **T20 (E2E v1.1)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward.
+Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward.
+
+Inspector command used for server-only passes:
+```powershell
+npx.cmd @modelcontextprotocol/inspector node dist/index.js
+```
 
 ## Run [1] — 2026-03-22 (Phase: Initial E2E Integration)
 

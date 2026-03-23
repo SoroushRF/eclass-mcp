@@ -3,7 +3,7 @@
 **Canonical planning and history for the eClass MCP repository.**  
 **Last updated:** 2026-03-23  
 
-This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1.1 SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
+This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
 ---
 
@@ -11,6 +11,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1
 
 1. [How to use this document](#1-how-to-use-this-document)
 2. [**Master execution tracker & detailed implementation plans**](#2-master-execution-tracker--detailed-implementation-plans) ? **start here for what's left to build**
+   - [Engine versioning & release policy](#engine-versioning--release-policy)
 3. [Executive snapshot](#3-executive-snapshot)
 4. [Architecture reference](#4-architecture-reference-single-source-of-truth)
 5. [Working with AI agents on this repo](#5-working-with-ai-agents-on-this-repo)
@@ -18,7 +19,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1
 7. [Original v1 build plan (historical summary)](#7-original-v1-build-plan-historical-summary)
 8. [Shipped feature history (deadlines & file pipeline)](#8-shipped-feature-history-deadlines--file-pipeline)
 9. [Phase A ? Active product backlog (themes)](#9-phase-a--active-product-backlog-themes)
-10. [Phase B ? Product v2: external data (SIS, RMP)](#10-phase-b--product-v2-external-data-sis-rmp)
+10. [Phase B ? Engine beta: external data (SIS, RMP)](#10-phase-b--engine-beta-external-data-sis-rmp)
 11. [Phase C ? Engineering excellence reference (gap to 9.0+)](#11-phase-c--engineering-excellence-reference-gap-to-90)
 12. [Phase D ? Maintainer / codebase health](#12-phase-d--maintainer--codebase-health)
 13. [Appendix A ? Documentation map](#appendix-a--documentation-map)
@@ -30,7 +31,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, v1
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-v1 polish, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, **v1.2 write tools (T28-T31)** behind **E20** gates, 9+ engineering **E01-E21**).
+- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, future write tools behind **E20** gates, 9+ engineering **E01-E21**).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
 - **Deduplication:** stack, session paths, and tool lists appear once in [?3](#3-executive-snapshot) and [?4](#4-architecture-reference-single-source-of-truth).
 
@@ -45,17 +46,113 @@ This section is the **standing implementation plan**: one serial numbering schem
 | Range | Origin |
 |-------|--------|
 | **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
-| **T14-T19** | v1.1 extension ??? SIS, RateMyProfessors |
-| **T21** | v1.2 Automation ??? Cron / proactive notifications |
-| **T22-T24** | Optional product polish (parallel track; does not block T14-T19) |
+| **T14-T20** | Engine beta extension ??? SIS, RateMyProfessors, E2E verification |
+| **T21** | Engine post-beta automation ??? Cron / proactive notifications |
+| **T22-T24** | Optional product polish (parallel track; does not block T14-T20) |
 | **T25** | Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` ? [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
 | **T26** | Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool) |
 | **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) |
-| **T28-T31** | v1.2 **write tools** (assignment preflight, submit, calendar, E2E) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
+| **T28-T31** | Future **write tools** (assignment preflight, submit, calendar, E2E) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D) |
 | **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
+
+---
+
+### Engine versioning & release policy
+
+This repository now treats the MCP server as an **engine line** that can stay open-source and evolve independently from the eventual product surfaces.
+
+#### Version line
+
+- `0.9.0-core`
+  - Historical core-only release.
+  - This is the renamed identity for the original core intelligence release before SIS and RMP integration.
+  - Treat it as the last core-only milestone, not the stable engine line.
+
+- `1.0.0-beta.1`
+  - Current engine stage in this repo.
+  - Core eClass tools plus SIS and RMP are integrated.
+  - The engine is useful and real, but still being hardened for broader use.
+
+- `1.0.0`
+  - First stable engine release.
+  - Read-only tools are dependable.
+  - Version contracts, docs, and release discipline are in place.
+
+- `1.1.0`
+  - Schedule planning and builder intelligence.
+  - Candidate timetable generation, conflicts, preference scoring, and RMP-aware ranking.
+
+- `1.2.0`
+  - Registration preflight.
+  - Seat checks, eligibility checks, cart validation, and read-only state verification.
+
+- `1.3.0`
+  - Opt-in write actions, if they are ever added.
+  - Explicit confirmation, safety gates, audit logging, and cache invalidation.
+
+- `2.0.0`
+  - Only if the trust model changes materially.
+  - For example, if the engine moves from read-only first to a new, broader write-first contract.
+
+#### Release stages
+
+- **Alpha**
+  - The engine is still changing quickly.
+  - Tool shapes may still move.
+  - Docs are catching up.
+  - Scrapers may still drift.
+
+- **Beta**
+  - The engine is functionally real and usable, but still being hardened.
+  - Read-only tools are valuable.
+  - Structured outputs are mostly stable.
+  - Known issues are documented.
+
+- **Stable**
+  - The engine is ready for general use.
+  - Tool contracts are stable.
+  - Docs and release notes are reliable.
+  - Regression handling is documented.
+
+#### Feature boundary
+
+- Keep in the engine:
+  - scraping
+  - parsing
+  - normalization
+  - schedule analysis
+  - timetable logic
+  - professor enrichment
+  - read-only workflow helpers
+  - local auth/session handling
+
+- Keep in the product:
+  - hosted sync
+  - billing
+  - premium account features
+  - saved preferences and user profiles
+  - mobile/web app UX
+  - extension UI
+  - Telegram bot
+  - dashboards and analytics
+
+#### Release policy
+
+- Keep the engine repository focused on integrations and contracts.
+- Keep the product repository focused on user experience and monetization.
+- Avoid mixing release numbers across the two.
+- Document every public engine release with a changelog entry.
+- If a release has already been published under the old naming scheme, avoid rewriting public history lightly.
+
+#### Current repo status
+
+- Historical core-only release: `0.9.0-core`
+- Current engine stage: `1.0.0-beta.1`
+- Next major public engine milestone: `1.0.0`
+- Future planning should assume the engine and product will eventually diverge into separate release lines.
 
 ---
 
@@ -77,7 +174,7 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
 ---
 
-### 2.3 Tracker ??? product v1.1: Intelligence (T14-T19)
+### 2.3 Tracker ??? engine beta: Intelligence (T14-T20)
 
 Execute **in order**; do not skip inspect/research tasks.
 
@@ -87,13 +184,13 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [x] **T18** ? Implement `src/tools/rmp.ts`, register `search_professors` and `get_professor_details`, `TTL.PROFESSOR`.
 - [x] **T19** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
-- [x] **T20** ? **E2E v1.1**: four new tools verified in Claude Desktop (SIS x2 + RMP x2). **Completed 2026-03-23**; see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
+- [x] **T20** ? **E2E engine beta**: four new tools verified in Claude Desktop (SIS x2 + RMP x2). **Completed 2026-03-23**; see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
 ---
 
-### 2.4 Tracker ??? product polish / v1.2 (T21-T31)
+### 2.4 Tracker ??? engine polish / post-beta (T21-T31)
 
-Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are **v1.2** and are gated by **E20** (see [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)).
+Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are future engine work and are gated by **E20** (see [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)).
 
 #### 2.4.1 Automation, scraper, cache (T21-T27)
 
@@ -105,14 +202,14 @@ Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are *
 - [ ] **T26** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
 - [ ] **T27** ? **Pinned cache (user-directed):** structured pin/unpin/list/refresh, single-store discipline vs TTL cache, on-disk **quota** with machine-readable "full" errors ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools). **Depends on T26.**
 
-#### 2.4.2 v1.2 write tools (T28-T31)
+#### 2.4.2 Future write tools (T28-T31)
 
 **Prerequisites:** **E20** satisfied before registering or implementing destructive tools; **E11** / **E12** are part of E20. **E21** must land **with** the first write tool merge (same PR or immediately after). **E13** (session at-rest hardening) is **strongly recommended** before relying on writes on shared machines.
 
 - [ ] **T28** ? **Assignment submission preflight:** scraper + MCP tool(s) to resolve an assignment activity (from course/URL/cm id), return **read-only** constraints (due date, allowed types/size, draft vs final, current submission summary). No upload. Supports human-in-the-loop workflows.
 - [ ] **T29** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`**; tool registered **only** when opt-in env is set (see **E20**). Depends on **T28** for validation path reuse.
 - [ ] **T30** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **confirm** + env gate as T29. Inspect script + selectors before implementation.
-- [ ] **T31** ? **E2E v1.2 writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T28-T30** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
+- [ ] **T31** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T28-T30** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
 
 ---
 
@@ -164,17 +261,17 @@ Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are *
 
 **Steps**
 1. Identify post-login redirect triggers in `auth/server.ts`.
-2. Insert navigation loop to `w2prod.sis.yorku.ca` URLs (see [?10.3](#103-architecture-deltas-v2-specific)).
+2. Insert navigation loop to `w2prod.sis.yorku.ca` URLs (see [?10.3](#103-architecture-deltas-engine-beta-specific)).
 3. Verify `session.json` now contains `w2prod.sis.yorku.ca` host entries.
 4. Update `SessionExpiredError` text if users need specific instructions for the new cookies.
 
 ---
 
-### 2.8 Detailed plan ??? **T14-T19** (v1.1 Intelligence) procedure
+### 2.8 Detailed plan ??? **T14-T20** (engine beta intelligence) procedure
 
 **T14 ??? inspect-sis**
 
-1. Implement script per v1.1 spec; output HTML + console probe to `.eclass-mcp/debug/`.
+1. Implement script per engine beta spec; output HTML + console probe to `.eclass-mcp/debug/`.
 2. Document: final URL after redirect, login vs data page, table counts.
 
 **T15 ??? sis scraper**
@@ -202,13 +299,13 @@ Optional parallel work (does not block T14-T19). **Write tools (T28-T31)** are *
 1. README tools table 13 rows.
 2. Update executive snapshot tool counts.
 
-**T20 ??? E2E v1.1**
+**T20 ??? E2E engine beta**
 
 Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop. **Completed 2026-03-23**.
 
 ---
 
-### 2.9 Detailed plan ??? **T21** Cron notifications (v1.2 Automation)
+### 2.9 Detailed plan ??? **T21** Cron notifications (engine post-beta automation)
 
 **Goal:** Optional morning reminder of deadlines in the next **48 hours**, via desktop notification.
 
@@ -326,7 +423,7 @@ jobs:
 - **E18 releases:** Keep a `CHANGELOG.md` (Keep a Changelog format); tag `vX.Y.Z`; GitHub Release body = changelog section.
 - **E19:** Document default timeouts per `page.goto`; max concurrent pages; backoff for RMP if HTTP 429.
 
-#### 2.9.7 E20?E21 ? Write-tool safety (v1.2)
+#### 2.9.7 E20?E21 ? Future write-tool safety
 
 - **E20:** Pre-ship **gates** for **T28-T30**: **E11** + **E12** done for write tools; opt-in env for registration; README + `SECURITY.md` copy. Full checklist: [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31).
 - **E21:** **After** a successful write: append-only **audit log** (redaction aligned with **E14**); **invalidate** scrape cache entries that would otherwise lie (scopes per **T26** / `clear_cache` once available).
@@ -507,7 +604,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 ---
 
-### 2.13 Detailed plan ? **v1.2 write tools + safety (T28-T31, E20-E21)**
+### 2.13 Detailed plan ? **future write tools + safety (T28-T31, E20-E21)**
 
 **Goal:** Add **opt-in** MCP tools that **mutate** eClass state (assignment submission, personal calendar), without turning the default install into an autonomous submission bot.
 
@@ -567,7 +664,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 **Planned ([T27](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools)):** optional **`cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin`** (or equivalent)?user-directed long retention with **on-disk quota** and structured errors when full. **After T26.**
 
-**Planned v1.2 writes ([T28-T31](#213-detailed-plan--v12-write-tools--safety-t28-t31), gated by **E20-E21** in ?2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
+**Planned future writes ([T28-T31](#213-detailed-plan--future-write-tools--safety-t28-t31), gated by **E20-E21** in ?2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -703,7 +800,7 @@ The original spec targeted **6 tools**; the repo now ships **13**. Optional foll
 
 ## 9. Phase A ? Active product backlog (themes)
 
-For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-implementation-plans): v1.1 **T14-T20**, polish / v1.2 **T21-T31**, engineering **E01-E21**, and tool roadmaps:
+For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-implementation-plans): engine beta **T14-T20**, post-beta **T21-T31**, engineering **E01-E21**, and tool roadmaps:
 
 1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).  
 2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).  
@@ -711,13 +808,13 @@ For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-imple
 4. **Scraper structure** ? **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
 5. **Cache / freshness (automatic)** ? **T26** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).  
 6. **User-pinned cache + quota** ? **T27** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T26)*.  
-7. **v1.2 write tools (opt-in)** ? **T28-T31** + **E20-E21** / [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) *(after E11/E12; E13 recommended)*.  
+7. **future write tools (opt-in)** ? **T28-T31** + **E20-E21** / [?2.13](#213-detailed-plan--future-write-tools--safety-t28-t31) *(after E11/E12; E13 recommended)*.  
 
 ---
 
-## 10. Phase B ? Product v2: external data (SIS, RMP)
+## 10. Phase B ? Engine beta: external data (SIS, RMP)
 
-**Prerequisite:** patterns in [?4](#4-architecture-reference-single-source-of-truth). **Execution:** [?2.3](#23-tracker--product-v11-t1422) + [?2.8](#28-detailed-plan--t1422-v11-procedure).
+**Prerequisite:** patterns in [?4](#4-architecture-reference-single-source-of-truth). **Execution:** [?2.3](#23-tracker--engine-beta-intelligence-t14-t20) + [?2.8](#28-detailed-plan--t14-t20-engine-beta-intelligence-procedure).
 
 ### 10.1 New tools (planned)
 
@@ -728,7 +825,7 @@ For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-imple
 | `search_professors` | RateMyProfessors | No | `fetch` + GraphQL |
 | `get_professor_details` | RateMyProfessors | No | `fetch` + GraphQL |
 
-### 10.2 Architecture deltas (v2-specific)
+### 10.2 Architecture deltas (engine-beta-specific)
 
 - **SIS cookies:** After eClass dashboard (and existing WAF/resource touch if present), navigate **SIS URLs once** before `context.cookies()` so `session.json` includes `w2prod.sis.yorku.ca`. Users with old sessions **re-authenticate** once.  
 - **`session.ts`:** No change required if all cookies are saved; Playwright scopes cookies by domain.  
@@ -758,7 +855,7 @@ for (const sisUrl of SIS_URLS) {
 }
 ```
 
-### 10.4 Final tool matrix after v2
+### 10.4 Final tool matrix after engine beta
 
 | # | Tool | Source | Auth |
 |---|------|--------|------|
@@ -772,7 +869,7 @@ for (const sisUrl of SIS_URLS) {
 
 ## 11. Phase C ? Engineering excellence reference (gap to 9.0+)
 
-**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool gates **E20-E21** in [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) and **?2.9.7**.
+**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool gates **E20-E21** in [?2.13](#213-detailed-plan--future-write-tools--safety-t28-t31) and **?2.9.7**.
 
 ### 11.1 Executive summary
 
@@ -820,7 +917,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 ## 12. Phase D ? Maintainer / codebase health
 
 - **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in **?2.4**; full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
-- **T28-T31 v1.2 writes:** **?2.4.2** + [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31); gates **E20-E21** in **?2.5**.  
+- **T28-T31 future writes:** **?2.4.2** + [?2.13](#213-detailed-plan--future-write-tools--safety-t28-t31); gates **E20-E21** in **?2.5**.  
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
 ---
@@ -830,6 +927,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 | Topic | Path |
 |-------|------|
 | **This master plan** | `docs/PROJECT_MASTER.md` |
+| Engine versioning policy | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
 | Tool-by-tool docs index (13 tools) | `docs/tools/README.md` |
 | T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md` |
 | E2E run log (create when running T11) | `docs/e2e-run-log.md` |

@@ -16,6 +16,11 @@ What this handbook covers:
 - session-expiry regression
 - how to record evidence and file failures
 
+Inspector launch command for server-only smoke testing:
+```powershell
+npx.cmd @modelcontextprotocol/inspector node dist/index.js
+```
+
 What this handbook does not do:
 - it does not replace CI
 - it does not replace unit or fixture tests

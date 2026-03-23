@@ -2,6 +2,10 @@
 
 > **Connect Claude to York University's eClass — assignments, deadlines, grades, and course files, right inside your AI assistant.**
 
+> **Current engine stage:** `1.0.0-beta.1`
+>
+> The engine versioning and release policy now lives in [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md#engine-versioning--release-policy). The historical core-only release is treated as `0.9.0-core`, and the engine line is versioned separately from the eventual product surfaces.
+
 [![Node.js ≥18](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-1.27-blueviolet)](https://modelcontextprotocol.io/)
@@ -75,7 +79,7 @@ flowchart LR
 | `search_professors` | Finds professor profiles on RateMyProfessors | `name`, `campus?` |
 | `get_professor_details` | Fetches detailed ratings, difficulty, and comments for a professor | `teacherId` |
 
-> 📖 **Master plan (roadmaps, history, v2, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
+> 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
 ---
 
@@ -238,7 +242,7 @@ rm -rf dist && npm.cmd run build
 | Deadlines — vision instruction screenshots (no OCR) | [`docs/tools/deadlines/vision-image-reading.md`](docs/tools/deadlines/vision-image-reading.md) |
 | PDF pipeline — engineering deep-dive | [`docs/tools/get_file_text/history.md`](docs/tools/get_file_text/history.md) |
 | PDF pipeline — future roadmap (smart image detection) | [`docs/tools/get_file_text/roadmap.md`](docs/tools/get_file_text/roadmap.md) |
-| **Project master** (plans, merged history, v2, 9+ engineering) | [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) |
+| **Project master** (plans, merged history, engine beta, 9+ engineering) | [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) |
 
 ---
 
