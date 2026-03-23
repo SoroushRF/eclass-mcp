@@ -102,10 +102,12 @@ Use these prompts as written unless the local data forces a small adjustment.
 | 10 | Recent announcements | `get_announcements` | Non-empty array; each entry has `title`, `date`, and `body` |
 | 11 | What are my upcoming exams? | `get_exam_schedule` | List of exams with codes, dates, and times |
 | 12 | What is my class schedule? | `get_class_timetable` | List of LECT/LAB/TUTR entries for the session |
+| 13 | Search RateMyProfessors for professor John Doe | `search_professors` | List of professor profiles matching the name |
+| 14 | Get professor details for ID XXXXX | `get_professor_details` | Detailed ratings and comments for a specific ID |
 
 ## 6. Session Expiry Regression
 
-Run this after the 10-row matrix:
+Run this after the full matrix:
 
 1. Stop the MCP server if needed.
 2. Delete `.eclass-mcp/session.json` or replace it with an invalid session file.

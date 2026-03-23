@@ -105,6 +105,8 @@
 | I-10| `get_announcements` | | |
 | I-11| `get_exam_schedule` | | |
 | I-12| `get_class_timetable` | | |
+| I-13| `search_professors` | | |
+| I-14| `get_professor_details` | | |
 
 ### Claude Desktop Tool Matrix (E2E)
 | # | Tool | Prompt used | Result | Evidence | Issue # | Notes |
@@ -121,6 +123,8 @@
 | 10 | `get_announcements` | | | | | |
 | 11 | `get_exam_schedule` | | | | | |
 | 12 | `get_class_timetable` | | | | | |
+| 13 | `search_professors` | | | | | |
+| 14 | `get_professor_details` | | | | | |
 | S | Session expiry | | | | | |
 
 ### Definitions

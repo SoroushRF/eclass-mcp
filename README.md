@@ -72,6 +72,8 @@ flowchart LR
 | `get_announcements` | Recent course announcements | `courseId?`, `limit?` |
 | `get_exam_schedule` | List your upcoming personal exam schedule from York SIS | — |
 | `get_class_timetable` | List your personal class timetable (lectures/labs) from York SIS | — |
+| `search_professors` | Finds professor profiles on RateMyProfessors | `name`, `campus?` |
+| `get_professor_details` | Fetches detailed ratings, difficulty, and comments for a professor | `teacherId` |
 
 > 📖 **Master plan (roadmaps, history, v2, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
@@ -160,6 +162,8 @@ You're done. Ask Claude anything about your courses.
 "Any recent announcements from my professors?"
 "What are my upcoming exams?"
 "What is my class schedule this week?"
+"Find professor John Doe on RateMyProfessors."
+"What do students say about the difficulty of John Doe's classes?"
 ```
 
 For large PDFs, Claude will automatically paginate:

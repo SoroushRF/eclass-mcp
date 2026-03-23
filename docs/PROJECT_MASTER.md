@@ -84,7 +84,7 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T16** — **SIS Tools** — Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [x] **T18** ? Implement `src/tools/rmp.ts`, register `get_professor_rating`, `TTL.PROFESSOR`.
-- [ ] **T19** ? README + `PROJECT_MASTER` + tool table: **12 tools**, SIS cookie troubleshooting, example prompts.
+- [x] **T19** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
 - [ ] **T20** ? **E2E v1.1**: three new tools verified in Claude Desktop (see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md)).
 
 ---
@@ -489,7 +489,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (9)
+### 3.1 MCP tools currently registered (13)
 
 | Tool | Purpose |
 |------|---------|
@@ -502,6 +502,10 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `get_item_details` | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining) |
 | `get_grades` | Grade report |
 | `get_announcements` | Recent announcements |
+| `get_exam_schedule` | Personal exam schedule (SIS) |
+| `get_class_timetable` | Personal class timetable (SIS) |
+| `search_professors` | RateMyProfessors profile search |
+| `get_professor_details` | RateMyProfessors deep ratings and comments |
 
 **Planned ([T26](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool)):** `clear_cache` ? user-requested invalidation; all tools gain JSON **`_cache`** freshness metadata.
 
@@ -661,8 +665,9 @@ For **checkbox execution**, use [?2.3](#23-tracker--product-v11-t14-t22) and [?2
 | Tool | Source | Auth | Method |
 |------|--------|------|--------|
 | `get_exam_schedule` | York SIS `w2prod.sis.yorku.ca` | Yes (SSO; cookies after auth) | Playwright |
-| `get_timetable` | Same | Yes | Playwright |
-| `get_professor_rating` | RateMyProfessors | No | `fetch` + GraphQL |
+| `get_class_timetable` | Same | Yes | Playwright |
+| `search_professors` | RateMyProfessors | No | `fetch` + GraphQL |
+| `get_professor_details` | RateMyProfessors | No | `fetch` + GraphQL |
 
 ### 10.2 Architecture deltas (v2-specific)
 
@@ -700,8 +705,9 @@ for (const sisUrl of SIS_URLS) {
 |---|------|--------|------|
 | 1?9 | *(current eClass tools)* | eClass | Yes |
 | 10 | `get_exam_schedule` | SIS | Yes (SSO) |
-| 11 | `get_timetable` | SIS | Yes (SSO) |
-| 12 | `get_professor_rating` | RMP | No |
+| 11 | `get_class_timetable` | SIS | Yes (SSO) |
+| 12 | `search_professors` | RMP | No |
+| 13 | `get_professor_details` | RMP | No |
 
 ---
 
