@@ -74,4 +74,17 @@ This document tracks the incremental fixes and features added to the Deadlines a
 - Next deadline fetch will bypass the old cache key and return refreshed items with readable course labels.
 
 ---
+## âœ… Phase 5: Quiz Grade + Assignment Description Hardening (Completed)
+**Date:** 2026-03-23
+**What we did:**
+- Hardened quiz detail parsing so visible grades and attempt summaries are captured more reliably across themes.
+- Improved assignment detail extraction so authored instruction text and image references are preserved instead of wrapper boilerplate.
+- Verified the previously failing P3/P4 cases and updated the tracker docs to reflect completion.
+
+**Verification outcome:**
+- Quiz details now include visible grade/score data when present.
+- Assignment details now return meaningful instructions with image references when present.
+- P3/P4 are marked done in the investigation plan and roadmap.
+
+---
 *Created: 2026-03-19*

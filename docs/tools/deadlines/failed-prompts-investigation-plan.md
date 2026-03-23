@@ -89,20 +89,19 @@ We will only move to the next prompt after:
 **Expected result**
 - Quiz details include grade (or score) when visible on the quiz page.
 
-**Likely causes**
-- Quiz grade selector coverage too narrow.
-- Grade appears in a block outside current summary table selectors.
-- Grade rendered behind another page (review/attempt summary) requiring additional navigation.
+**Root cause (resolved)**
+- Quiz grade selector coverage was too narrow.
+- Grade appeared in a block outside the current summary table selectors.
 
-**Investigation steps**
-1. Capture quiz page HTML and locate actual grade DOM node.
-2. Expand quiz parser selectors for grade/score labels and summary blocks.
-3. If needed, follow review/result link and scrape grade there.
-4. Re-run `scripts/test-item-details.ts` using this URL.
+**Fix applied**
+1. Expanded quiz parser selectors for grade/score labels and summary blocks.
+2. Added fallback handling for review/attempt summary blocks when present.
+3. Kept ungraded quizzes stable so the parser does not invent grades.
 
-**Acceptance criteria**
-- `get_item_details` returns `grade` for graded quiz when shown in UI.
-- No regression for ungraded quizzes.
+**Verification**
+- `get_item_details` now returns `grade` for graded quiz pages when the grade is visible in the UI.
+- No regression for ungraded quizzes was observed in the verified run.
+- Status: **Done**
 
 ---
 
@@ -118,23 +117,19 @@ We will only move to the next prompt after:
 - Assignment details should include meaningful instruction content from assignment intro/description area.
 - Preserve both text and image references where possible.
 
-**Likely causes**
-- Description selector is grabbing wrapper boilerplate instead of content body.
-- Lazy-loaded or nested content not targeted.
-- Current extraction returns plain text and drops image context.
+**Root cause (resolved)**
+- Description selector was grabbing wrapper boilerplate instead of authored content.
+- Lazy-loaded and nested content were not being captured consistently.
 
-**Investigation steps**
-1. Save assignment detail HTML for failing items.
-2. Identify exact container for authored content (not template wrapper).
-3. Extract richer payload:
-   - cleaned text body
-   - HTML fragment
-   - image URLs (resolved absolute URLs)
-4. Verify via `get_item_details` and `get_deadlines(includeDetails=true)` output.
+**Fix applied**
+1. Targeted the authored content container instead of the template wrapper.
+2. Extracted richer payloads with cleaned text, HTML fragments, and resolved image URLs.
+3. Kept the `get_item_details` and `get_deadlines(includeDetails=true)` shapes compatible with Claude Desktop.
 
-**Acceptance criteria**
-- Description contains authored instructions (not only boilerplate).
-- Image references are present in output where images exist.
+**Verification**
+- Assignment details now include meaningful instructions rather than only boilerplate.
+- Image references are preserved when present.
+- Status: **Done**
 
 ---
 
@@ -197,6 +192,6 @@ For each prompt:
 ## Status Board
 - P1: Done
 - P2: Done
-- P3: Open
-- P4: Open
+- P3: Done
+- P4: Done
 - P5: Done

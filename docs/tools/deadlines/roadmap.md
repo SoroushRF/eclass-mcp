@@ -136,7 +136,7 @@ Expect:
 ## Investigation Status
 - P1 (month empty): **resolved** via assignment-index architecture.
 - P2 (range empty historical): **resolved** via assignment-index architecture + date boundary normalization.
-- P3/P4: in progress (details quality improvements).
+- P3/P4: **resolved** via quiz grade selector hardening and assignment description/image extraction improvements.
 
 ---
 
