@@ -1,6 +1,6 @@
 # E2E Run Log
 
-Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward.
+Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix.
 
 Inspector command used for server-only passes:
 ```powershell
@@ -143,3 +143,65 @@ npx.cmd @modelcontextprotocol/inspector node dist/index.js
 
 ### Issues filed
 _List any GitHub issue numbers created from failures._
+
+---
+
+## Run [3] â€” 2026-03-23 (T25 Regression Complete)
+
+### Summary
+- T25 refactor regression passed.
+- All T25 Inspector smoke rows passed.
+- All T25 Claude Desktop prompts passed.
+- Session expiry recovery passed.
+- No shape regressions were observed in the eClass, SIS, or RMP surfaces.
+
+## T25 Regression Template
+
+### Environment
+| Field | Value |
+|-------|-------|
+| Date | |
+| OS | |
+| Node version | |
+| Claude Desktop version | |
+| Repo commit | |
+| Cache state | cold / warm |
+| Session state | fresh / reused |
+
+### Inspector Smoke Pass (Server-only)
+| # | Tool | Status | Findings |
+|---|------|--------|----------|
+| T25-I1 | `list_courses` | | |
+| T25-I2 | `get_course_content` | | |
+| T25-I3 | `get_deadlines` | | |
+| T25-I4 | `get_item_details` | | |
+| T25-I5 | `get_grades` | | |
+| T25-I6 | `get_announcements` | | |
+| T25-I7 | `get_exam_schedule` | | |
+| T25-I8 | `get_class_timetable` | | |
+| T25-I9 | `search_professors` | | |
+| T25-I10 | `get_professor_details` | | |
+
+### Claude Desktop Prompt Matrix
+| # | Prompt | Expected tool | Result | Evidence | Issue # | Notes |
+|---|--------|---------------|--------|----------|---------|-------|
+| 1 | What courses am I enrolled in? | `list_courses` | | | | |
+| 2 | List sections and files for course <ID> | `get_course_content` | | | | |
+| 3 | Open this section URL and summarize the text: <section URL> | `get_section_text` | | | | |
+| 4 | Read this file: <fileUrl from content> | `get_file_text` | | | | |
+| 5 | What’s due in the next two weeks? | `get_upcoming_deadlines` | | | | |
+| 6 | What deadlines are in March 2026? | `get_deadlines` | | | | |
+| 7 | Assignments due between <start> and <end> | `get_deadlines` | | | | |
+| 8 | Get full details for this assignment URL <url> | `get_item_details` | | | | |
+| 9 | What are my grades? | `get_grades` | | | | |
+| 10 | Recent announcements | `get_announcements` | | | | |
+| 11 | What are my upcoming exams? | `get_exam_schedule` | | | | |
+| 12 | What is my class schedule? | `get_class_timetable` | | | | |
+| 13 | Search RateMyProfessors for professor John Doe | `search_professors` | | | | |
+| 14 | Get professor details for ID XXXXX | `get_professor_details` | | | | |
+| S | Session expiry | `list_courses` or any eClass tool | | | | |
+
+### Notes
+- Use a cold cache for the first pass after the refactor.
+- Prefer the same known-good course IDs used in earlier runs if they still exist.
+- Record a failure issue for any row that changes shape, breaks import/export, or causes a tool regression.

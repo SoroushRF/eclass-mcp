@@ -49,7 +49,7 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T14-T20** | Engine beta extension ??? SIS, RateMyProfessors, E2E verification |
 | **T21** | Engine post-beta automation ??? Cron / proactive notifications |
 | **T22-T24** | Optional product polish (parallel track; does not block T14-T20) |
-| **T25** | Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` ? [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
+| **T25** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` ? completed; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
 | **T26** | Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool) |
 | **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) |
 | **T28-T31** | Future **write tools** (assignment preflight, submit, calendar, E2E) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
@@ -198,7 +198,7 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 - [x] **T22** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md). **Completed 2026-03-23**.
 - [x] **T23** ? Deadlines: harden quiz + date selectors across themes; document test courses. **Completed 2026-03-23**.
 - [x] **T24** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)). **Completed 2026-03-23**.
-- [ ] **T25** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
+- [x] **T25** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
 - [ ] **T26** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
 - [ ] **T27** ? **Pinned cache (user-directed):** structured pin/unpin/list/refresh, single-store discipline vs TTL cache, on-disk **quota** with machine-readable "full" errors ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools). **Depends on T26.**
 
@@ -434,6 +434,16 @@ jobs:
 
 **Goal:** `src/scraper/eclass.ts` is too large to navigate and test. Refactor into **small modules** under `src/scraper/eclass/` while preserving **identical public API** for `src/tools/*` (either keep a thin `eclass.ts` at `src/scraper/` that re-exports, or update imports once in a single PR ? prefer **one barrel** so downstream stays `from '../scraper/eclass'`).
 
+**Current status:** the modular split has been implemented in code, the barrel/API surface is preserved, and the post-refactor regression E2E in `T25.9` has passed.
+
+**T25 sub-task summary:**
+- Baseline inventory: map the old monolith before moving code.
+- Shared helpers: extract pure parsing and shaping helpers first.
+- Browser/session: isolate Playwright browser/context ownership.
+- Feature slices: split courses, deadlines, item details, grades, announcements, files, and sections.
+- Barrel cleanup: keep `scraper` and `SessionExpiredError` stable for callers.
+- Regression E2E: prove the split did not change behavior or tool shapes.
+
 **Principles**
 
 - **Behavior first:** no selector or flow changes in the same PR as file moves; move code, then follow-up PRs for fixes.
@@ -466,10 +476,10 @@ jobs:
 4. Repeat for **deadlines**, **item-details**, **grades**, **announcements**, **files**, **sections**, **course content** in separate commits or one commit per area (user preference).
 5. Ensure **`SessionExpiredError`** and **`export const scraper`** remain the stable public surface.
 6. **Definition of done for T25**
-   - [ ] No remaining duplicate logic; `eclass.ts` at repo root of scraper is only re-exports + singleton (or documented new entry).
-   - [ ] `npm run build` and `npx tsc --noEmit` clean.
-   - [ ] Smoke: `list_courses`, one `get_deadlines` scope, one `get_item_details` URL (manual or script).
-   - [ ] Optional follow-up: unit tests per module (pairs well with **E08?E10**).
+   - [x] No remaining duplicate logic; `eclass.ts` at repo root of scraper is only re-exports + singleton (or documented new entry).
+   - [x] `npm run build` and `npx tsc --noEmit` clean.
+   - [x] Smoke: `list_courses`, one `get_deadlines` scope, one `get_item_details` URL (manual or script).
+   - [x] Optional follow-up: unit tests per module (pairs well with **E08?E10**).
 
 ---
 

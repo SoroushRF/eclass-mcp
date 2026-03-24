@@ -210,3 +210,80 @@ T20 is complete as of **2026-03-23** after SIS and RMP verification finished.
 This is intentionally a manual host-validation step.
 Do not replace it with unit tests or fixture tests.
 Use CI and fixtures to support it, not to substitute for it.
+
+## 12. T25 Refactor Regression
+
+Use this section after the eClass scraper modularization refactor lands.
+
+### 12.1 What Changed
+- `src/scraper/eclass.ts` became a thin barrel.
+- The scraper logic moved into `src/scraper/eclass/`.
+- Browser/session ownership is now isolated from feature modules.
+- The public tool surface should remain unchanged.
+
+### 12.2 T25 Sub-Tasks
+- Baseline inventory: map every method/helper/type in the old monolith.
+- Shared helpers: extract metadata and item-type helpers first.
+- Browser/session: move Playwright context and debug dump ownership out.
+- Feature slices: split courses, deadlines, item details, grades, announcements, files, and sections.
+- Barrel cleanup: preserve `scraper` and type exports with no call-site churn.
+- Regression E2E: prove the engine still works after the split.
+
+### 12.3 How To Run
+1. Confirm the refactor commit is built:
+   - `npm.cmd run build`
+   - `npx.cmd tsc --noEmit`
+2. Start the MCP Inspector against the built server:
+   ```powershell
+   npx.cmd @modelcontextprotocol/inspector node dist/index.js
+   ```
+3. Open `http://localhost:6274` and run the server-only smoke rows below.
+4. Open Claude Desktop and run the prompt matrix in the next table.
+5. Record results in [`docs/e2e-run-log.md`](./e2e-run-log.md).
+6. If any row fails, file an issue immediately and link it in the log.
+
+### 12.4 Inspector Smoke Pass
+Use the Inspector for a quick server-level regression before Claude Desktop.
+
+| # | Tool | Pass criteria |
+|---|------|---------------|
+| T25-I1 | `list_courses` | Same course count/shape as before the refactor |
+| T25-I2 | `get_course_content` | Returns sections and items with unchanged item types |
+| T25-I3 | `get_deadlines` | Returns deadlines with the same course/date shape |
+| T25-I4 | `get_item_details` | Returns assignment/quiz details with the same fields |
+| T25-I5 | `get_grades` | Returns the same grade rows as before |
+| T25-I6 | `get_announcements` | Returns announcement rows with title/date/content |
+| T25-I7 | `get_exam_schedule` | SIS still resolves and parses current exams |
+| T25-I8 | `get_class_timetable` | SIS still resolves and parses timetable rows |
+| T25-I9 | `search_professors` | RMP search still returns profile matches |
+| T25-I10 | `get_professor_details` | RMP detail fetch still returns ratings/comments |
+
+### 12.5 Claude Desktop Prompt Matrix
+Use a course that has sections, files, assignments, grades, and announcements when possible. Reuse the same known good course IDs from prior runs if they still exist.
+
+| # | Prompt | Expected tool | Pass criteria |
+|---|--------|---------------|---------------|
+| 1 | What courses am I enrolled in? | `list_courses` | Non-empty array with stable `id`, `name`, `url` fields |
+| 2 | List sections and files for course <ID> | `get_course_content` | Sections/items still appear correctly after the refactor |
+| 3 | Open this section URL and summarize the text: <section URL> | `get_section_text` | Main text and tabbed content still extract correctly |
+| 4 | Read this file: <fileUrl from content> | `get_file_text` | File content still returns text/images with no shape drift |
+| 5 | What’s due in the next two weeks? | `get_upcoming_deadlines` | Deadline list still contains course/date metadata |
+| 6 | What deadlines are in March 2026? | `get_deadlines` | Month filter still works and returns only requested-month items |
+| 7 | Assignments due between <start> and <end> | `get_deadlines` | Range filter still works, including past/future ranges |
+| 8 | Get full details for this assignment URL <url> | `get_item_details` | Assignment/quiz details still include instructions, status, and grade fields |
+| 9 | What are my grades? | `get_grades` | Grade rows still parse correctly after module split |
+| 10 | Recent announcements | `get_announcements` | Announcement list still contains title/date/body |
+| 11 | What are my upcoming exams? | `get_exam_schedule` | SIS exam schedule still resolves and parses correctly |
+| 12 | What is my class schedule? | `get_class_timetable` | SIS timetable still resolves and parses correctly |
+| 13 | Search RateMyProfessors for professor John Doe | `search_professors` | RMP search still returns matching profiles |
+| 14 | Get professor details for ID XXXXX | `get_professor_details` | RMP detail fetch still returns ratings and comments |
+
+### 12.6 Evidence Rules
+- Capture a short JSON snippet or a clear note that no JSON was visible.
+- Redact names, student IDs, grades, and anything else personally identifying.
+- Mark any failure with an issue number before you move on.
+
+### 12.7 Completion Criteria
+- All T25 smoke rows pass or are explained as legitimate skips.
+- The refactor did not change tool contracts.
+- `npx tsc --noEmit` and `npm run build` stay green on the tested commit.
