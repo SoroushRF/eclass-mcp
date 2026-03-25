@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-03-23  
+**Last updated:** 2026-03-25  
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -668,7 +668,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `get_exam_schedule` | Personal exam schedule (SIS) |
 | `get_class_timetable` | Personal class timetable (SIS) |
 | `search_professors` | RateMyProfessors profile search |
-| `get_professor_details` | RateMyProfessors deep ratings and comments |
+| `get_professor_details` | RateMyProfessors deep ratings, comments, and student tags |
 
 **Planned ([T26](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool)):** `clear_cache` ? user-requested invalidation; all tools gain JSON **`_cache`** freshness metadata.
 
