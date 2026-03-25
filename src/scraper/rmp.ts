@@ -22,6 +22,7 @@ export interface RMPRating {
     difficultyRating: number;
     grade: string;
     wouldTakeAgain: number | null;
+    ratingTags: string;
 }
 
 export interface RMPTeacherDetails {
@@ -274,6 +275,7 @@ export class RMPClient {
                     difficultyRating
                     grade
                     wouldTakeAgain
+                    ratingTags
                   }
                 }
               }

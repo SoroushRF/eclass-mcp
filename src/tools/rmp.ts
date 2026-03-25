@@ -86,6 +86,7 @@ function buildDetailsSummary(response: {
         grade: string;
         comment: string;
         wouldTakeAgain: string;
+        tags: string[];
     }>;
 }): string {
     const { professor, recentReviews } = response;
@@ -102,6 +103,9 @@ function buildDetailsSummary(response: {
             lines.push(
                 `- ${review.course} | ${review.date} | clarity=${review.rating} | difficulty=${review.difficulty} | wouldTakeAgain=${review.wouldTakeAgain}`
             );
+            if (review.tags.length > 0) {
+                lines.push(`  Tags: ${review.tags.join(', ')}`);
+            }
             if (review.comment) {
                 lines.push(`  "${review.comment}"`);
             }
@@ -131,6 +135,7 @@ function toDetailsToolResult(response: {
         grade: string;
         comment: string;
         wouldTakeAgain: string;
+        tags: string[];
     }>;
 }) {
     return {
@@ -233,7 +238,8 @@ export async function getProfessorDetailsTool(args: any) {
                 date: r.date,
                 grade: r.grade,
                 comment: r.comment,
-                wouldTakeAgain: r.wouldTakeAgain === 1 ? "Yes" : r.wouldTakeAgain === 0 ? "No" : "N/A"
+                wouldTakeAgain: r.wouldTakeAgain === 1 ? "Yes" : r.wouldTakeAgain === 0 ? "No" : "N/A" as string, // Cast to avoid literal-type inference issues
+                tags: r.ratingTags ? r.ratingTags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
             }))
         };
 
