@@ -2,7 +2,7 @@
   "name": "eclass-mcp",
   "version": "1.0.0-beta.1",
   "description": "",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec \"ts-node --transpile-only\" src/index.ts",
     "build": "tsc",
