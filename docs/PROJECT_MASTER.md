@@ -507,43 +507,33 @@ jobs:
 
 *Tune after dogfooding; values are defaults, not physics.*
 
-#### Cache file schema extension
+#### T26 Sub-tasks
 
-- Extend `CacheEntry` in [`src/cache/store.ts`](../src/cache/store.ts): `fetched_at` (ISO8601, set on `set`), keep `expires_at` and `data`.
-- **`get`** returns `{ data, fetched_at, expires_at } | null` **or** keep `get` as today and add **`getWithMeta`** ? pick one pattern and use everywhere tools need meta.
-- Old cache files without `fetched_at`: treat as miss **or** set `fetched_at` from `expires_at - ttl` best-effort; simplest is **invalidate on first read after upgrade** if field missing.
-
-#### Key naming ? remove manual `_v2` / `_v3` / `_v4` / `_v5`
-
-- Single exported **`CACHE_SCHEMA_VERSION`** (integer, bump in **CHANGELOG** when JSON payload shape changes).
-- Keys like: `deadlines:${CACHE_SCHEMA_VERSION}:${scope}:?` ? **no** scattered string bumps in tool files.
-
-#### Auth integration
-
-- After **`saveSession`** succeeds in [`src/auth/server.ts`](../src/auth/server.ts), call **`cache.clearVolatile()`** (new method): removes entries for deadlines, announcements, grades, content, section text, details prefix ? **not** necessarily full `files` (expensive to re-parse) unless `scope=all` or product decision says yes. Document behavior in README.
-
-#### Tool implementations
-
-- **Helper** `attachCacheMeta(payload, meta)` building consistent `_cache` object.
-- **Each cached tool** returns JSON including `_cache` on every response (hit or miss; on miss `hit: false`, `fetched_at` = now of scrape).
-- **Optional `force_refresh` boolean** on the heaviest tools (`get_deadlines`, `get_course_content`, `get_item_details`, `get_announcements`) ? skip `get` when true, then `set`. *If omitted from v1 of T26, note as follow-up.*
-- **`clear_cache`:** implement in `src/tools/cache.ts` (or `maintenance.ts`), register in [`src/index.ts`](../src/index.ts); uses `cache.clear()` / prefix deletes.
-
-#### Documentation
-
-- Update **README** tool table (**10 tools**), explain freshness + `clear_cache`.
-- Update **?3.1** executive snapshot when T26 ships.
+- [x] **T26.1: Core store refactor (`src/cache/store.ts`)**
+  - [x] Update `CacheEntry` interface to include `fetched_at: string` (ISO8601).
+  - [x] Implement `CACHE_SCHEMA_VERSION` constants and update `getCacheKey` logic.
+  - [x] Add `clearByPrefix(prefix: string)` and `clearVolatile()` methods.
+- [x] **T26.2: Metadata Envelope & Helpers**
+  - [x] Create `attachCacheMeta` helper to inject the `_cache` field into responses.
+  - [x] Update `store.get` to return `fetched_at` and `expires_at` alongside data.
+- [x] **T26.3: Auth-Cache Integration**
+  - [x] Trigger `cache.clearVolatile()` in `src/auth/server.ts` upon session save.
+- [x] **T26.4: Tool Migration (Tiered TTLs)**
+  - [x] Update `list_courses`, `get_deadlines`, `get_item_details`, `get_grades`, `get_announcements` with new TTLs.
+  - [x] Ensure all 10+ core tools return the `_cache` metadata.
+- [ ] **T26.5: `clear_cache` Tool Implementation**
+  - [ ] Implement `src/tools/cache.ts` and register in `src/index.ts`.
+  - [ ] Define the `scope` enum representing different cache tiers/prefixes.
+- [ ] **T26.6: Cleanup & Docs**
+  - [ ] Remove legacy `_vN` key suffixes from tool code.
+  - [ ] Update `README.md` tool table and explain `_cache` freshness fields.
 
 #### Definition of done (T26)
-
-- [ ] TTL table applied in `store.ts` + tools updated.
-- [ ] `CACHE_SCHEMA_VERSION` + key refactor; legacy `*_vN` orphan files acceptable (user may delete `.eclass-mcp/cache` once).
-- [ ] `_cache` (or agreed envelope) on **all** cache-backed eClass tools.
-- [ ] `clear_cache` tool with **scope** + safe behavior documented.
-- [ ] **Volatile** cache clear on successful auth (exact prefix list documented).
-- [ ] **Cache-first enforcement:** Verified that all tools return valid cache (if present) without forcing a login.
-- [ ] `npm run build` / `tsc` clean; brief note in CHANGELOG or README "Cache behavior changed".
-- *Optional follow-on (not part of T26 DoD):* **T27** user-pinned tier + quota ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools); start only after the T26 checkboxes above are met.
+- [ ] All T26 sub-tasks marked `[x]`.
+- [ ] `npm run build` is clean.
+- [ ] E2E check shows `list_courses` and `get_deadlines` returning `_cache` metadata.
+- [ ] Successful auth clears deadlines/grades cache automatically.
+- [ ] Manual `clear_cache` verified for at least one specific scope.
 
 ---
 

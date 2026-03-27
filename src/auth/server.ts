@@ -95,6 +95,9 @@ export async function startAuthServer() {
         
         console.error(`Saving session with ${cookies.length} cookies...`);
         saveSession(cookies as any);
+        // New session means old volatile data (deadlines, grades) may be stale.
+        const { cache } = await import('../cache/store');
+        cache.clearVolatile();
 
         // Sending complete HTML in one block so the user sees success immediately.
         res.writeHead(200, { 'Content-Type': 'text/html' });

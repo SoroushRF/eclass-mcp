@@ -10,3 +10,6 @@ scripts/output/
 
 # Accidental root-level debug dumps from one-off scripts
 debug-*-out.txt
+
+.agent/
+.agents/

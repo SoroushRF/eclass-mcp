@@ -1,10 +1,9 @@
 import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
 import { openAuthWindow } from '../auth/server';
-import { cache, TTL } from '../cache/store';
+import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { DeadlineItem, ItemDetails } from '../types/deadlines';
 
 type DeadlineScope = 'upcoming' | 'month' | 'range';
-const DEADLINES_CACHE_VERSION = 'v3';
 
 function parseEClassDate(dateStr: string): Date | null {
   if (!dateStr) return null;
@@ -52,18 +51,33 @@ export async function getUpcomingDeadlines(
   courseId?: string
 ) {
   try {
-    const cacheKey = `deadlines_${DEADLINES_CACHE_VERSION}_${courseId || 'all'}`;
-    let deadlines = cache.get<Assignment[]>(cacheKey) || [];
+    const cacheKey = getCacheKey('deadlines', 'upcoming', courseId || 'all');
+    const cached = cache.getWithMeta<Assignment[]>(cacheKey);
 
-    if (deadlines.length === 0) {
-      deadlines = await scraper.getDeadlines(courseId);
-      cache.set(cacheKey, deadlines, TTL.DEADLINES);
+    if (cached) {
+      const resp = attachCacheMeta(cached.data, {
+        hit: true,
+        fetched_at: cached.fetched_at,
+        expires_at: cached.expires_at,
+      });
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
+      };
     }
 
-    // eClass's 'Upcoming events' page only shows future events anyway.
-    // Let's just return what the scraper found without extra filtering bugs.
+    const deadlines = await scraper.getDeadlines(courseId);
+    cache.set(cacheKey, deadlines, TTL.DEADLINES);
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + TTL.DEADLINES * 60000);
+    const resp = attachCacheMeta(deadlines, {
+      hit: false,
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    });
+
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify(deadlines) }],
+      content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
     };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
@@ -80,7 +94,7 @@ function deadlineCacheKey(
   extra?: string
 ) {
   const coursePart = courseId || 'all';
-  return `deadlines_${DEADLINES_CACHE_VERSION}_${scope}_${coursePart}${extra ? `_${extra}` : ''}`;
+  return getCacheKey('deadlines', scope, coursePart, extra || '');
 }
 
 function hasUsableItems<T>(value: T[] | null): value is T[] {
@@ -88,10 +102,9 @@ function hasUsableItems<T>(value: T[] | null): value is T[] {
 }
 
 function detailsCacheKey(url: string) {
-  // CacheStore already sanitizes; keep key short-ish and deterministic.
-  const shortened = url.length > 200 ? url.slice(0, 200) : url;
-  // Bump this when the extraction payload shape changes (e.g. added descriptionImageUrls).
-  return `details_${shortened}_v3`;
+  // Use a hash or shortened URL for the key segment
+  const shortened = url.length > 150 ? url.slice(-150) : url;
+  return getCacheKey('details', shortened);
 }
 
 function inferTypeFromUrl(url: string): 'assign' | 'quiz' | 'other' {
@@ -107,13 +120,34 @@ function toDeadlineItems(assignments: Assignment[]): DeadlineItem[] {
   return assignments.map((a) => ({ ...a, type: inferTypeFromUrl(a.url) }));
 }
 
-async function getDetailsCached(url: string): Promise<ItemDetails> {
+async function getDetailsWithMeta(url: string): Promise<{ data: ItemDetails; meta: any }> {
   const key = detailsCacheKey(url);
-  const cached = cache.get<ItemDetails>(key);
-  if (cached) return cached;
+  const cached = cache.getWithMeta<ItemDetails>(key);
+  
+  if (cached) {
+    return {
+      data: cached.data,
+      meta: {
+        hit: true,
+        fetched_at: cached.fetched_at,
+        expires_at: cached.expires_at,
+      }
+    };
+  }
+  
   const details = await scraper.getItemDetails(url);
   cache.set(key, details, TTL.DETAILS);
-  return details;
+  
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + TTL.DETAILS * 60000);
+  return {
+    data: details,
+    meta: {
+      hit: false,
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    }
+  };
 }
 
 export async function getDeadlines(params: {
@@ -139,33 +173,39 @@ export async function getDeadlines(params: {
 
   try {
     let items: DeadlineItem[] = [];
+    let cacheMeta: any = null;
 
     if (scope === 'upcoming') {
       const key = deadlineCacheKey('upcoming', courseId);
-      const cached = cache.get<Assignment[]>(key);
-      if (hasUsableItems(cached)) {
-        items = toDeadlineItems(cached);
+      const cached = cache.getWithMeta<Assignment[]>(key);
+      if (cached && hasUsableItems(cached.data)) {
+        items = toDeadlineItems(cached.data);
+        cacheMeta = { hit: true, fetched_at: cached.fetched_at, expires_at: cached.expires_at };
       } else {
         const deadlines = await scraper.getDeadlines(courseId);
         cache.set(key, deadlines, TTL.DEADLINES);
         items = toDeadlineItems(deadlines);
+        const now = new Date();
+        cacheMeta = { hit: false, fetched_at: now.toISOString(), expires_at: new Date(now.getTime() + TTL.DEADLINES * 60000).toISOString() };
       }
     } else if (scope === 'month') {
       const m = month ?? new Date().getMonth() + 1;
       const y = year ?? new Date().getFullYear();
       const extra = `${y}_${m}`;
       const key = deadlineCacheKey('month', courseId, extra);
-      const cached = cache.get<DeadlineItem[]>(key);
-      if (hasUsableItems(cached)) {
-        items = cached;
+      const cached = cache.getWithMeta<DeadlineItem[]>(key);
+      if (cached && hasUsableItems(cached.data)) {
+        items = cached.data;
+        cacheMeta = { hit: true, fetched_at: cached.fetched_at, expires_at: cached.expires_at };
       } else {
-        const allAssignments =
-          await scraper.getAllAssignmentDeadlines(courseId);
+        const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
         items = allAssignments.filter((it) => {
           const d = parseEClassDate(it.dueDate);
           return d ? isSameMonthYear(d, m, y) : false;
         });
         cache.set(key, items, TTL.DEADLINES);
+        const now = new Date();
+        cacheMeta = { hit: false, fetched_at: now.toISOString(), expires_at: new Date(now.getTime() + TTL.DEADLINES * 60000).toISOString() };
       }
     } else if (scope === 'range') {
       if (!from || !to) {
@@ -178,12 +218,12 @@ export async function getDeadlines(params: {
       }
       const extra = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
       const key = deadlineCacheKey('range', courseId, extra);
-      const cached = cache.get<DeadlineItem[]>(key);
-      if (hasUsableItems(cached)) {
-        items = cached;
+      const cached = cache.getWithMeta<DeadlineItem[]>(key);
+      if (cached && hasUsableItems(cached.data)) {
+        items = cached.data;
+        cacheMeta = { hit: true, fetched_at: cached.fetched_at, expires_at: cached.expires_at };
       } else {
-        const allAssignments =
-          await scraper.getAllAssignmentDeadlines(courseId);
+        const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
         const filtered = allAssignments.filter((it) => {
           const d = parseEClassDate(it.dueDate);
           if (!d) return false;
@@ -200,6 +240,8 @@ export async function getDeadlines(params: {
         });
 
         cache.set(key, items, TTL.DEADLINES);
+        const now = new Date();
+        cacheMeta = { hit: false, fetched_at: now.toISOString(), expires_at: new Date(now.getTime() + TTL.DEADLINES * 60000).toISOString() };
       }
     }
 
@@ -208,8 +250,8 @@ export async function getDeadlines(params: {
       const withDetails = await Promise.all(
         items.slice(0, n).map(async (it) => {
           try {
-            const details = await getDetailsCached(it.url);
-            return { ...it, details };
+            const { data } = await getDetailsWithMeta(it.url);
+            return { ...it, details: data };
           } catch {
             return it;
           }
@@ -218,8 +260,9 @@ export async function getDeadlines(params: {
       items = [...withDetails, ...items.slice(n)];
     }
 
+    const resp = attachCacheMeta(items, cacheMeta);
     return {
-      content: [{ type: 'text' as const, text: JSON.stringify(items) }],
+      content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
     };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
@@ -257,17 +300,18 @@ export async function getItemDetails(params: {
     const csvPreviewLines = params?.csvPreviewLines ?? 200;
     const maxCsvAttachments = params?.maxCsvAttachments ?? 3;
 
-    const details = await getDetailsCached(url);
+    const { data: details, meta: cacheMeta } = await getDetailsWithMeta(url);
 
-    // Backwards compatible mode: return only the JSON payload.
+    // Backwards compatible mode: return only the JSON payload + cache meta
     if (!includeImages && !includeCsv) {
+      const resp = attachCacheMeta(details, cacheMeta);
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify(details) }],
+        content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
       };
     }
 
     const content: any[] = [];
-    const meta: any = { ...details };
+    const meta: any = attachCacheMeta({ ...details }, cacheMeta);
 
     // --- CSV inlining (optional) ---
     let csvAttachments = Array.isArray(details.attachments)
@@ -460,9 +504,7 @@ export async function getItemDetails(params: {
       const allImageUrls = details.descriptionImageUrls ?? [];
       const offset = Math.max(0, imageOffset);
       const slice = allImageUrls.slice(offset);
-      // Re-download images to re-use existing logic? Avoid: we already computed downloadedImages,
-      // but to keep changes small we recompute by calling the same download logic inline.
-      // Note: this is acceptable because includeImages is capped and expensive steps are limited.
+      
       const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
       let usedBytes = 0;
       for (let i = 0; i < slice.length; i++) {

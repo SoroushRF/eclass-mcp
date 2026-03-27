@@ -1,11 +1,10 @@
 import { scraper, SessionExpiredError } from '../scraper/eclass';
 import { openAuthWindow } from '../auth/server';
-import { cache, TTL } from '../cache/store';
+import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
 import path from 'path';
-import crypto from 'crypto';
 
 export async function getFileText(
   courseId: string,
@@ -14,23 +13,24 @@ export async function getFileText(
   endPage?: number
 ) {
   try {
-    // Build a cache key — include page range and logic version to avoid collisions
-    const urlHash = crypto.createHash('md5').update(fileUrl).digest('hex');
-    let cacheKey = `file_${urlHash}_v2`; // Added v2 to force refresh with new DPI limit
+    // Build a cache key
+    let cacheKey = getCacheKey('file', fileUrl);
     if (startPage || endPage) {
-      cacheKey += `_p${startPage ?? 1}-${endPage ?? 'end'}`;
+      cacheKey = getCacheKey('file', fileUrl, `p${startPage ?? 1}-${endPage ?? 'end'}`);
     }
 
-    // Cache lookup: handle both old string-only cache and new block-based cache
-    const cached = cache.get<any>(cacheKey);
+    const cached = cache.getWithMeta<any>(cacheKey);
     if (cached) {
-      if (typeof cached === 'string') {
-        // Migration: wrap old string cache into a block
-        return { content: [{ type: 'text' as const, text: cached }] };
+      const { data, fetched_at, expires_at } = cached;
+      const meta = { hit: true, fetched_at, expires_at };
+      
+      if (typeof data === 'string') {
+        const resp = attachCacheMeta([{ type: 'text' as const, text: data }], meta);
+        return { content: resp };
       }
-      if (Array.isArray(cached)) {
-        // New block array format
-        return { content: cached as ContentBlock[] };
+      if (Array.isArray(data)) {
+        const resp = attachCacheMeta(data as ContentBlock[], meta);
+        return { content: resp };
       }
     }
 
@@ -70,7 +70,15 @@ export async function getFileText(
       cache.set(cacheKey, blocks, TTL.FILES);
     }
 
-    return { content: blocks };
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + TTL.FILES * 60000);
+    const resp = attachCacheMeta(blocks, {
+      hit: false,
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    });
+
+    return { content: resp };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();

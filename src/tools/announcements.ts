@@ -1,17 +1,33 @@
 import { scraper, SessionExpiredError, Announcement } from '../scraper/eclass';
 import { openAuthWindow } from '../auth/server';
-import { cache, TTL } from '../cache/store';
+import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 
 export async function getAnnouncements(courseId?: string, limit: number = 10) {
   try {
-    const cacheKey = `announcements_${courseId || 'all'}_${limit}`;
-    const cached = cache.get<Announcement[]>(cacheKey);
-    if (cached)
-      return { content: [{ type: 'text', text: JSON.stringify(cached) }] };
+    const cacheKey = getCacheKey('announcements', courseId || 'all', limit.toString());
+    const cached = cache.getWithMeta<Announcement[]>(cacheKey);
+
+    if (cached) {
+      const resp = attachCacheMeta(cached.data, {
+        hit: true,
+        fetched_at: cached.fetched_at,
+        expires_at: cached.expires_at,
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(resp) }] };
+    }
 
     const announcements = await scraper.getAnnouncements(courseId, limit);
     cache.set(cacheKey, announcements, TTL.ANNOUNCEMENTS);
-    return { content: [{ type: 'text', text: JSON.stringify(announcements) }] };
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + TTL.ANNOUNCEMENTS * 60000);
+    const resp = attachCacheMeta(announcements, {
+      hit: false,
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    });
+
+    return { content: [{ type: 'text', text: JSON.stringify(resp) }] };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();

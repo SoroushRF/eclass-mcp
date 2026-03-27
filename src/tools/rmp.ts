@@ -1,9 +1,8 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { RMPClient, type RMPTeacherSearch } from "../scraper/rmp.js";
-import { cache } from "../cache/store.js";
+import { cache, TTL, getCacheKey, attachCacheMeta } from "../cache/store.js";
 
 const rmpClient = new RMPClient();
-const CACHE_TTL = 7 * 24 * 60; // 7 days in minutes
 
 function normalizeSearchName(name: string): string {
     return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -58,11 +57,13 @@ function toSearchToolResult(response: {
         school: string;
     }>;
     diagnostics: any;
+    _cache?: any;
 }) {
     return {
         content: [{ type: 'text' as const, text: buildSearchSummary(response) }],
         matches: response.matches,
         diagnostics: response.diagnostics,
+        _cache: response._cache,
     };
 }
 
@@ -137,10 +138,13 @@ function toDetailsToolResult(response: {
         wouldTakeAgain: string;
         tags: string[];
     }>;
+    _cache?: any;
 }) {
     return {
         content: [{ type: 'text' as const, text: buildDetailsSummary(response) }],
-        ...response,
+        professor: response.professor,
+        recentReviews: response.recentReviews,
+        _cache: response._cache,
     };
 }
 
@@ -156,11 +160,20 @@ export async function searchProfessorsTool(args: any) {
 
     try {
         const normalizedName = normalizeSearchName(name);
-        const cacheKey = `rmp_search_${normalizedName}_${campus || 'all'}`;
-        const cached = cache.get<any>(cacheKey);
+        const cacheKey = getCacheKey('rmp_search', normalizedName, campus || 'all');
+        const cached = cache.getWithMeta<any>(cacheKey);
+
         if (cached) {
             console.error(`[RMP] search cache hit for "${normalizedName}" (${campus || 'all'})`);
-            return toSearchToolResult(cached);
+            const resp = {
+                ...cached.data,
+                _cache: {
+                    hit: true,
+                    fetched_at: cached.fetched_at,
+                    expires_at: cached.expires_at,
+                }
+            };
+            return toSearchToolResult(resp);
         }
 
         console.error(`[RMP] search cache miss for "${normalizedName}" (${campus || 'all'})`);
@@ -178,16 +191,24 @@ export async function searchProfessorsTool(args: any) {
             diagnostics: report.diagnostics
         };
 
+        let finalResp: any = { ...response };
         if (response.matches.length > 0 && !report.diagnostics.usedCrossCampusProbe) {
-            cache.set(cacheKey, response, CACHE_TTL);
+            cache.set(cacheKey, response, TTL.RMP);
             console.error(`[RMP] cached ${response.matches.length} match(es) for "${normalizedName}" (${campus || 'all'})`);
+            
+            const now = new Date();
+            finalResp._cache = {
+                hit: false,
+                fetched_at: now.toISOString(),
+                expires_at: new Date(now.getTime() + TTL.RMP * 60000).toISOString(),
+            };
         } else {
             console.error(
                 `[RMP] not caching result for "${normalizedName}" (${campus || 'all'})` +
                     (report.diagnostics.usedCrossCampusProbe ? ' because it came from a fallback probe' : ' because it was empty')
             );
         }
-        return toSearchToolResult(response);
+        return toSearchToolResult(finalResp);
     } catch (error: any) {
         throw new McpError(ErrorCode.InternalError, `Failed to search RMP: ${error.message}`);
     }
@@ -204,11 +225,20 @@ export async function getProfessorDetailsTool(args: any) {
     }
 
     try {
-        const cacheKey = `rmp_details_${teacherId}`;
-        const cached = cache.get<any>(cacheKey);
+        const cacheKey = getCacheKey('rmp_details', teacherId);
+        const cached = cache.getWithMeta<any>(cacheKey);
+
         if (cached) {
             console.error(`[RMP] detail cache hit for teacherId=${teacherId}`);
-            return toDetailsToolResult(cached);
+            const resp = {
+                ...cached.data,
+                _cache: {
+                    hit: true,
+                    fetched_at: cached.fetched_at,
+                    expires_at: cached.expires_at,
+                }
+            };
+            return toDetailsToolResult(resp);
         }
 
         console.error(`[RMP] detail cache miss for teacherId=${teacherId}`);
@@ -219,7 +249,7 @@ export async function getProfessorDetailsTool(args: any) {
             return { error: "Professor not found or profile is unavailable." };
         }
 
-        const response = {
+        const data = {
             professor: {
                 name: `${details.firstName} ${details.lastName}`,
                 department: details.department,
@@ -232,19 +262,30 @@ export async function getProfessorDetailsTool(args: any) {
                 }
             },
             recentReviews: details.ratings.map(r => ({
-                rating: r.clarityRating, // Or average of clarity/helpful
+                rating: r.clarityRating,
                 difficulty: r.difficultyRating,
                 course: r.class,
                 date: r.date,
                 grade: r.grade,
                 comment: r.comment,
-                wouldTakeAgain: r.wouldTakeAgain === 1 ? "Yes" : r.wouldTakeAgain === 0 ? "No" : "N/A" as string, // Cast to avoid literal-type inference issues
+                wouldTakeAgain: r.wouldTakeAgain === 1 ? "Yes" : r.wouldTakeAgain === 0 ? "No" : "N/A" as string,
                 tags: r.ratingTags ? r.ratingTags.split(',').map((t: string) => t.trim()).filter(Boolean) : []
             }))
         };
 
-        cache.set(cacheKey, response, CACHE_TTL);
+        cache.set(cacheKey, data, TTL.RMP);
         console.error(`[RMP] cached details for teacherId=${teacherId}`);
+        
+        const now = new Date();
+        const response = {
+            ...data,
+            _cache: {
+                hit: false,
+                fetched_at: now.toISOString(),
+                expires_at: new Date(now.getTime() + TTL.RMP * 60000).toISOString(),
+            }
+        };
+
         return toDetailsToolResult(response);
     } catch (error: any) {
         throw new McpError(ErrorCode.InternalError, `Failed to fetch RMP details: ${error.message}`);
