@@ -1,7 +1,7 @@
 import type { EClassBrowserSession } from './browser-session';
 import { extractCourseCode, checkSession } from './helpers';
 import { ECLASS_URL } from './browser-session';
-import { Course, CourseContent, SessionExpiredError } from './types';
+import { Course, CourseContent } from './types';
 
 export async function getCourses(
   session: EClassBrowserSession

@@ -2,7 +2,7 @@ import type { EClassBrowserSession } from './browser-session';
 import { ECLASS_URL } from './browser-session';
 import { buildCourseMetadata, toDeadlineItem, checkSession } from './helpers';
 import { getCourses } from './courses';
-import type { Assignment, DeadlineItem, Grade } from './types';
+import type { Assignment, DeadlineItem } from './types';
 
 export async function getDeadlines(
   session: EClassBrowserSession,
