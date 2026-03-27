@@ -8,8 +8,9 @@ coverage/
 # Local script probe output (keep repo clean)
 scripts/output/
 
-# Accidental root-level debug dumps from one-off scripts
-debug-*-out.txt
-
 .agent/
 .agents/
+
+# Log files and probe outputs in the root
+*.txt
+*.log
