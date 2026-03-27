@@ -1,5 +1,6 @@
 import type { EClassBrowserSession } from './browser-session';
 import { ECLASS_URL } from './browser-session';
+import { checkSession } from './helpers';
 import type { Announcement } from './types';
 
 export async function getAnnouncements(
@@ -16,6 +17,7 @@ export async function getAnnouncements(
       await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${courseId}`, {
         waitUntil: 'networkidle',
       });
+      await checkSession(page);
 
       forumUrl = await page.evaluate(() => {
         const links = Array.from(

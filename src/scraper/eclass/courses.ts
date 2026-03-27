@@ -1,7 +1,7 @@
 import type { EClassBrowserSession } from './browser-session';
-import { extractCourseCode } from './helpers';
+import { extractCourseCode, checkSession } from './helpers';
 import { ECLASS_URL } from './browser-session';
-import type { Course, CourseContent } from './types';
+import { Course, CourseContent, SessionExpiredError } from './types';
 
 export async function getCourses(
   session: EClassBrowserSession
@@ -13,9 +13,7 @@ export async function getCourses(
       waitUntil: 'networkidle',
     });
 
-    if (page.url().includes('login')) {
-      throw new Error('Session expired. Please re-authenticate.');
-    }
+    await checkSession(page);
 
     await page
       .waitForSelector('.course-listitem, .coursebox, .card-body', {

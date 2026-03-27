@@ -1,5 +1,6 @@
 import type { EClassBrowserSession } from './browser-session';
 import { ECLASS_URL } from './browser-session';
+import { checkSession } from './helpers';
 import type { Grade } from './types';
 
 export async function getGrades(
@@ -15,6 +16,7 @@ export async function getGrades(
       : `${ECLASS_URL}/grade/report/overview/index.php`;
 
     await page.goto(url, { waitUntil: 'networkidle' });
+    await checkSession(page);
 
     const grades = await page.evaluate(
       ({

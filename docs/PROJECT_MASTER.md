@@ -10,7 +10,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 ## Table of contents
 
 1. [How to use this document](#1-how-to-use-this-document)
-2. [**Master execution tracker & detailed implementation plans**](#2-master-execution-tracker--detailed-implementation-plans) ? **start here for what's left to build**
+2. [**Master execution tracker & detailed implementation plans**](#2-master-execution-tracker--detailed-implementation-plans) — **start here for what's left to build**
    - [Engine versioning and release policy](#engine-versioning-and-release-policy)
 3. [Executive snapshot](#3-executive-snapshot)
 4. [Architecture reference](#4-architecture-reference-single-source-of-truth)
@@ -18,12 +18,12 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 6. [MVP vs post-v1 / "perfection" backlog](#6-mvp-vs-post-v1--perfection-backlog)
 7. [Original v1 build plan (historical summary)](#7-original-v1-build-plan-historical-summary)
 8. [Shipped feature history (deadlines & file pipeline)](#8-shipped-feature-history-deadlines--file-pipeline)
-9. [Phase A ? Active product backlog (themes)](#9-phase-a--active-product-backlog-themes)
-10. [Phase B ? Engine beta: external data (SIS, RMP)](#10-phase-b--engine-beta-external-data-sis-rmp)
-11. [Phase C ? Engineering excellence reference (gap to 9.0+)](#11-phase-c--engineering-excellence-reference-gap-to-90)
-12. [Phase D ? Maintainer / codebase health](#12-phase-d--maintainer--codebase-health)
-13. [Appendix A ? Documentation map](#appendix-a--documentation-map)
-14. [Appendix B ? Scripts directory policy](#appendix-b--scripts-directory-policy)
+9. [Phase A — Active product backlog (themes)](#9-phase-a---active-product-backlog-themes)
+10. [Phase B — Engine beta: external data (SIS, RMP)](#10-phase-b---engine-beta-external-data-sis-rmp)
+11. [Phase C — Engineering excellence reference (gap to 9.0+)](#11-phase-c---engineering-excellence-reference-gap-to-90)
+12. [Phase D — Maintainer / codebase health](#12-phase-d---maintainer--codebase-health)
+13. [Appendix A — Documentation map](#appendix-a---documentation-map)
+14. [Appendix B — Scripts directory policy](#appendix-b---scripts-directory-policy)
 15. [Appendix C: Superseded root documents (removed)](#appendix-c-superseded-root-documents-removed)
 
 ---
@@ -31,9 +31,9 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [?2](#2-master-execution-tracker--detailed-implementation-plans) ? unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, future write tools behind **E20** gates, 9+ engineering **E01-E21**).
+- **What to build next:** use [2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, future write tools behind **E20** gates, 9+ engineering **E01-E21**).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
-- **Deduplication:** stack, session paths, and tool lists appear once in [?3](#3-executive-snapshot) and [?4](#4-architecture-reference-single-source-of-truth).
+- **Deduplication:** stack, session paths, and tool lists appear once in [3](#3-executive-snapshot) and [4](#4-architecture-reference-single-source-of-truth).
 
 ---
 
@@ -46,15 +46,15 @@ This section is the **standing implementation plan**: one serial numbering schem
 | Range | Origin |
 | --- | --- |
 | **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
-| **T14-T20** | Engine beta extension ??? SIS, RateMyProfessors, E2E verification |
-| **T21** | Engine post-beta automation ??? Cron / proactive notifications |
+| **T14-T20** | Engine beta extension — SIS, RateMyProfessors, E2E verification |
+| **T21** | Engine post-beta automation — Cron / proactive notifications |
 | **T22-T24** | Optional product polish (parallel track; does not block T14-T20) |
-| **T25** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` ? completed; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown) |
-| **T26** | Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool) |
-| **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) |
-| **T28-T31** | Future **write tools** (assignment preflight, submit, calendar, E2E) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
+| **T25** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
+| **T26** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
+| **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
+| **T28-T31** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [2.13](#2.13-detailed-plan---v12-write-tools---safety-t28-t31) |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D) |
-| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) ? [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) |
+| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [2.13](#2.13-detailed-plan---v12-write-tools---safety-t28-t31) |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -268,7 +268,7 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 
 ---
 
-### 2.8 Detailed plan ??? **T14-T20** (engine beta intelligence) procedure
+### 2.8 Detailed plan — **T14-T20** (engine beta intelligence) procedure
 
 #### T14: inspect-sis
 
@@ -438,6 +438,7 @@ jobs:
 **Current status:** the modular split has been implemented in code, the barrel/API surface is preserved, and the post-refactor regression E2E in `T25.9` has passed.
 
 **T25 sub-task summary:**
+
 - Baseline inventory: map the old monolith before moving code.
 - Shared helpers: extract pure parsing and shaping helpers first.
 - Browser/session: isolate Playwright browser/context ownership.
@@ -445,13 +446,13 @@ jobs:
 - Barrel cleanup: keep `scraper` and `SessionExpiredError` stable for callers.
 - Regression E2E: prove the split did not change behavior or tool shapes.
 
-**Principles**
+#### Principles
 
 - **Behavior first:** no selector or flow changes in the same PR as file moves; move code, then follow-up PRs for fixes.
-- **Single browser singleton:** one class (e.g. `EClassScraper`) owns `browser`, `getBrowser()`, `getAuthenticatedContext()`, `dumpPage()` ? not duplicated across files.
+- **Single browser singleton:** one class (e.g. `EClassScraper`) owns `browser`, `getBrowser()`, `getAuthenticatedContext()`, `dumpPage()` — not duplicated across files.
 - **Domain modules** export methods that take `(ctx helpers)` or are class mixins/partial classes only if TypeScript stays clear; simplest pattern is **one class in `index.ts` or `EClassScraper.ts`** that **delegates** to plain functions in feature files.
 
-**Suggested layout** (adjust names to taste; match existing method groupings in the file)
+#### Suggested layout — (adjust names to taste; match existing method groupings in the file)
 
 | Module | Responsibility |
 |--------|------------------|
@@ -528,14 +529,19 @@ jobs:
 - [x] **T26.6: Cleanup & Docs**
   - [x] Remove legacy `_vN` key suffixes from tool code.
   - [x] Update `README.md` tool table and explain `_cache` freshness fields.
+- [x] **T26.7: E2E Verification & User Tests**
+  - [x] **Test 1: Metadata Transparency.** Call `list_courses` once. Verify JSON contains `_cache` hit: false. Call again immediately, verify hit: true.
+  - [x] **Test 2: Granular Scope Clear.** Call `get_item_details`. Verify cache hit. Call `clear_cache(scope="content")`. Call `get_item_details` again. Verify it is now a miss (hit: false).
+  - [x] **Test 3: Volatile Clear on Auth.** Call `get_deadlines`. Verify hit. Perform a new authentication at `/auth`. Call `get_deadlines` again. Verify it was cleared and is now a miss.
+  - [x] **Test 4: Cross-tool Cache Consistency.** Verify that related tools (e.g., `get_deadlines` and `get_upcoming_deadlines`) share the same cache prefix (`deadlines_`) and invalidate together.
 
 #### Definition of done (T26)
 
 - [x] All T26 sub-tasks marked `[x]`.
-- [ ] `npm run build` is clean.
-- [ ] E2E check shows `list_courses` and `get_deadlines` returning `_cache` metadata.
-- [ ] Successful auth clears deadlines/grades cache automatically.
-- [ ] Manual `clear_cache` verified for at least one specific scope.
+- [x] `npm run build` is clean.
+- [x] E2E check shows `list_courses` and `get_deadlines` returning `_cache` metadata.
+- [x] Successful auth clears deadlines/grades cache automatically.
+- [x] Manual `clear_cache` verified for at least one specific scope.
 
 ---
 

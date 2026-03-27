@@ -1,5 +1,12 @@
-import type { DeadlineItem, DeadlineItemType } from './types';
-import type { Assignment } from './types';
+import type { DeadlineItem, DeadlineItemType, Assignment } from './types';
+import { SessionExpiredError } from './types';
+import type { Page } from 'playwright';
+
+export async function checkSession(page: Page) {
+  if (page.url().includes('login') || page.url().includes('saml')) {
+    throw new SessionExpiredError();
+  }
+}
 
 function normalizeWhitespace(value: string): string {
   return value.replace(/\s+/g, ' ').trim();

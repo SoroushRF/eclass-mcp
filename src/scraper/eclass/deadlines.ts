@@ -1,8 +1,8 @@
 import type { EClassBrowserSession } from './browser-session';
 import { ECLASS_URL } from './browser-session';
-import { buildCourseMetadata, toDeadlineItem } from './helpers';
+import { buildCourseMetadata, toDeadlineItem, checkSession } from './helpers';
 import { getCourses } from './courses';
-import type { Assignment, DeadlineItem } from './types';
+import type { Assignment, DeadlineItem, Grade } from './types';
 
 export async function getDeadlines(
   session: EClassBrowserSession,
@@ -16,6 +16,7 @@ export async function getDeadlines(
       : `${ECLASS_URL}/calendar/view.php?view=upcoming`;
 
     await page.goto(url, { waitUntil: 'networkidle' });
+    await checkSession(page);
 
     const deadlines = await page.evaluate(() => {
       const events = Array.from(document.querySelectorAll('.event'));
@@ -87,6 +88,7 @@ export async function getMonthDeadlines(
       : `${ECLASS_URL}/calendar/view.php?view=month&time=${time}`;
 
     await page.goto(url, { waitUntil: 'networkidle' });
+    await checkSession(page);
 
     const items = await page.evaluate(() => {
       const eventEls = Array.from(
@@ -169,6 +171,7 @@ export async function getAssignmentIndexDeadlines(
   try {
     const url = `${ECLASS_URL}/mod/assign/index.php?id=${courseId}`;
     await page.goto(url, { waitUntil: 'networkidle' });
+    await checkSession(page);
 
     const rows = await page.evaluate(
       ({ cid, cname }) => {

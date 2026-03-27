@@ -2,6 +2,13 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 
+export class SessionExpiredError extends Error {
+  constructor(message: string = 'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth') {
+    super(message);
+    this.name = 'SessionExpiredError';
+  }
+}
+
 dotenv.config({ quiet: true });
 
 const SESSION_FILE = path.resolve(__dirname, '../../.eclass-mcp/session.json');

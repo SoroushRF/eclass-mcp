@@ -1,5 +1,7 @@
-import { loadSession } from './session';
+import { loadSession, SessionExpiredError } from './session';
 import { chromium, Page } from 'playwright';
+
+export { SessionExpiredError };
 
 export interface SISExam {
   courseCode: string;
@@ -21,13 +23,6 @@ export interface SISTimetableEntry {
   startTime: string;
   durationMinutes: number;
   room: string;
-}
-
-export class SessionExpiredError extends Error {
-  constructor(message: string = 'Session expired. Please log in again.') {
-    super(message);
-    this.name = 'SessionExpiredError';
-  }
 }
 
 /**

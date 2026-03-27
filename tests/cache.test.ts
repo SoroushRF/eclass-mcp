@@ -6,11 +6,12 @@ import {
 } from '../src/cache/store';
 
 describe('cache TTL constants', () => {
-  it('uses minute-based positive TTLs', () => {
-    expect(TTL.COURSES).toBe(60 * 24);
-    expect(TTL.CONTENT).toBe(60 * 6);
-    expect(TTL.DEADLINES).toBe(60 * 2);
-    expect(TTL.FILES).toBe(60 * 24 * 7);
+  it('uses tiered minute-based positive TTLs', () => {
+    expect(TTL.COURSES).toBe(360); // 6h
+    expect(TTL.CONTENT).toBe(180); // 3h
+    expect(TTL.DEADLINES).toBe(30); // 30m
+    expect(TTL.GRADES).toBe(180); // 3h
+    expect(TTL.FILES).toBe(2880); // 48h
   });
 });
 

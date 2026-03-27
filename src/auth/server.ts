@@ -163,9 +163,15 @@ export function openAuthWindow() {
   const url = `http://localhost:${getAuthServerPort()}/auth`;
   const cmd =
     process.platform === 'win32'
-      ? `start ${url}`
+      ? `start "" "${url}"`
       : process.platform === 'darwin'
-        ? `open ${url}`
-        : `xdg-open ${url}`;
-  exec(cmd);
+        ? `open "${url}"`
+        : `xdg-open "${url}"`;
+
+  console.error(`[Auth] Attempting to open browser for re-authentication at: ${url}`);
+  exec(cmd, (error) => {
+    if (error) {
+      console.error(`[Auth] Failed to open browser: ${error.message}`);
+    }
+  });
 }
