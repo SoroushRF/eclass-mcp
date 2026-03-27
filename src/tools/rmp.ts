@@ -1,6 +1,6 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
 import { RMPClient, type RMPTeacherSearch } from "../scraper/rmp.js";
-import { cache, TTL, getCacheKey, attachCacheMeta } from "../cache/store.js";
+import { cache, TTL, getCacheKey } from "../cache/store.js";
 
 const rmpClient = new RMPClient();
 
@@ -191,7 +191,7 @@ export async function searchProfessorsTool(args: any) {
             diagnostics: report.diagnostics
         };
 
-        let finalResp: any = { ...response };
+        const finalResp: any = { ...response };
         if (response.matches.length > 0 && !report.diagnostics.usedCrossCampusProbe) {
             cache.set(cacheKey, response, TTL.RMP);
             console.error(`[RMP] cached ${response.matches.length} match(es) for "${normalizedName}" (${campus || 'all'})`);

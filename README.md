@@ -34,7 +34,10 @@
 - 🗂️ **Course Content** — file/resource listings per course section
 - 🎓 **SIS Integration** — personal exam schedules and class timetables (lectures, labs, tutorials)
 - 🔐 **Session Auth** — one-click login via a local browser window; session bridging for both eClass and SIS domains
-- 💾 **Smart Caching** — file-based JSON cache with per-resource TTLs (7 days for files, 1–24 hours for live data)
+- 💾 **Smart Caching** — tiered file-based JSON cache with versioned schemas (Hot 30m, Warm 20m, Course 3h, Stable 48h)
+- 📝 **Cache Transparency** — every tool returns an `_cache` object representing data freshness (hit/miss, fetched_at, expires_at)
+- 🧹 **Granular Invalidation** — manual `clear_cache` tool plus automatic volatile clearing on re-auth
+ — file-based JSON cache with per-resource TTLs (7 days for files, 1–24 hours for live data)
 
 ---
 

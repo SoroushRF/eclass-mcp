@@ -11,7 +11,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 
 1. [How to use this document](#1-how-to-use-this-document)
 2. [**Master execution tracker & detailed implementation plans**](#2-master-execution-tracker--detailed-implementation-plans) ? **start here for what's left to build**
-   - [Engine versioning & release policy](#engine-versioning--release-policy)
+   - [Engine versioning and release policy](#engine-versioning-and-release-policy)
 3. [Executive snapshot](#3-executive-snapshot)
 4. [Architecture reference](#4-architecture-reference-single-source-of-truth)
 5. [Working with AI agents on this repo](#5-working-with-ai-agents-on-this-repo)
@@ -24,7 +24,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 12. [Phase D ? Maintainer / codebase health](#12-phase-d--maintainer--codebase-health)
 13. [Appendix A ? Documentation map](#appendix-a--documentation-map)
 14. [Appendix B ? Scripts directory policy](#appendix-b--scripts-directory-policy)
-15. [Appendix C ? Legacy source files (pending removal)](#appendix-c--legacy-source-files-pending-removal)
+15. [Appendix C: Superseded root documents (removed)](#appendix-c-superseded-root-documents-removed)
 
 ---
 
@@ -44,7 +44,7 @@ This section is the **standing implementation plan**: one serial numbering schem
 ### 2.1 Task ID legend
 
 | Range | Origin |
-|-------|--------|
+| --- | --- |
 | **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
 | **T14-T20** | Engine beta extension ??? SIS, RateMyProfessors, E2E verification |
 | **T21** | Engine post-beta automation ??? Cron / proactive notifications |
@@ -60,7 +60,7 @@ Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
 ---
 
-### Engine versioning & release policy
+### Engine versioning and release policy
 
 This repository now treats the MCP server as an **engine line** that can stay open-source and evolve independently from the eventual product surfaces.
 
@@ -216,7 +216,7 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 ### 2.5 Tracker ? engineering gap to 9+ (E01-E21)
 
 | ID | Item | Epic |
-|----|------|------|
+| --- | --- | --- |
 | [x] **E01** | CI workflow: push + PR, `npm ci`, `npm run build`, `npx tsc --noEmit` | A |
 | [x] **E02** | Add `npm run lint` + `npm run test` to CI when available | A |
 | [x] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check` | A |
@@ -259,7 +259,8 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 
 **Goal:** Extend `src/auth/server.ts` to navigate to SIS URLs during the visible login flow so Playwright captures the necessary cookies for future SIS-based tools.
 
-**Steps**
+#### Steps
+
 1. Identify post-login redirect triggers in `auth/server.ts`.
 2. Insert navigation loop to `w2prod.sis.yorku.ca` URLs (see [?10.3](#103-architecture-deltas-engine-beta-specific)).
 3. Verify `session.json` now contains `w2prod.sis.yorku.ca` host entries.
@@ -269,32 +270,32 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 
 ### 2.8 Detailed plan ??? **T14-T20** (engine beta intelligence) procedure
 
-**T14 ??? inspect-sis**
+#### T14: inspect-sis
 
 1. Implement script per engine beta spec; output HTML + console probe to `.eclass-mcp/debug/`.
 2. Document: final URL after redirect, login vs data page, table counts.
 
-**T15 ??? sis scraper**
+#### T15: sis scraper
 
 1. Implement parsers for Exam Schedule and Timetable.
 2. Add `scripts/test-sis.ts`; print sample rows.
 
-**T16 ??? sis tools**
+#### T16: sis tools
 
 1. Register `get_exam_schedule` + `get_class_timetable`.
 2. Ensure `loadSession()` correctly propagates SIS cookies.
 
-**T17 ??? inspect-rmp**
+#### T17: inspect-rmp
 
 1. Run GraphQL school search; record York `schoolID`.
 2. Probe professor search headers/tokens.
 
-**T18 ??? RMP tool**
+#### T18: RMP tool
 
 1. Implement `searchRMP`; cache by normalized name key.
 2. Register tool + schema.
 
-**T19 ??? Docs**
+#### T19: Docs
 
 1. README tools table 13 rows.
 2. Update executive snapshot tool counts.
@@ -367,19 +368,19 @@ jobs:
         run: npm test
 ```
 
-2. **Why `npm ci`:** reproducible installs from lockfile; fails if lock out of sync.
-3. **`npm run build`** runs `tsc` (typecheck + emit); a separate `tsc --noEmit` step is optional and was omitted to avoid duplicate compiler work.
-4. **Why Node matrix:** catches platform-specific path or optional dependency issues (Windows vs Linux).
-5. **Playwright in CI:** only add `npx playwright install chromium` to CI when **automated browser tests** exist (E10); otherwise skip to keep CI fast.
-6. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `master`.
-7. **Badge (optional):** Add workflow status badge to README after first green run.
-8. **`timeout-minutes: 15`** on the job avoids hung installs (e.g. future Playwright in CI).
+1. **Why `npm ci`:** reproducible installs from lockfile; fails if lock out of sync.
+2. **`npm run build`** runs `tsc` (typecheck + emit); a separate `tsc --noEmit` step is optional and was omitted to avoid duplicate compiler work.
+3. **Why Node matrix:** catches platform-specific path or optional dependency issues (Windows vs Linux).
+4. **Playwright in CI:** only add `npx playwright install chromium` to CI when **automated browser tests** exist (E10); otherwise skip to keep CI fast.
+5. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `master`.
+6. **Badge (optional):** Add workflow status badge to README after first green run.
+7. **`timeout-minutes: 15`** on the job avoids hung installs (e.g. future Playwright in CI).
 
 **E01 done when:** workflow is green on a test PR for all matrix cells or documented exclusions.
 
 **E02 done when:** `lint` and `test` steps are present and required; job fails if either fails.
 
-#### 2.9.2 E03 ? Lint and format
+#### 2.9.2 E03: Lint and format
 
 1. `npm install -D eslint @eslint/js typescript-eslint prettier eslint-config-prettier`.
 2. Add `eslint.config.js` (flat config) with TypeScript project service for `src/**/*.ts`.
@@ -393,7 +394,7 @@ jobs:
 "format:check": "prettier --check ."
 ```
 
-5. Run `lint:fix` + `format` once; commit baseline; tighten `max-warnings` over time.
+1. Run `lint:fix` + `format` once; commit baseline; tighten `max-warnings` over time.
 
 #### 2.9.3 E04?E07 ? Governance
 
@@ -497,7 +498,7 @@ jobs:
 #### Target TTLs (minutes) ? replace current `TTL` in `store.ts`
 
 | Tier | Tools / keys | Minutes | Rationale |
-|------|----------------|---------|-----------|
+| --- | --- | --- | --- |
 | **Hot** | Deadlines (`get_deadlines`, `get_upcoming_deadlines`), announcements | **30** | Instructor posts and due dates change often. |
 | **Warm** | `get_item_details` | **20** | Submission status / visible grades change after student actions. |
 | **Course shell** | `get_course_content`, `get_section_text` | **180** (3h) | Section lists change occasionally; fresher than old 6h is enough without hammering. |
@@ -521,15 +522,16 @@ jobs:
 - [x] **T26.4: Tool Migration (Tiered TTLs)**
   - [x] Update `list_courses`, `get_deadlines`, `get_item_details`, `get_grades`, `get_announcements` with new TTLs.
   - [x] Ensure all 10+ core tools return the `_cache` metadata.
-- [ ] **T26.5: `clear_cache` Tool Implementation**
-  - [ ] Implement `src/tools/cache.ts` and register in `src/index.ts`.
-  - [ ] Define the `scope` enum representing different cache tiers/prefixes.
-- [ ] **T26.6: Cleanup & Docs**
-  - [ ] Remove legacy `_vN` key suffixes from tool code.
-  - [ ] Update `README.md` tool table and explain `_cache` freshness fields.
+- [x] **T26.5: `clear_cache` Tool Implementation**
+  - [x] Implement `src/tools/cache.ts` and register in `src/index.ts`.
+  - [x] Define the `scope` enum representing different cache tiers/prefixes.
+- [x] **T26.6: Cleanup & Docs**
+  - [x] Remove legacy `_vN` key suffixes from tool code.
+  - [x] Update `README.md` tool table and explain `_cache` freshness fields.
 
 #### Definition of done (T26)
-- [ ] All T26 sub-tasks marked `[x]`.
+
+- [x] All T26 sub-tasks marked `[x]`.
 - [ ] `npm run build` is clean.
 - [ ] E2E check shows `list_courses` and `get_deadlines` returning `_cache` metadata.
 - [ ] Successful auth clears deadlines/grades cache automatically.
@@ -946,7 +948,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 
 ---
 
-## Appendix C ? Superseded root documents (removed)
+## Appendix C: Superseded root documents (removed)
 
 The following were deleted from the repo root; use this file instead:
 

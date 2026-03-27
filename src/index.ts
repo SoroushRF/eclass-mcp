@@ -21,6 +21,7 @@ import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 import { getExamSchedule, getClassTimetable } from './tools/sis';
 import { searchProfessorsTool, getProfessorDetailsTool } from './tools/rmp';
+import { clearCache } from './tools/cache';
 
 // Create the MCP server
 const server = new McpServer({
@@ -261,6 +262,29 @@ server.tool(
     teacherId: z.string().describe('The RMP teacher ID (from search_professors)'),
   },
   (async (args: any) => await getProfessorDetailsTool(args)) as any
+);
+
+server.tool(
+  'clear_cache',
+  'Manually clears a specific scope of cached data. Use "volatile" to clear deadlines/grades/announcements, or "all" for everything.',
+  {
+    scope: z
+      .enum([
+        'all',
+        'volatile',
+        'deadlines',
+        'announcements',
+        'grades',
+        'content',
+        'courses',
+        'files',
+        'rmp',
+      ])
+      .optional()
+      .default('all')
+      .describe('The scope of cache to clear (default: all)'),
+  },
+  (async ({ scope }: any) => await clearCache(scope)) as any
 );
 
 // Main startup

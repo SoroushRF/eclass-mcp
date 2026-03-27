@@ -149,29 +149,34 @@ class CacheStore {
   }
 
   /** Clears all cache entries that start with a specific prefix (e.g. "v1:deadlines"). */
-  clearByPrefix(prefix: string): void {
-    if (!fs.existsSync(CACHE_DIR)) return;
+  clearByPrefix(prefix: string): number {
+    if (!fs.existsSync(CACHE_DIR)) return 0;
+    let count = 0;
     try {
       const files = fs.readdirSync(CACHE_DIR);
       const sanitizedPrefix = sanitizeCacheKeyForFilename(prefix);
       for (const file of files) {
         if (file.startsWith(sanitizedPrefix) && file.endsWith('.json')) {
           fs.unlinkSync(path.join(CACHE_DIR, file));
+          count++;
         }
       }
     } catch (error) {
       console.error(`Error clearing cache by prefix "${prefix}":`, error);
     }
+    return count;
   }
 
   /** Clears high-volatility cache (deadlines, announcements, grades). */
-  clearVolatile(): void {
+  clearVolatile(): number {
     const volatilePrefixes = ['deadlines', 'announcements', 'grades'];
+    let total = 0;
     for (const p of volatilePrefixes) {
       // Clear both versioned and legacy keys for these prefixes
-      this.clearByPrefix(`v${CACHE_SCHEMA_VERSION}:${p}`);
-      this.clearByPrefix(p); 
+      total += this.clearByPrefix(`v${CACHE_SCHEMA_VERSION}:${p}`);
+      total += this.clearByPrefix(p); 
     }
+    return total;
   }
 
   clear(): void {
