@@ -3,6 +3,11 @@ import { ECLASS_URL } from './browser-session';
 import { checkSession } from './helpers';
 import type { Grade } from './types';
 
+const GOTO_OPTS = {
+  waitUntil: 'domcontentloaded' as const,
+  timeout: 30000,
+};
+
 export async function getGrades(
   session: EClassBrowserSession,
   courseId?: string
@@ -10,12 +15,13 @@ export async function getGrades(
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
-    const isOverview = !courseId;
-    const url = courseId
-      ? `${ECLASS_URL}/grade/report/user/index.php?id=${courseId}`
+    const cid = courseId?.trim();
+    const isOverview = !cid;
+    const url = cid
+      ? `${ECLASS_URL}/grade/report/user/index.php?id=${cid}`
       : `${ECLASS_URL}/grade/report/overview/index.php`;
 
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, GOTO_OPTS);
     await checkSession(page);
 
     const grades = await page.evaluate(
@@ -97,7 +103,7 @@ export async function getGrades(
             );
         }
       },
-      { cid: courseId, isOverviewMode: isOverview }
+      { cid, isOverviewMode: isOverview }
     );
 
     return (grades as Grade[]).filter((g) => {

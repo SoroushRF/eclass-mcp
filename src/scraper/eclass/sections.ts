@@ -1,18 +1,36 @@
 import type { EClassBrowserSession } from './browser-session';
+import { sanitizeHttpUrlQueryParams, checkSession } from './helpers';
 import type { SectionTextData } from './types';
 
 export async function getSectionText(
   session: EClassBrowserSession,
   url: string
 ): Promise<SectionTextData> {
+  const targetUrl = sanitizeHttpUrlQueryParams(url);
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: 'networkidle' });
+    // `networkidle` never settles on Moodle; `load` waits for all subresources and can hit
+    // 30s if a tracker/image hangs. `domcontentloaded` + main-region wait tracks real readiness.
+    await page.goto(targetUrl, {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000,
+    });
+    await checkSession(page);
+    await page
+      .waitForSelector('#region-main, [role="main"]', { timeout: 15000 })
+      .catch(() => {});
 
     return await page.evaluate((sectionUrl) => {
+      const root =
+        document.querySelector('#region-main') ||
+        document.querySelector('[role="main"]') ||
+        document.body;
+
       const title =
-        document.querySelector('.sectionname, h2, h3')?.textContent?.trim() ||
+        root
+          .querySelector('.sectionname, h2, h3')
+          ?.textContent?.trim() ||
         'Section Details';
 
       const extractLinks = (element: Element) => {
@@ -26,7 +44,7 @@ export async function getSectionText(
           );
       };
 
-      const summaryBox = document.querySelector(
+      const summaryBox = root.querySelector(
         '.summary, .course-description, .section-summary, .description'
       );
       let mainText = '';
@@ -49,10 +67,12 @@ export async function getSectionText(
       }> = [];
 
       const navLinks = Array.from(
-        document.querySelectorAll('.nav-tabs .nav-link, [role="tablist"] [role="tab"]')
+        root.querySelectorAll(
+          '.nav-tabs .nav-link, [role="tablist"] [role="tab"]'
+        )
       );
       const tabPanes = Array.from(
-        document.querySelectorAll('.tab-content .tab-pane, [role="tabpanel"]')
+        root.querySelectorAll('.tab-content .tab-pane, [role="tabpanel"]')
       );
 
       if (navLinks.length > 0 && navLinks.length === tabPanes.length) {
@@ -92,7 +112,7 @@ export async function getSectionText(
         mainLinks,
         tabs,
       };
-    }, url);
+    }, targetUrl);
   } finally {
     await page.close();
     await context.close();

@@ -53,15 +53,21 @@ export interface CacheMetadata {
   expires_at: string;
 }
 
-/** 
+/**
  * Wraps a tool response with cache freshness metadata.
  * Use this in MCP tool handlers to return a consistent envelope.
+ *
+ * Arrays cannot be spread into object literals; doing so would produce
+ * `{ "0": ..., "1": ..., _cache }` and break JSON consumers. Use `{ items, _cache }`.
  */
 export function attachCacheMeta<T>(data: T, meta: CacheMetadata) {
-  return {
-    ...data,
-    _cache: meta,
-  };
+  if (Array.isArray(data)) {
+    return { items: data, _cache: meta };
+  }
+  if (data !== null && typeof data === 'object') {
+    return { ...(data as Record<string, unknown>), _cache: meta };
+  }
+  return { value: data, _cache: meta };
 }
 
 class CacheStore {

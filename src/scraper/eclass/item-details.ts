@@ -22,7 +22,7 @@ export async function getAssignmentDetails(
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, { waitUntil: 'load', timeout: 60000 });
 
     const commentLink = await page.$('.comment-link');
     if (commentLink) {
@@ -225,7 +225,7 @@ export async function getQuizDetails(
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: 'networkidle' });
+    await page.goto(url, { waitUntil: 'load', timeout: 60000 });
     const data = await page.evaluate((pageUrl) => {
       const title =
         (

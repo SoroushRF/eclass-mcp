@@ -87,11 +87,5 @@ export interface CourseContent {
   }[];
 }
 
-export class SessionExpiredError extends Error {
-  constructor() {
-    super(
-      'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth'
-    );
-    this.name = 'SessionExpiredError';
-  }
-}
+import { SessionExpiredError } from '../session';
+export { SessionExpiredError };

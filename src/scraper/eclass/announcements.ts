@@ -3,6 +3,11 @@ import { ECLASS_URL } from './browser-session';
 import { checkSession } from './helpers';
 import type { Announcement } from './types';
 
+const GOTO_OPTS = {
+  waitUntil: 'domcontentloaded' as const,
+  timeout: 30000,
+};
+
 export async function getAnnouncements(
   session: EClassBrowserSession,
   courseId?: string,
@@ -11,12 +16,11 @@ export async function getAnnouncements(
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
+    const cid = courseId?.trim();
     let forumUrl = '';
 
-    if (courseId) {
-      await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${courseId}`, {
-        waitUntil: 'networkidle',
-      });
+    if (cid) {
+      await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${cid}`, GOTO_OPTS);
       await checkSession(page);
 
       forumUrl = await page.evaluate(() => {
@@ -30,13 +34,14 @@ export async function getAnnouncements(
       });
 
       if (!forumUrl) {
-        forumUrl = `${ECLASS_URL}/course/view.php?id=${courseId}`;
+        forumUrl = `${ECLASS_URL}/course/view.php?id=${cid}`;
       }
     } else {
       forumUrl = `${ECLASS_URL}/my/`;
     }
 
-    await page.goto(forumUrl, { waitUntil: 'networkidle' });
+    await page.goto(forumUrl, GOTO_OPTS);
+    await checkSession(page);
 
     if (forumUrl.includes('course/view')) {
       const foundLink = await page.evaluate(() => {
@@ -49,7 +54,7 @@ export async function getAnnouncements(
         return target?.href || '';
       });
       if (foundLink) {
-        await page.goto(foundLink, { waitUntil: 'networkidle' });
+        await page.goto(foundLink, GOTO_OPTS);
       } else {
         return [];
       }
@@ -95,7 +100,7 @@ export async function getAnnouncements(
     for (const meta of topDiscussions) {
       let content = '';
       try {
-        await page.goto(meta.discussionUrl, { waitUntil: 'networkidle' });
+        await page.goto(meta.discussionUrl, GOTO_OPTS);
         content = await page.evaluate(() => {
           const post = document.querySelector('.forumpost, article.forum-post');
           if (!post) return '';

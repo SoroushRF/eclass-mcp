@@ -4,6 +4,7 @@ import {
   CourseContent,
   SectionTextData,
 } from '../scraper/eclass';
+import { sanitizeHttpUrlQueryParams } from '../scraper/eclass/helpers';
 import { openAuthWindow } from '../auth/server';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 
@@ -48,8 +49,9 @@ export async function getCourseContent(courseId: string) {
 
 export async function getSectionText(url: string) {
   try {
-    console.error(`[MCP Server] Claude requested section text for: ${url}`);
-    const cacheKey = getCacheKey('sectiontext', url);
+    const targetUrl = sanitizeHttpUrlQueryParams(url);
+    console.error(`[MCP Server] Claude requested section text for: ${targetUrl}`);
+    const cacheKey = getCacheKey('sectiontext', targetUrl);
     const cached = cache.getWithMeta<SectionTextData>(cacheKey);
 
     if (cached) {
@@ -63,7 +65,7 @@ export async function getSectionText(url: string) {
       };
     }
 
-    const content = await scraper.getSectionText(url);
+    const content = await scraper.getSectionText(targetUrl);
     cache.set(cacheKey, content, TTL.CONTENT); // Re-use content TTL
 
     const now = new Date();

@@ -52,9 +52,12 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T25** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
 | **T26** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
 | **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
-| **T28-T31** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [2.13](#2.13-detailed-plan---v12-write-tools---safety-t28-t31) |
+| **T28-T31** | Cengage integration — passive discovery, `/auth/cengage` endpoint, scraper + tools, E2E — see [§2.13](#213-detailed-plan--t28-t35-cengage--webwork-assignment-platforms) |
+| **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#213-detailed-plan--t28-t35-cengage--webwork-assignment-platforms) |
+| **T36-T39** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#214-detailed-plan--future-write-tools--safety-t36-t39) |
+| **T40** | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#213-detailed-plan--t28-t35-cengage--webwork-assignment-platforms) |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D) |
-| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [2.13](#2.13-detailed-plan---v12-write-tools---safety-t28-t31) |
+| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#214-detailed-plan--future-write-tools--safety-t36-t39) |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -76,9 +79,16 @@ This repository now treats the MCP server as an **engine line** that can stay op
   - Core eClass tools plus SIS and RMP are integrated.
   - The engine is useful and real, but still being hardened for broader use.
 
+- `1.0.0-beta.2`
+  - Cengage and WeBWorK assignment platform integration.
+  - Platform discovery engine: passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
+  - Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
+  - Blocking poll / auto-retry pattern introduced for Cengage and WeBWorK, then retrofitted to eClass and SIS (T40) so all tools respond seamlessly without requiring a re-prompt after login.
+
 - `1.0.0`
   - First stable engine release.
-  - Read-only tools are dependable.
+  - All read-only tools are dependable — eClass, SIS, RMP, Cengage, and WeBWorK.
+  - Seamless auth across all platforms: tools block and auto-retry during login; no re-prompt ever needed.
   - Version contracts, docs, and release discipline are in place.
 
 - `1.1.0`
@@ -127,7 +137,9 @@ This repository now treats the MCP server as an **engine line** that can stay op
   - timetable logic
   - professor enrichment
   - read-only workflow helpers
-  - local auth/session handling
+  - local auth/session handling (all platforms — eClass, SIS, Cengage, WeBWorK)
+  - platform discovery engine (passive detection of external platform links from eClass course content)
+  - per-platform and per-instance session management
 
 - Keep in the product:
   - hosted sync
@@ -151,6 +163,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 
 - Historical core-only release: `0.9.0-core`
 - Current engine stage: `1.0.0-beta.1`
+- Next planned beta: `1.0.0-beta.2` (Cengage, WeBWorK, blocking poll / auto-retry for all platforms)
 - Next major public engine milestone: `1.0.0`
 - Future planning should assume the engine and product will eventually diverge into separate release lines.
 

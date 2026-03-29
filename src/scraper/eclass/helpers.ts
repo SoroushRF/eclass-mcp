@@ -2,6 +2,27 @@ import type { DeadlineItem, DeadlineItemType, Assignment } from './types';
 import { SessionExpiredError } from './types';
 import type { Page } from 'playwright';
 
+/**
+ * Trims each query value. Clients/LLMs often paste broken URLs where `id` includes
+ * spaces (e.g. id=148310%20%20%20...) which Moodle mishandles and navigation can hang.
+ */
+export function sanitizeHttpUrlQueryParams(url: string): string {
+  const trimmed = url.trim();
+  try {
+    const u = new URL(trimmed);
+    for (const key of [...u.searchParams.keys()]) {
+      const v = u.searchParams.get(key);
+      if (v === null) continue;
+      const t = v.trim();
+      if (t === '') u.searchParams.delete(key);
+      else u.searchParams.set(key, t);
+    }
+    return u.toString();
+  } catch {
+    return trimmed.replace(/\s+/g, '');
+  }
+}
+
 export async function checkSession(page: Page) {
   if (page.url().includes('login') || page.url().includes('saml')) {
     throw new SessionExpiredError();

@@ -90,13 +90,15 @@ flowchart LR
 
 For server-level validation (verifying raw JSON before putting it into a host like Claude):
 
-1.  Stop any running server instances.
-2.  Launch the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+1. Stop any running server instances.
+2. Launch the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
+
     ```powershell
     npx.cmd @modelcontextprotocol/inspector node dist/index.js
     ```
-3.  Open `http://localhost:6274` in your browser.
-4.  Test individual tools and inspect JSON payloads.
+
+3. Open `http://localhost:6274` in your browser.
+4. Test individual tools and inspect JSON payloads.
 
 If you are in PowerShell and `npm` / `npx` fail with an execution-policy error, use the `.cmd`
 variants explicitly (`npm.cmd`, `npx.cmd`) or run the command through `cmd /c`.
@@ -152,7 +154,7 @@ Right-click the tray icon → **Quit**, then relaunch.
 
 The first time Claude tries to use an eClass tool, you'll see:
 
-> *"eClass session not found. Please visit http://localhost:3000/auth"*
+> *"eClass session not found. Please visit <http://localhost:3000/auth>"*
 
 Open that URL. A visible browser window opens — log in with your York credentials (including MFA if required). Once you land on the eClass dashboard, the session is saved automatically and the browser closes.
 
@@ -177,17 +179,20 @@ You're done. Ask Claude anything about your courses.
 ```
 
 For large PDFs, Claude will automatically paginate:
+
 ```
 "Read pages 10–20 of that lecture PDF."
 ```
 
 For instruction screenshots embedded in assignments, you can enable vision:
+
 ```
 "Read the full instructions from this assignment, including any screenshots."
 Use `eclass:get_item_details` with includeImages=true if your client supports it.
 ```
 
 For small CSV attachments, you can inline them as text:
+
 ```
 "Read the CSV attachment data from this assignment."
 Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
@@ -302,6 +307,7 @@ All scraping tests require a valid session (`npm run setup` + authenticate via `
 ## 🔒 Privacy
 
 Everything runs **entirely on your machine**:
+
 - Your eClass session cookie is stored in `.eclass-mcp/session.json` (gitignored)
 - Parsed file content is cached in `.eclass-mcp/cache/` (gitignored)
 - No data is sent to any third-party service

@@ -1,6 +1,6 @@
 import { scraper, SessionExpiredError } from '../scraper/eclass';
 import { openAuthWindow } from '../auth/server';
-import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { cache, TTL, getCacheKey } from '../cache/store';
 import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
@@ -21,16 +21,14 @@ export async function getFileText(
 
     const cached = cache.getWithMeta<any>(cacheKey);
     if (cached) {
-      const { data, fetched_at, expires_at } = cached;
-      const meta = { hit: true, fetched_at, expires_at };
-      
+      const { data } = cached;
+
       if (typeof data === 'string') {
-        const resp = attachCacheMeta([{ type: 'text' as const, text: data }], meta);
-        return { content: resp };
+        return { content: [{ type: 'text' as const, text: data }] };
       }
       if (Array.isArray(data)) {
-        const resp = attachCacheMeta(data as ContentBlock[], meta);
-        return { content: resp };
+        // MCP `content` must be a ContentBlock[]; do not wrap with attachCacheMeta (object).
+        return { content: data as ContentBlock[] };
       }
     }
 
@@ -70,15 +68,7 @@ export async function getFileText(
       cache.set(cacheKey, blocks, TTL.FILES);
     }
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + TTL.FILES * 60000);
-    const resp = attachCacheMeta(blocks, {
-      hit: false,
-      fetched_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-    });
-
-    return { content: resp };
+    return { content: blocks };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();

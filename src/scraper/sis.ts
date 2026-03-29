@@ -66,6 +66,32 @@ export class SISScraper {
     };
   }
 
+  private async handleSessionSelection(page: Page) {
+    const hasSessions = await page.evaluate(() => 
+      document.body.innerText.includes('select the academic session')
+    );
+    
+    if (hasSessions) {
+      const sessionLink = await page.evaluate(() => {
+        const links = Array.from(document.querySelectorAll('a'));
+        // Prefer current year Undergraduate session
+        const now = new Date();
+        const year = now.getFullYear();
+        const prevYear = year - 1;
+        const label = `${prevYear}-${year}`; 
+        const target = links.find(a => 
+          a.textContent?.includes('UNDERGRADUATE') && 
+          (a.textContent?.includes(label) || a.textContent?.includes(year.toString()))
+        );
+        return target ? target.href : null;
+      });
+
+      if (sessionLink) {
+        await page.goto(sessionLink, { waitUntil: 'load' });
+      }
+    }
+  }
+
   /**
    * Scrape the Exam Schedule
    */
@@ -74,8 +100,19 @@ export class SISScraper {
     try {
       await page.goto(SISScraper.EXAM_URL, { waitUntil: 'load', timeout: 30000 });
       
+      await this.handleSessionSelection(page);
+
       const exams = await page.evaluate(() => {
-        const rows = Array.from(document.querySelectorAll('table[border="1"] tr')).slice(1);
+        // Find the table that contains "Course" and "Date" in its headers
+        const tables = Array.from(document.querySelectorAll('table'));
+        const examTable = tables.find(t => {
+          const text = t.innerText.toLowerCase();
+          return text.includes('course') && text.includes('date') && text.includes('start time');
+        });
+
+        if (!examTable) return [];
+
+        const rows = Array.from(examTable.querySelectorAll('tr')).slice(1);
         return rows.map(row => {
           const cells = Array.from(row.querySelectorAll('td')).map(td => td.innerText.trim());
           if (cells.length < 8) return null;
@@ -106,27 +143,7 @@ export class SISScraper {
     try {
       await page.goto(SISScraper.TIMETABLE_URL, { waitUntil: 'load', timeout: 30000 });
       
-      // Handle session selection if needed
-      const hasSessions = await page.evaluate(() => document.body.innerText.includes('select the academic session'));
-      if (hasSessions) {
-        const sessionLink = await page.evaluate(() => {
-          const links = Array.from(document.querySelectorAll('a'));
-          // Prefer current year Undergraduate session
-          const now = new Date();
-          const year = now.getFullYear();
-          const prevYear = year - 1;
-          const label = `${prevYear}-${year}`; 
-          const target = links.find(a => 
-            a.textContent?.includes('UNDERGRADUATE') && 
-            (a.textContent?.includes(label) || a.textContent?.includes(year.toString()))
-          );
-          return target ? target.href : null;
-        });
-
-        if (sessionLink) {
-          await page.goto(sessionLink, { waitUntil: 'load' });
-        }
-      }
+      await this.handleSessionSelection(page);
 
       const entries = await page.evaluate(() => {
         // SIS uses border="2" for the timetable list tables

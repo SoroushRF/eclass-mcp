@@ -10,7 +10,8 @@ export async function getCourses(
   const page = await context.newPage();
   try {
     await page.goto(`${ECLASS_URL}/my/courses.php`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'load',
+      timeout: 60000,
     });
 
     await checkSession(page);
@@ -83,8 +84,10 @@ export async function getCourseContent(
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
+    // `networkidle` often times out on Moodle (background requests never go quiet).
     await page.goto(`${ECLASS_URL}/course/view.php?id=${courseId}`, {
-      waitUntil: 'networkidle',
+      waitUntil: 'load',
+      timeout: 60000,
     });
 
     const indexSectionsData = await page.evaluate(() => {
