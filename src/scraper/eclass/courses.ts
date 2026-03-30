@@ -71,7 +71,7 @@ export async function getCourses(
         const seenIds = new Set<string>();
         const fallbackItems: Element[] = [];
         for (const link of allCourseLinks) {
-          let id = '';
+          let id: string;
           try {
             const parsed = new URL(link.href);
             id = parsed.searchParams.get('id') || '';
