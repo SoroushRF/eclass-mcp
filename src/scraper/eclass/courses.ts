@@ -17,8 +17,31 @@ export async function getCourses(
     await checkSession(page);
 
     await page
-      .waitForSelector('.course-listitem, .coursebox, .card-body', {
-        timeout: 10000,
+      .waitForFunction(() => {
+        const selectors = [
+          '.course-listitem .coursename',
+          '.coursebox .coursename a',
+          '.card-body .coursename',
+          '.course_title a',
+        ];
+
+        const hasLegacyCourseNode = selectors.some(
+          (s) => document.querySelectorAll(s).length > 0
+        );
+        const hasCourseLinks =
+          document.querySelectorAll('a[href*="course/view.php?id="]').length > 0;
+
+        const coursesView = document.querySelector('[data-region="courses-view"]');
+        const pageContainer = document.querySelector('[data-region="page-container"]');
+        const isBusy = pageContainer?.getAttribute('aria-busy') === 'true';
+        const totalCount = Number(
+          coursesView?.getAttribute('data-totalcoursecount') || '0'
+        );
+        const settledNoCourses = !!coursesView && !isBusy && totalCount === 0;
+
+        return hasLegacyCourseNode || hasCourseLinks || settledNoCourses;
+      }, {
+        timeout: 20000,
       })
       .catch(() => null);
 
@@ -37,6 +60,32 @@ export async function getCourses(
           items = found;
           break;
         }
+      }
+
+      // Fallback for newer lazy-rendered My Courses layouts.
+      if (items.length === 0) {
+        const allCourseLinks = Array.from(
+          document.querySelectorAll('a[href*="course/view.php?id="]')
+        ) as HTMLAnchorElement[];
+
+        const seenIds = new Set<string>();
+        const fallbackItems: Element[] = [];
+        for (const link of allCourseLinks) {
+          let id = '';
+          try {
+            const parsed = new URL(link.href);
+            id = parsed.searchParams.get('id') || '';
+          } catch {
+            const m = link.href.match(/[?&]id=(\d+)/);
+            id = m?.[1] || '';
+          }
+
+          if (!id || seenIds.has(id)) continue;
+          seenIds.add(id);
+          fallbackItems.push(link);
+        }
+
+        items = fallbackItems;
       }
 
       return items

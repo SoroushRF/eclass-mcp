@@ -19,7 +19,9 @@ export async function listCourses() {
     }
 
     const courses = await scraper.getCourses();
-    cache.set(cacheKey, courses, TTL.COURSES);
+    if (courses.length > 0) {
+      cache.set(cacheKey, courses, TTL.COURSES);
+    }
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.COURSES * 60000);

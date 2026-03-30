@@ -8,7 +8,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env'), quiet: true });
 
 import { isSessionValid } from './scraper/session';
-import { startAuthServer } from './auth/server';
+import { startAuthServer, openAuthWindow } from './auth/server';
 import { listCourses } from './tools/courses';
 import { getCourseContent, getSectionText } from './tools/content';
 import { getFileText } from './tools/files';
@@ -294,7 +294,7 @@ async function main() {
 
   if (!isSessionValid()) {
     console.error('eClass session not found or stale. Opening login window...');
-    // openAuthWindow(); // Optionally open on startup if you want it super-automatic
+    openAuthWindow();
   } else {
     console.error('eClass session check: Local session file found.');
   }

@@ -94,7 +94,34 @@ export async function getAnnouncements(
         .filter((a) => a.id && a.discussionUrl);
     });
 
-    const topDiscussions = announcementsMeta.slice(0, limit);
+    const byDiscussion = new Map<
+      string,
+      {
+        id: string;
+        title: string;
+        discussionUrl: string;
+        date: string;
+        author: string;
+      }
+    >();
+
+    for (const meta of announcementsMeta) {
+      const key = meta.discussionUrl || meta.id;
+      const prev = byDiscussion.get(key);
+      if (!prev) {
+        byDiscussion.set(key, meta);
+        continue;
+      }
+
+      const prevScore = (prev.date ? 1 : 0) + (prev.author ? 1 : 0);
+      const nextScore = (meta.date ? 1 : 0) + (meta.author ? 1 : 0);
+      if (nextScore > prevScore) {
+        byDiscussion.set(key, meta);
+      }
+    }
+
+    const uniqueMeta = Array.from(byDiscussion.values());
+    const topDiscussions = uniqueMeta.slice(0, limit);
     const results: Announcement[] = [];
 
     for (const meta of topDiscussions) {
