@@ -14,10 +14,12 @@ export async function getCourseContent(courseId: string) {
     const cached = cache.getWithMeta<CourseContent>(cacheKey);
 
     if (cached) {
+      const stale = 'stale' in cached && cached.stale === true;
       const resp = attachCacheMeta(cached.data, {
         hit: true,
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
+        ...(stale ? { stale: true } : {}),
       });
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
@@ -55,10 +57,12 @@ export async function getSectionText(url: string) {
     const cached = cache.getWithMeta<SectionTextData>(cacheKey);
 
     if (cached) {
+      const stale = 'stale' in cached && cached.stale === true;
       const resp = attachCacheMeta(cached.data, {
         hit: true,
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
+        ...(stale ? { stale: true } : {}),
       });
       return {
         content: [{ type: 'text' as const, text: JSON.stringify(resp) }],

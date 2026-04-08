@@ -22,6 +22,13 @@ import { getAnnouncements } from './tools/announcements';
 import { getExamSchedule, getClassTimetable } from './tools/sis';
 import { searchProfessorsTool, getProfessorDetailsTool } from './tools/rmp';
 import { clearCache } from './tools/cache';
+import {
+  cachePin,
+  cacheUnpin,
+  cacheListPins,
+  cacheRefreshPin,
+  cacheDeletePinned,
+} from './tools/pins';
 
 // Create the MCP server
 const server = new McpServer({
@@ -266,7 +273,7 @@ server.tool(
 
 server.tool(
   'clear_cache',
-  'Manually clears a specific scope of cached data. Use "volatile" to clear deadlines/grades/announcements, or "all" for everything.',
+  'Clears default (TTL) cache for the given scope. User-pinned entries are never removed; use cache_delete_pinned to remove pinned data. Response states that pins are unchanged.',
   {
     scope: z
       .enum([
@@ -285,6 +292,58 @@ server.tool(
       .describe('The scope of cache to clear (default: all)'),
   },
   (async ({ scope }: any) => await clearCache(scope)) as any
+);
+
+const pinResourceEnum = z.enum(['file', 'sectiontext', 'content']);
+
+server.tool(
+  'cache_pin',
+  'Pin a cached resource (file, section text, or course content) so it is kept past TTL until unpinned. Requires the resource to already exist in cache. Subject to ECLASS_MCP_PIN_QUOTA_BYTES. For file: fileUrl (+ optional startPage/endPage). For sectiontext: url. For content: courseId.',
+  {
+    resource_type: pinResourceEnum,
+    fileUrl: z.string().optional().describe('Required when resource_type=file'),
+    startPage: z.number().optional(),
+    endPage: z.number().optional(),
+    url: z.string().optional().describe('Required when resource_type=sectiontext'),
+    courseId: z.string().optional().describe('Required when resource_type=content'),
+    note: z.string().optional(),
+  },
+  (async (args: any) => await cachePin(args)) as any
+);
+
+server.tool(
+  'cache_unpin',
+  'Remove a pin from the registry without deleting the cache file. Use cache_delete_pinned to remove stored bytes.',
+  { pinId: z.string().describe('Pin ID from cache_list_pins') },
+  (async ({ pinId }: any) => await cacheUnpin({ pinId })) as any
+);
+
+server.tool(
+  'cache_list_pins',
+  'List pinned resources and quota usage (used_bytes vs limit_bytes).',
+  {
+    resource_type: pinResourceEnum.optional().describe('Filter by type'),
+  },
+  (async ({ resource_type }: any) =>
+    await cacheListPins({ resource_type })) as any
+);
+
+server.tool(
+  'cache_refresh_pin',
+  'Re-fetch and refresh the underlying cached data for a pin (resets TTL for that cache entry).',
+  { pinId: z.string() },
+  (async ({ pinId }: any) => await cacheRefreshPin({ pinId })) as any
+);
+
+server.tool(
+  'cache_delete_pinned',
+  'Explicitly delete pinned cache files and remove pin records. Pass pinId for one item, or mode=all to clear all pins, or mode=by_type with resource_type.',
+  {
+    pinId: z.string().optional(),
+    mode: z.enum(['all', 'by_type']).optional(),
+    resource_type: pinResourceEnum.optional(),
+  },
+  (async (args: any) => await cacheDeletePinned(args)) as any
 );
 
 // Main startup

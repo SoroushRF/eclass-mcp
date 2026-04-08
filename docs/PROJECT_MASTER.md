@@ -51,13 +51,13 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T22-T24** | Optional product polish (parallel track; does not block T14-T20) |
 | **T25** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
 | **T26** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
-| **T27** | User-pinned cache tier, on-disk quota, pin/unpin/list/refresh tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
-| **T28-T31** | Cengage integration — passive discovery, `/auth/cengage` endpoint, scraper + tools, E2E — see [§2.13](#213-detailed-plan--t28-t35-cengage--webwork-assignment-platforms) |
-| **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#213-detailed-plan--t28-t35-cengage--webwork-assignment-platforms) |
-| **T36-T39** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#214-detailed-plan--future-write-tools--safety-t36-t39) |
-| **T40** | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#213-detailed-plan--t28-t35-cengage--webwork-assignment-platforms) |
+| **T27** | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
+| **T28-T31** | Cengage integration — passive discovery, `/auth/cengage` endpoint, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
+| **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
+| **T36** | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
+| **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D) |
-| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#214-detailed-plan--future-write-tools--safety-t36-t39) |
+| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -213,16 +213,22 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 - [x] **T24** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)). **Completed 2026-03-23**.
 - [x] **T25** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
 - [ ] **T26** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
-- [ ] **T27** ? **Pinned cache (user-directed):** structured pin/unpin/list/refresh, single-store discipline vs TTL cache, on-disk **quota** with machine-readable "full" errors ? [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools). **Depends on T26.**
+- [x] **T27** ? **Pinned cache (user-directed):** `cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin` / `cache_delete_pinned`; single-store discipline; on-disk **quota** (`ECLASS_MCP_PIN_QUOTA_BYTES`); `clear_cache` skips pinned entries ? [2.12](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools). **Depends on T26.**
 
-#### 2.4.2 Future write tools (T28-T31)
+#### 2.4.2 Cengage, WeBWorK, and Auth Retry (T28-T36)
+
+- [ ] **T28-T31** ? **Cengage integration:** passive discovery, scraper + tools, E2E.
+- [ ] **T32-T35** ? **WeBWorK multi-instance:** discovery, host registry, scraper + tools, E2E.
+- [ ] **T36** ? **Auth blocking poll retrofit:** apply seamless auto-retry pattern to existing eClass + SIS tools so all tools respond seamlessly without requiring a re-prompt after login.
+
+#### 2.4.3 Future write tools (T37-T40)
 
 **Prerequisites:** **E20** satisfied before registering or implementing destructive tools; **E11** / **E12** are part of E20. **E21** must land **with** the first write tool merge (same PR or immediately after). **E13** (session at-rest hardening) is **strongly recommended** before relying on writes on shared machines.
 
-- [ ] **T28** ? **Assignment submission preflight:** scraper + MCP tool(s) to resolve an assignment activity (from course/URL/cm id), return **read-only** constraints (due date, allowed types/size, draft vs final, current submission summary). No upload. Supports human-in-the-loop workflows.
-- [ ] **T29** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`**; tool registered **only** when opt-in env is set (see **E20**). Depends on **T28** for validation path reuse.
-- [ ] **T30** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **confirm** + env gate as T29. Inspect script + selectors before implementation.
-- [ ] **T31** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T28-T30** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
+- [ ] **T37** ? **Assignment submission preflight:** scraper + MCP tool(s) to resolve an assignment activity (from course/URL/cm id), return **read-only** constraints (due date, allowed types/size, draft vs final, current submission summary). No upload. Supports human-in-the-loop workflows.
+- [ ] **T38** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`**; tool registered **only** when opt-in env is set (see **E20**). Depends on **T37** for validation path reuse.
+- [ ] **T39** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **confirm** + env gate as T38. Inspect script + selectors before implementation.
+- [ ] **T40** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T37-T39** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
 
 ---
 
@@ -580,6 +586,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `cache_unpin` | Remove pin; underlying cache entry may revert to normal TTL eviction unless otherwise referenced. |
 | `cache_list_pins` | List pinned keys + labels + sizes + `pinned_at` (for user and model). |
 | `cache_refresh_pin` | Optional but **recommended**: refetch from eClass, update content/hash, keep pin. |
+| `cache_delete_pinned` | Explicitly delete pinned on-disk cache files + registry rows (`pinId`, `mode=all`, or `mode=by_type`). |
 
 *Alternative:* one `manage_cache` tool with a `mode` enum; trade-off is fewer registered tools vs. noisier schemas.
 
@@ -616,16 +623,26 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 #### Definition of done (T27)
 
-- [ ] **T26 complete** (or explicitly listed exceptions documented)?no parallel cache key story.
-- [ ] Pin registry on disk + integration with **single** cache architecture (no duplicate blobs for the same logical file without justification).
-- [ ] `cache_pin` / `cache_unpin` / `cache_list_pins` (+ `cache_refresh_pin` or documented equivalent).
-- [ ] Quota enforcement + **structured** over-quota errors (bytes used/limit/would-use).
-- [ ] Responses include freshness/pin metadata consistent with T26 style where applicable.
-- [ ] README + **?3.1** updated; `clear_cache` + auth behavior w.r.t. pins documented.
+- [x] **T26 complete** (or explicitly listed exceptions documented)?no parallel cache key story.
+- [x] Pin registry on disk (`pins.json`) + integration with **single** cache architecture (no duplicate blobs for the same logical file without justification).
+- [x] `cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin` / `cache_delete_pinned`.
+- [x] Quota enforcement + **structured** over-quota errors (bytes used/limit/would-use).
+- [x] Stale pinned reads: `_cache.stale` on JSON tools; file tool prepends notice when past TTL.
+- [x] README + **?3.1** updated; `clear_cache` skips pins; explicit `cache_delete_pinned` documented.
 
 ---
 
-### 2.13 Detailed plan ? **future write tools + safety (T28-T31, E20-E21)**
+### 2.13 Detailed plan — T28-T36 Cengage, WeBWorK, and Auth Retry
+
+**Goal:** Integrate third-party assignment platforms (Cengage, WeBWorK) and ensure seamless authentication across all platforms via a blocking poll / auto-retry pattern.
+
+1. **Discovery Engine:** Passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
+2. **Auth Endpoints:** Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
+3. **Blocking Poll (T36):** Implement retry logic in the tool invocation layer to handle `SessionExpiredError` by waiting for the auth server and retrying once.
+
+---
+
+### 2.14 Detailed plan — future write tools + safety (T37-T40, E20-E21)
 
 **Goal:** Add **opt-in** MCP tools that **mutate** eClass state (assignment submission, personal calendar), without turning the default install into an autonomous submission bot.
 
@@ -636,18 +653,18 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 3. **User-facing risk:** README subsection + **SECURITY.md** bullet: writes are **irreversible** in normal use; users are responsible for confirming paths and course context; no institutional warranty.
 4. **Session posture:** Treat **E13** as a **recommended** prerequisite for write tools on laptops that are not single-user private.
 
-#### Product shape (T28-T30)
+#### Product shape (T37-T39)
 
-- **Preflight first (T28):** A read-only tool (or extension of existing detail fetch) that returns **constraints** and **current submission state** so the model and user can sanity-check before any upload.
-- **Submit (T29):** One tool, narrow parameters (course/activity identity + local file path or agreed payload shape), mandatory **`confirm: true`**, strict MIME/size checks against preflight when feasible.
-- **Calendar (T30):** Start with events the **student role** can create in Moodle; same confirm + env gate. Expand scope only after inspect script proves permissions.
+- **Preflight first (T37):** A read-only tool (or extension of existing detail fetch) that returns **constraints** and **current submission state** so the model and user can sanity-check before any upload.
+- **Submit (T38):** One tool, narrow parameters (course/activity identity + local file path or agreed payload shape), mandatory **`confirm: true`**, strict MIME/size checks against preflight when feasible.
+- **Calendar (T39):** Start with events the **student role** can create in Moodle; same confirm + env gate. Inspect script + selectors before implementation.
 
 #### Safety after a successful write (E21)
 
 1. **Audit log:** Append one JSON line per write under `.eclass-mcp/` (exact filename in implementation); fields: `tool`, `outcome`, `timestamp`, stable resource ids; **never** log cookies, full filesystem paths (basename only unless user opts into verbose diagnostics).
 2. **Cache coherence:** After success, **invalidate** scraped cache entries that would otherwise show stale submission or deadline state (prefixes aligned with **T26** / `clear_cache` scopes once those exist).
 
-#### Verification (T31)
+#### Verification (T40)
 
 - Extend the E2E handbook with **safe** scenarios (test course / sandbox if available); document **Skip** when no fixture course.
 - Rows for: preflight happy path, submit with writes **disabled** (env off), session expired mid-flow.
@@ -656,14 +673,14 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 - [ ] **E20** checkboxes satisfied; write tools absent from default registration.
 - [ ] **E21** audit + invalidation behavior documented in README.
-- [ ] **T28-T30** implemented with shared validation helpers.
-- [ ] **T31** handbook + run log updated (or explicit Skip with reason).
+- [ ] **T37-T39** implemented with shared validation helpers.
+- [ ] **T40** handbook + run log updated (or explicit Skip with reason).
 
 ---
 
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (13)
+### 3.1 MCP tools currently registered (19)
 
 | Tool | Purpose |
 |------|---------|
@@ -680,12 +697,18 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `get_class_timetable` | Personal class timetable (SIS) |
 | `search_professors` | RateMyProfessors profile search |
 | `get_professor_details` | RateMyProfessors deep ratings, comments, and student tags |
+| `clear_cache` | Clear **non-pinned** cache by scope; pinned entries unchanged |
+| `cache_pin` | Pin file / section / course content cache entry (quota-limited) |
+| `cache_unpin` | Remove pin from registry (does not delete cache file) |
+| `cache_list_pins` | List pins + quota usage |
+| `cache_refresh_pin` | Re-fetch and refresh a pinned cache entry |
+| `cache_delete_pinned` | Explicitly delete pinned cache files + registry rows |
 
-**Planned ([T26](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool)):** `clear_cache` ? user-requested invalidation; all tools gain JSON **`_cache`** freshness metadata.
+**Cache metadata ([T26](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
 
-**Planned ([T27](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools)):** optional **`cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin`** (or equivalent)?user-directed long retention with **on-disk quota** and structured errors when full. **After T26.**
+**Pinned cache ([T27](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
 
-**Planned future writes ([T28-T31](#213-detailed-plan--future-write-tools--safety-t28-t31), gated by **E20-E21** in ?2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
+**Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), gated by **E20-E21** in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -695,7 +718,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 - **MCP:** `@modelcontextprotocol/sdk`, stdio transport to the host (e.g. Claude Desktop).
 - **Scraping:** Playwright (Chromium); **auth** flow uses a **visible** browser; **data** scraping uses **headless** contexts with session cookies.
 - **Parsers:** PDF (including pdfjs-based pipeline where implemented), DOCX (mammoth), PPTX (ZIP/XML extraction).
-- **Persistence:** no database; JSON on disk under **`.eclass-mcp/`** (gitignored): `session.json`, `cache/`, optional `debug/`.
+- **Persistence:** no database; JSON on disk under **`.eclass-mcp/`** (gitignored): `session.json`, `cache/`, `pins.json` (pin registry), optional `debug/`.
 - **Config:** `.env` (gitignored), `.env.example` for template.
 
 ### 3.3 Auth and session (canonical)
@@ -829,7 +852,8 @@ For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-imple
 4. **Scraper structure** ? **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
 5. **Cache / freshness (automatic)** ? **T26** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).  
 6. **User-pinned cache + quota** ? **T27** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T26)*.  
-7. **future write tools (opt-in)** ? **T28-T31** + **E20-E21** / [?2.13](#213-detailed-plan--future-write-tools--safety-t28-t31) *(after E11/E12; E13 recommended)*.  
+7. **future write tools (opt-in)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) *(after E11/E12; E13 recommended)*.
+8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 
 ---
 
@@ -890,7 +914,7 @@ for (const sisUrl of SIS_URLS) {
 
 ## 11. Phase C ? Engineering excellence reference (gap to 9.0+)
 
-**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool gates **E20-E21** in [?2.13](#213-detailed-plan--future-write-tools--safety-t28-t31) and **?2.9.7**.
+**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool gates **E20-E21** in [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) and **?2.9.7**.
 
 ### 11.1 Executive summary
 
@@ -916,7 +940,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 - **SWOR:** strengths = York value, modular tools, Playwright realism; weaknesses = quality gates, drift, session security; opportunities = fixtures, doctor, releases; risks = untested scope growth, silent breakage, leaks.  
 - **9.0+ means:** reliable, CI-tested, secure-enough local session, operable errors/logs, lifecycle docs, portable setup.  
 - **KPIs:** CI pass rate, regression detection in one PR cycle, >70% critical-path coverage, zero cookie leaks in logs.  
-- **Three-sprint sketch:** Sprint 1 = E01?E07 + start E08; Sprint 2 = E08?E12 + early E14; Sprint 3 = E13?E15 + E16?E19; **write tools:** land **E20-E21** with **T28-T31** when E11/E12 are green.  
+- **Three-sprint sketch:** Sprint 1 = E01?E07 + start E08; Sprint 2 = E08?E12 + early E14; Sprint 3 = E13?E15 + E16?E19; **write tools:** land **E20-E21** with **T37-T40** when E11/E12 are green.
 
 ### 11.4 Score projection (after roadmap)
 
@@ -938,7 +962,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 ## 12. Phase D ? Maintainer / codebase health
 
 - **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in **?2.4**; full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
-- **T28-T31 future writes:** **?2.4.2** + [?2.13](#213-detailed-plan--future-write-tools--safety-t28-t31); gates **E20-E21** in **?2.5**.  
+- **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); gates **E20-E21** in **§2.5**.
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
 ---
@@ -949,7 +973,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 |-------|------|
 | **This master plan** | `docs/PROJECT_MASTER.md` |
 | Engine versioning policy | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (13 tools) | `docs/tools/README.md` |
+| Tool-by-tool docs index (19 tools) | `docs/tools/README.md` |
 | T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md` |
 | E2E run log (create when running T11) | `docs/e2e-run-log.md` |
 | Deadlines tool ? roadmap & testing | `docs/tools/deadlines/roadmap.md` |

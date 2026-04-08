@@ -52,7 +52,11 @@ export async function clearCache(scope: CacheScope = 'all') {
       content: [
         {
           type: 'text' as const,
-          text: `Successfully cleared cache for scope "${scope}". ${clearedCount} entries removed.`,
+          text:
+            `Successfully cleared default (non-pinned) cache for scope "${scope}". ` +
+            `${clearedCount} entries removed. ` +
+            `User-pinned cache entries were not deleted. ` +
+            `To remove pinned data, use cache_delete_pinned (or cache_unpin to drop the pin without deleting files).`,
         },
       ],
     };

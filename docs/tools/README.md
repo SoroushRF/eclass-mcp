@@ -2,7 +2,7 @@
 
 This directory contains one folder per currently registered MCP tool in `src/index.ts`.
 
-## Current tools (13)
+## Current tools (19)
 
 - `list_courses` -> `docs/tools/list_courses/README.md`
 - `get_course_content` -> `docs/tools/get_course_content/README.md`
@@ -17,6 +17,8 @@ This directory contains one folder per currently registered MCP tool in `src/ind
 - `get_class_timetable` -> `docs/tools/get_class_timetable/README.md`
 - `search_professors` -> `docs/tools/search_professors/README.md`
 - `get_professor_details` -> `docs/tools/get_professor_details/README.md`
+- `clear_cache` — see [README.md](../../README.md) (T26; skips pinned entries)
+- `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, `cache_delete_pinned` — see [README.md](../../README.md) (T27 pinned cache)
 
 ## Existing deep-dive collections
 

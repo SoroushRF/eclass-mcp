@@ -22,13 +22,25 @@ export async function getFileText(
     const cached = cache.getWithMeta<any>(cacheKey);
     if (cached) {
       const { data } = cached;
+      const stale = 'stale' in cached && cached.stale === true;
+      const staleHint: ContentBlock[] = stale
+        ? [
+            {
+              type: 'text',
+              text: '[Pinned cache past TTL — content may be stale. Use cache_refresh_pin to refresh.]',
+            },
+          ]
+        : [];
 
       if (typeof data === 'string') {
-        return { content: [{ type: 'text' as const, text: data }] };
+        return {
+          content: [...staleHint, { type: 'text' as const, text: data }],
+        };
       }
       if (Array.isArray(data)) {
-        // MCP `content` must be a ContentBlock[]; do not wrap with attachCacheMeta (object).
-        return { content: data as ContentBlock[] };
+        return {
+          content: [...staleHint, ...(data as ContentBlock[])],
+        };
       }
     }
 

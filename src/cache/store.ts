@@ -1,11 +1,12 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { getPinnedCacheFilenames, isCacheKeyPinned } from './pins';
 
 dotenv.config({ quiet: true });
 
-const CACHE_ROOT = path.resolve(__dirname, '../../.eclass-mcp');
-const CACHE_DIR = path.join(CACHE_ROOT, 'cache');
+export const CACHE_ROOT = path.resolve(__dirname, '../../.eclass-mcp');
+export const CACHE_DIR = path.join(CACHE_ROOT, 'cache');
 
 /** 
  * Increment this version whenever the JSON structure of cached data changes.
@@ -51,6 +52,8 @@ export interface CacheMetadata {
   hit: boolean;
   fetched_at: string;
   expires_at: string;
+  /** True when entry is past TTL but retained because it is user-pinned */
+  stale?: boolean;
 }
 
 /**
@@ -85,7 +88,7 @@ class CacheStore {
   }
 
   private getFilePath(key: string): string {
-    return path.join(CACHE_DIR, `${sanitizeCacheKeyForFilename(key)}.json`);
+    return getCacheFilePathForKey(key);
   }
 
   /** Gets only the raw cached data, preserving legacy API behavior. */
@@ -94,8 +97,11 @@ class CacheStore {
     return entry ? entry.data : null;
   }
 
-  /** Gets full cache entry with metadata (fetched_at, expires_at). */
-  getWithMeta<T>(key: string): CacheEntry<T> | null {
+  /**
+   * Gets full cache entry with metadata (fetched_at, expires_at).
+   * If TTL expired but the key is user-pinned, returns the entry with `stale: true` instead of deleting it.
+   */
+  getWithMeta<T>(key: string): (CacheEntry<T> & { stale?: boolean }) | null {
     const filePath = this.getFilePath(key);
     if (!fs.existsSync(filePath)) {
       return null;
@@ -113,6 +119,9 @@ class CacheStore {
 
       const now = new Date();
       if (isCacheEntryExpired(entry.expires_at, now)) {
+        if (isCacheKeyPinned(key)) {
+          return { ...entry, stale: true };
+        }
         this.invalidate(key);
         return null;
       }
@@ -154,14 +163,16 @@ class CacheStore {
     }
   }
 
-  /** Clears all cache entries that start with a specific prefix (e.g. "v1:deadlines"). */
+  /** Clears all cache entries that start with a specific prefix (e.g. "v1:deadlines"). Skips user-pinned entries. */
   clearByPrefix(prefix: string): number {
     if (!fs.existsSync(CACHE_DIR)) return 0;
     let count = 0;
+    const pinnedFilenames = getPinnedCacheFilenames();
     try {
       const files = fs.readdirSync(CACHE_DIR);
       const sanitizedPrefix = sanitizeCacheKeyForFilename(prefix);
       for (const file of files) {
+        if (pinnedFilenames.has(file)) continue;
         if (file.startsWith(sanitizedPrefix) && file.endsWith('.json')) {
           fs.unlinkSync(path.join(CACHE_DIR, file));
           count++;
@@ -185,12 +196,14 @@ class CacheStore {
     return total;
   }
 
+  /** Clears all cache entries except user-pinned ones. */
   clear(): void {
     if (!fs.existsSync(CACHE_DIR)) return;
-
+    const pinnedFilenames = getPinnedCacheFilenames();
     try {
       const files = fs.readdirSync(CACHE_DIR);
       for (const file of files) {
+        if (pinnedFilenames.has(file)) continue;
         if (file.endsWith('.json')) {
           fs.unlinkSync(path.join(CACHE_DIR, file));
         }
@@ -202,3 +215,8 @@ class CacheStore {
 }
 
 export const cache = new CacheStore();
+
+/** Absolute path to the JSON cache file for a logical cache key. */
+export function getCacheFilePathForKey(key: string): string {
+  return path.join(CACHE_DIR, `${sanitizeCacheKeyForFilename(key)}.json`);
+}

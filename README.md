@@ -36,8 +36,8 @@
 - 🔐 **Session Auth** — one-click login via a local browser window; session bridging for both eClass and SIS domains
 - 💾 **Smart Caching** — tiered file-based JSON cache with versioned schemas (Hot 30m, Warm 20m, Course 3h, Stable 48h)
 - 📝 **Cache Transparency** — every tool returns an `_cache` object representing data freshness (hit/miss, fetched_at, expires_at)
-- 🧹 **Granular Invalidation** — manual `clear_cache` tool plus automatic volatile clearing on re-auth
- — file-based JSON cache with per-resource TTLs (7 days for files, 1–24 hours for live data)
+- 🧹 **Granular Invalidation** — manual `clear_cache` clears **default** TTL cache only; **user-pinned** entries stay until you `cache_delete_pinned` or `cache_unpin`; automatic volatile clearing on re-auth
+- 📌 **Pinned cache (T27)** — pin files, section text, or course content to keep past TTL; on-disk quota via `ECLASS_MCP_PIN_QUOTA_BYTES` (default 300 MiB)
 
 ---
 
@@ -81,6 +81,20 @@ flowchart LR
 | `get_class_timetable` | List your personal class timetable (lectures/labs) from York SIS | — |
 | `search_professors` | Finds professor profiles on RateMyProfessors | `name`, `campus?` |
 | `get_professor_details` | Fetches detailed ratings, difficulty, and comments for a professor | `teacherId` |
+| `clear_cache` | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed | `scope?` |
+| `cache_pin` | Pin a resource already in cache (kept past TTL until unpinned) | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?` |
+| `cache_unpin` | Remove pin metadata without deleting cache files | `pinId` |
+| `cache_list_pins` | List pins and quota usage | `resource_type?` |
+| `cache_refresh_pin` | Re-fetch and refresh cached data for a pin | `pinId` |
+| `cache_delete_pinned` | Delete pinned cache files and registry entries (explicit) | `pinId` or `mode` + `resource_type?` |
+
+### User-pinned cache semantics
+
+1. **Fetch first** — call `get_file_text`, `get_section_text`, or `get_course_content` so the entry exists under `.eclass-mcp/cache/`, then call `cache_pin` with the same identifiers.
+2. **`clear_cache`** — removes only **default** TTL cache entries; **pinned** files are skipped. The tool response states that pins were unchanged.
+3. **Removing pins** — `cache_unpin` drops the pin only; **`cache_delete_pinned`** deletes the on-disk cache file(s) and registry rows (use `pinId`, or `mode=all`, or `mode=by_type` + `resource_type`).
+4. **Stale data** — pinned entries past TTL may still be served; JSON tools add `_cache.stale: true`; `get_file_text` prepends a short notice. Use `cache_refresh_pin` to refetch.
+5. **Quota** — set `ECLASS_MCP_PIN_QUOTA_BYTES` in `.env` (bytes). Pinning fails with a structured `quota_exceeded` payload if the new pin would exceed the limit.
 
 > 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
