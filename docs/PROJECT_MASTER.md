@@ -31,7 +31,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T25** `eclass.ts` modularization, **T26** smart cache + `clear_cache`, optional **T27** user-pinned cache + quota, future write tools behind **E20** gates, 9+ engineering **E01-E21**).
+- **What to build next:** use [2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T24** `eclass.ts` modularization, **T25** smart cache + `clear_cache`, optional **T26** user-pinned cache + quota, future write tools behind **E20** gates, 9+ engineering **E01-E21**).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
 - **Deduplication:** stack, session paths, and tool lists appear once in [3](#3-executive-snapshot) and [4](#4-architecture-reference-single-source-of-truth).
 
@@ -47,12 +47,15 @@ This section is the **standing implementation plan**: one serial numbering schem
 | --- | --- |
 | **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
 | **T14-T20** | Engine beta extension — SIS, RateMyProfessors, E2E verification |
-| **T21** | Engine post-beta automation — Cron / proactive notifications |
-| **T22-T24** | Optional product polish (parallel track; does not block T14-T20) |
-| **T25** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
-| **T26** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
-| **T27** | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
-| **T28-T31** | Cengage integration — passive discovery, `/auth/cengage` endpoint, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
+| **T27** | Engine post-beta automation — Cron / proactive notifications |
+| **T21-T23** | Optional product polish (parallel track; does not block T14-T20) |
+| **T24** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
+| **T25** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
+| **T26** | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
+| **T28** | Cengage Integration Phase 1: Foundation & Discovery (Link recognition, parser integration, metadata output) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
+| **T29** | Cengage Integration Phase 2: Authentication (Auth routing, cookie persistence) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
+| **T30** | Cengage Integration Phase 3 & 4: Scraper Core & MCP Tool Wiring (DOM parsing, cache/metadata integration, index registration) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
+| **T31** | Cengage Integration Phase 5: Verification (E2E docs and test logs) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
 | **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
 | **T36** | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
 | **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) |
@@ -207,17 +210,20 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 
 #### 2.4.1 Automation, scraper, cache (T21-T27)
 
-- [ ] **T21** ??? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
-- [x] **T22** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md). **Completed 2026-03-23**.
-- [x] **T23** ? Deadlines: harden quiz + date selectors across themes; document test courses. **Completed 2026-03-23**.
-- [x] **T24** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)). **Completed 2026-03-23**.
-- [x] **T25** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
-- [ ] **T26** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
-- [x] **T27** ? **Pinned cache (user-directed):** `cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin` / `cache_delete_pinned`; single-store discipline; on-disk **quota** (`ECLASS_MCP_PIN_QUOTA_BYTES`); `clear_cache` skips pinned entries ? [2.12](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools). **Depends on T26.**
+- [x] **T21** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md). **Completed 2026-03-23**.
+- [x] **T22** ? Deadlines: harden quiz + date selectors across themes; document test courses. **Completed 2026-03-23**.
+- [x] **T23** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)). **Completed 2026-03-23**.
+- [x] **T24** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
+- [x] **T25** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
+- [x] **T26** ? **Pinned cache (user-directed):** `cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin` / `cache_delete_pinned`; single-store discipline; on-disk **quota** (`ECLASS_MCP_PIN_QUOTA_BYTES`); `clear_cache` skips pinned entries ? [2.12](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools). **Depends on T25.**
+- [ ] **T27** ??? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
 
 #### 2.4.2 Cengage, WeBWorK, and Auth Retry (T28-T36)
 
-- [ ] **T28-T31** ? **Cengage integration:** passive discovery, scraper + tools, E2E.
+- [ ] **T28** ? **Cengage Phase 1 (Foundation & Discovery):** LTI/Link recognition, parser extraction, output metadata.
+- [ ] **T29** ? **Cengage Phase 2 (Authentication):** `/auth/cengage` route, visible login flow, cookie storage.
+- [ ] **T30** ? **Cengage Phase 3 & 4 (Scraper & Tools):** DOM inspection, headless scraper, session expiry check, tool generation, tier caching (`_cache`), and registration.
+- [ ] **T31** ? **Cengage Phase 5 (Verification):** Updates to E2E handbook, run log updates.
 - [ ] **T32-T35** ? **WeBWorK multi-instance:** discovery, host registry, scraper + tools, E2E.
 - [ ] **T36** ? **Auth blocking poll retrofit:** apply seamless auto-retry pattern to existing eClass + SIS tools so all tools respond seamlessly without requiring a re-prompt after login.
 
@@ -256,7 +262,7 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 | [ ] **E18** | `CHANGELOG.md` + tagging / GitHub Release template | D |
 | [ ] **E19** | Document timeouts, concurrency, rate limits for external calls | D |
 | [ ] **E20** | **Write tools ? pre-ship gates:** **E11** + **E12** complete for every write tool; `SECURITY.md` + README subsection (risks, misuse, no warranty); **opt-in env** (e.g. `ECLASS_MCP_ENABLE_WRITES=1`) ? write tools **not registered** when unset; link to [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) | C |
-| [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T26** when present) | C |
+| [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T25** when present) | C |
 
 *(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-tool safety, Epic C.)*
 
@@ -325,7 +331,7 @@ Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop. **Compl
 
 ---
 
-### 2.9 Detailed plan ??? **T21** Cron notifications (engine post-beta automation)
+### 2.9 Detailed plan ??? **T27** Cron notifications (engine post-beta automation)
 
 **Goal:** Optional morning reminder of deadlines in the next **48 hours**, via desktop notification.
 
@@ -446,17 +452,17 @@ jobs:
 #### 2.9.7 E20?E21 ? Future write-tool safety
 
 - **E20:** Pre-ship **gates** for **T28-T30**: **E11** + **E12** done for write tools; opt-in env for registration; README + `SECURITY.md` copy. Full checklist: [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31).
-- **E21:** **After** a successful write: append-only **audit log** (redaction aligned with **E14**); **invalidate** scrape cache entries that would otherwise lie (scopes per **T26** / `clear_cache` once available).
+- **E21:** **After** a successful write: append-only **audit log** (redaction aligned with **E14**); **invalidate** scrape cache entries that would otherwise lie (scopes per **T25** / `clear_cache` once available).
 
 ---
 
-### 2.10 Detailed plan ? **T25** Scraper modularization (`eclass.ts` breakdown)
+### 2.10 Detailed plan ? **T24** Scraper modularization (`eclass.ts` breakdown)
 
 **Goal:** `src/scraper/eclass.ts` is too large to navigate and test. Refactor into **small modules** under `src/scraper/eclass/` while preserving **identical public API** for `src/tools/*` (either keep a thin `eclass.ts` at `src/scraper/` that re-exports, or update imports once in a single PR ? prefer **one barrel** so downstream stays `from '../scraper/eclass'`).
 
-**Current status:** the modular split has been implemented in code, the barrel/API surface is preserved, and the post-refactor regression E2E in `T25.9` has passed.
+**Current status:** the modular split has been implemented in code, the barrel/API surface is preserved, and the post-refactor regression E2E in `T24.9` has passed.
 
-**T25 sub-task summary:**
+**T24 sub-task summary:**
 
 - Baseline inventory: map the old monolith before moving code.
 - Shared helpers: extract pure parsing and shaping helpers first.
@@ -496,7 +502,7 @@ jobs:
 3. Extract **one vertical slice** (e.g. `getCourses` only) end-to-end to validate the pattern; run `npx ts-node scripts/test-scraper.ts` or equivalent smoke.
 4. Repeat for **deadlines**, **item-details**, **grades**, **announcements**, **files**, **sections**, **course content** in separate commits or one commit per area (user preference).
 5. Ensure **`SessionExpiredError`** and **`export const scraper`** remain the stable public surface.
-6. **Definition of done for T25**
+6. **Definition of done for T24**
    - [x] No remaining duplicate logic; `eclass.ts` at repo root of scraper is only re-exports + singleton (or documented new entry).
    - [x] `npm run build` and `npx tsc --noEmit` clean.
    - [x] Smoke: `list_courses`, one `get_deadlines` scope, one `get_item_details` URL (manual or script).
@@ -504,13 +510,13 @@ jobs:
 
 ---
 
-### 2.11 Detailed plan ? **T26** Smart cache, metadata, `clear_cache` tool
+### 2.11 Detailed plan ? **T25** Smart cache, metadata, `clear_cache` tool
 
 #### Design review (agreements and pushback)
 
 - **Agree:** TTL should differ by **volatility** (announcements/deadlines vs course outline vs expensive file parse). Users deserve to know **when** data was fetched.
 - **Pushback ? ?hit eClass on login or whenever user calls the tool??:** Hitting eClass on **every** tool call removes most cache benefit and increases ban/WAF risk. Prefer: **(1)** shorter TTLs for hot data, **(2)** **clear volatile cache after successful auth** (new session ? stale assumptions), **(3)** optional **`force_refresh`** on selected tools, **(4)** explicit **`clear_cache`** when the user asks for the freshest data.
-- **Pushback ? ?syllabus vs announcements?? without signals:** The cache layer does not reliably know if a PDF is a syllabus or a lecture; same URL can be overwritten. **Phase 1 of T26:** tier by **tool/resource type** (not filename NLP). **Phase 2 (optional later):** shorter TTL when `get_file_text` detects "outline" patterns or user flags ? out of scope for T26 DoD unless time allows.
+- **Pushback ? ?syllabus vs announcements?? without signals:** The cache layer does not reliably know if a PDF is a syllabus or a lecture; same URL can be overwritten. **Phase 1 of T25:** tier by **tool/resource type** (not filename NLP). **Phase 2 (optional later):** shorter TTL when `get_file_text` detects "outline" patterns or user flags ? out of scope for T25 DoD unless time allows.
 - **Metadata in responses:** Add a **small, stable envelope** to the JSON each tool already returns (e.g. top-level `_cache: { hit, fetched_at, expires_at }` plus existing payload fields) so Claude can quote freshness. Avoid a **second** MCP content block for every call (noisier protocol-wise); the model can summarize `_cache` in natural language for the user.
 - **`clear_cache` tool:** **Agree** ? register a **10th** tool `clear_cache` with `scope`: `all` \| `volatile` \| `deadlines` \| `announcements` \| `grades` \| `content` \| `files` \| `courses` (exact enum to match key prefixes). Return a short JSON summary of what was removed.
 - **"Cache-first" discipline:** Tools must check for a valid, unexpired cache **before** triggering a session check or login flow. If valid cache exists, return it instantly; only force login if cache is missing or expired.
@@ -528,35 +534,35 @@ jobs:
 
 *Tune after dogfooding; values are defaults, not physics.*
 
-#### T26 Sub-tasks
+#### T25 Sub-tasks
 
-- [x] **T26.1: Core store refactor (`src/cache/store.ts`)**
+- [x] **T25.1: Core store refactor (`src/cache/store.ts`)**
   - [x] Update `CacheEntry` interface to include `fetched_at: string` (ISO8601).
   - [x] Implement `CACHE_SCHEMA_VERSION` constants and update `getCacheKey` logic.
   - [x] Add `clearByPrefix(prefix: string)` and `clearVolatile()` methods.
-- [x] **T26.2: Metadata Envelope & Helpers**
+- [x] **T25.2: Metadata Envelope & Helpers**
   - [x] Create `attachCacheMeta` helper to inject the `_cache` field into responses.
   - [x] Update `store.get` to return `fetched_at` and `expires_at` alongside data.
-- [x] **T26.3: Auth-Cache Integration**
+- [x] **T25.3: Auth-Cache Integration**
   - [x] Trigger `cache.clearVolatile()` in `src/auth/server.ts` upon session save.
-- [x] **T26.4: Tool Migration (Tiered TTLs)**
+- [x] **T25.4: Tool Migration (Tiered TTLs)**
   - [x] Update `list_courses`, `get_deadlines`, `get_item_details`, `get_grades`, `get_announcements` with new TTLs.
   - [x] Ensure all 10+ core tools return the `_cache` metadata.
-- [x] **T26.5: `clear_cache` Tool Implementation**
+- [x] **T25.5: `clear_cache` Tool Implementation**
   - [x] Implement `src/tools/cache.ts` and register in `src/index.ts`.
   - [x] Define the `scope` enum representing different cache tiers/prefixes.
-- [x] **T26.6: Cleanup & Docs**
+- [x] **T25.6: Cleanup & Docs**
   - [x] Remove legacy `_vN` key suffixes from tool code.
   - [x] Update `README.md` tool table and explain `_cache` freshness fields.
-- [x] **T26.7: E2E Verification & User Tests**
+- [x] **T25.7: E2E Verification & User Tests**
   - [x] **Test 1: Metadata Transparency.** Call `list_courses` once. Verify JSON contains `_cache` hit: false. Call again immediately, verify hit: true.
   - [x] **Test 2: Granular Scope Clear.** Call `get_item_details`. Verify cache hit. Call `clear_cache(scope="content")`. Call `get_item_details` again. Verify it is now a miss (hit: false).
   - [x] **Test 3: Volatile Clear on Auth.** Call `get_deadlines`. Verify hit. Perform a new authentication at `/auth`. Call `get_deadlines` again. Verify it was cleared and is now a miss.
   - [x] **Test 4: Cross-tool Cache Consistency.** Verify that related tools (e.g., `get_deadlines` and `get_upcoming_deadlines`) share the same cache prefix (`deadlines_`) and invalidate together.
 
-#### Definition of done (T26)
+#### Definition of done (T25)
 
-- [x] All T26 sub-tasks marked `[x]`.
+- [x] All T25 sub-tasks marked `[x]`.
 - [x] `npm run build` is clean.
 - [x] E2E check shows `list_courses` and `get_deadlines` returning `_cache` metadata.
 - [x] Successful auth clears deadlines/grades cache automatically.
@@ -564,16 +570,16 @@ jobs:
 
 ---
 
-### 2.12 Detailed plan ? **T27** User-pinned cache, quota, and tools
+### 2.12 Detailed plan ? **T26** User-pinned cache, quota, and tools
 
 **Intent:** Let a user (via natural language ? model-invoked tools) **retain** specific eClass resources across TTL expiry so heavy paths (e.g. parsed files) are not refetched from scratch **without** treating chat as the source of truth.
 
-**Prerequisite:** Land **T26** first (`CACHE_SCHEMA_VERSION`, `_cache` metadata envelope, `clear_cache`, volatile clear on auth). T27 layers **policy and tools** on top of a coherent cache story; designing it before T26 risks two divergent persistence models.
+**Prerequisite:** Land **T25** first (`CACHE_SCHEMA_VERSION`, `_cache` metadata envelope, `clear_cache`, volatile clear on auth). T26 layers **policy and tools** on top of a coherent cache story; designing it before T25 risks two divergent persistence models.
 
 #### Problem framing (why "just say pin this lecture" is insufficient)
 
 - **Stable identity:** Pins must be keyed on **structured IDs** the scraper already understands (course id, resource/mod URL, `cmid` where applicable, etc.). Natural language is only **intent**; the assistant must call tools with **explicit parameters**. Wrong keys ? wrong cache hits (worse than a miss).
-- **Same URL, new bytes:** eClass can replace a file at an **unchanged URL**. A pin is an **assume-immutability** snapshot unless refreshed. Product copy and tool responses should expose **`pinned_at`** / last fetch metadata (aligned with T26 `_cache` or a sibling `_pin` field) so staleness is visible.
+- **Same URL, new bytes:** eClass can replace a file at an **unchanged URL**. A pin is an **assume-immutability** snapshot unless refreshed. Product copy and tool responses should expose **`pinned_at`** / last fetch metadata (aligned with T25 `_cache` or a sibling `_pin` field) so staleness is visible.
 - **Not a second copy of the world:** Prefer **one on-disk store** where a pin is **metadata + pointer** into the same blob the normal file cache uses (or a single record with "pinned ? exempt from TTL eviction?"), rather than duplicating parsed text under a parallel "mini DB."
 
 #### Proposed surface (names indicative)
@@ -605,7 +611,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 - **On exceed:** Return **structured JSON** (e.g. `ok: false`, `reason: "quota_exceeded"`, `used_bytes`, `limit_bytes`, `would_use_bytes`, optional `largest_pins`). The MCP host does not guarantee a GUI prompt; the **model** explains the failure to the user?so payloads must be **precise** to avoid hallucinated remediation.
 - **Policy choice (document in PR):** hard **reject** new pins when full vs. **evict unpinned cache first** vs. **LRU among pins**?pick one default; hard reject is simplest but can deadlock until user unpins.
 
-#### Interaction with T26
+#### Interaction with T25
 
 - **`clear_cache`:** Specify whether scopes like `all` or `files` **remove pinned content** or pins **survive** until `cache_unpin` / dedicated scope (e.g. `pins`). Users will expect predictable rules; document in README and tool descriptions.
 - **Auth / volatile clear:** Decide if successful login clears **pin registry** (unlikely) vs. only **volatile** keys (likely)?pins probably **survive** session refresh but **refresh_pin** may be required if cookies rotated and fetches fail.
@@ -636,7 +642,33 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 **Goal:** Integrate third-party assignment platforms (Cengage, WeBWorK) and ensure seamless authentication across all platforms via a blocking poll / auto-retry pattern.
 
-1. **Discovery Engine:** Passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
+#### Cengage Integration (T28-T31)
+
+**Phase 1: Foundation & Discovery (T28)**
+1. **T28.1 Platform Keyword Config:** Define Cengage, WebAssign, and Crowdmark heuristics.
+2. **T28.2 Parser Integration:** Update `src/scraper/eclass/courses.ts` and `sections.ts` to identify Cengage URLs across LTI links, static resources, and syllabus PDFs.
+3. **T28.3 Discovery Metadata Output:** Ensure tools like `get_course_content` and `get_section_text` return `external_platforms: [{ name: "cengage", url: "..." }]` to inform the LLM.
+
+**Phase 2: Authentication (T29 - Standalone Pivot)**
+*Since WebAssign is often used via standalone course keys rather than strict LTI handshakes, Cengage requires its own login.*
+1. **T29.1 Auth Strategy Scripting:** Create a new `npm run auth:cengage` command and corresponding script to perform a visible Playwright login on `cengage.com`.
+2. **T29.2 Standalone Persistence:** Update `src/scraper/session.ts` to handle a dedicated `cengage-session.json` file independently from eClass cookies.
+
+**Phase 3 & 4: Scraper Engine & MCP Tool Wiring (T30)**
+1. **T30.1 DOM Inspection Script:** Create `scripts/inspect-cengage.ts` to map CSS selectors for Cengage dashboard (deadlines, scores, progress).
+2. **T30.2 Scraper Core:** Implement `src/scraper/cengage.ts` headless Playwright module.
+3. **T30.3 Session Expiry Logic:** Standardize `SessionExpiredError` throwing when Cengage dashboards redirect to login.
+4. **T30.4 MCP Tool Wrapper:** Create `src/tools/cengage.ts` to invoke the core scraper.
+5. **T30.5 Smart Cache Integration:** Wrap tool responses in standard Tiered Cache layer (T25) with `_cache: { fetched_at, expires_at }`.
+6. **T30.6 Server Registration:** Hook into `src/index.ts` so tools become available.
+
+**Phase 5: End-to-End Verification (T31)**
+1. **T31.1 E2E Handbook Docs:** Update `docs/t11-e2e-handbook.md` with explicit Cengage prompt sequences and expected auth-blocking flows.
+2. **T31.2 Execution Log:** Execute test and record completion in `docs/e2e-run-log.md`.
+
+#### WeBWorK and Auth Retry (T32-T36)
+
+1. **Discovery Engine (WeBWorK):** Passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
 2. **Auth Endpoints:** Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
 3. **Blocking Poll (T36):** Implement retry logic in the tool invocation layer to handle `SessionExpiredError` by waiting for the auth server and retrying once.
 
@@ -662,7 +694,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 #### Safety after a successful write (E21)
 
 1. **Audit log:** Append one JSON line per write under `.eclass-mcp/` (exact filename in implementation); fields: `tool`, `outcome`, `timestamp`, stable resource ids; **never** log cookies, full filesystem paths (basename only unless user opts into verbose diagnostics).
-2. **Cache coherence:** After success, **invalidate** scraped cache entries that would otherwise show stale submission or deadline state (prefixes aligned with **T26** / `clear_cache` scopes once those exist).
+2. **Cache coherence:** After success, **invalidate** scraped cache entries that would otherwise show stale submission or deadline state (prefixes aligned with **T25** / `clear_cache` scopes once those exist).
 
 #### Verification (T40)
 
@@ -704,9 +736,9 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `cache_refresh_pin` | Re-fetch and refresh a pinned cache entry |
 | `cache_delete_pinned` | Explicitly delete pinned cache files + registry rows |
 
-**Cache metadata ([T26](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
+**Cache metadata ([T25](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
 
-**Pinned cache ([T27](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
+**Pinned cache ([T26](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
 
 **Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), gated by **E20-E21** in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
 
@@ -838,7 +870,7 @@ The original spec targeted **6 tools**; the repo now ships **13**. Optional foll
 
 **Docs:** [`docs/tools/get_file_text/history.md`](tools/get_file_text/history.md), [`roadmap.md`](tools/get_file_text/roadmap.md).  
 
-**Current direction (implemented):** pdfjs + `@napi-rs/canvas`, text-density heuristic (~250 chars), DPI/payload caps, hybrid text + PNG output, paginated fetches. **T22 is complete**; the roadmap now tracks only future refinements beyond the shipped baseline.
+**Current direction (implemented):** pdfjs + `@napi-rs/canvas`, text-density heuristic (~250 chars), DPI/payload caps, hybrid text + PNG output, paginated fetches. **T21 is complete**; the roadmap now tracks only future refinements beyond the shipped baseline.
 
 ---
 
@@ -849,9 +881,9 @@ For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-imple
 1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).  
 2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).  
 3. **Post-v1 tool depth** ? [?6.2](#62-upcoming-tools-section--reinterpretation).  
-4. **Scraper structure** ? **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
-5. **Cache / freshness (automatic)** ? **T26** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).  
-6. **User-pinned cache + quota** ? **T27** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T26)*.  
+4. **Scraper structure** ? **T24** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
+5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
+6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T25)*.
 7. **future write tools (opt-in)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) *(after E11/E12; E13 recommended)*.
 8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 

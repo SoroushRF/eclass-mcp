@@ -2,6 +2,7 @@ import type { EClassBrowserSession } from './browser-session';
 import { extractCourseCode, checkSession } from './helpers';
 import { ECLASS_URL } from './browser-session';
 import { Course, CourseContent } from './types';
+import { EXTERNAL_PLATFORMS } from './external-platforms';
 
 export async function getCourses(
   session: EClassBrowserSession
@@ -155,11 +156,12 @@ export async function getCourseContent(
             const items = links
               .map((a) => {
                 const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'other' =
+                let type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other' =
                   'other';
                 if (href.includes('resource')) type = 'resource';
                 else if (href.includes('assign')) type = 'assign';
                 else if (href.includes('forum')) type = 'announcement';
+                else if (href.includes('lti')) type = 'lti';
 
                 return {
                   type,
@@ -218,11 +220,12 @@ export async function getCourseContent(
             const items = moduleLinkEls
               .map((a) => {
                 const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'other' =
+                let type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other' =
                   'other';
                 if (href.includes('resource')) type = 'resource';
                 else if (href.includes('assign')) type = 'assign';
                 else if (href.includes('forum')) type = 'announcement';
+                else if (href.includes('lti')) type = 'lti';
 
                 return {
                   type,
@@ -261,12 +264,13 @@ export async function getCourseContent(
             const items = moduleLinkEls
               .map((a) => {
                 const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'other' =
+                let type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other' =
                   'other';
 
                 if (href.includes('resource')) type = 'resource';
                 else if (href.includes('assign')) type = 'assign';
                 else if (href.includes('forum')) type = 'announcement';
+                else if (href.includes('lti')) type = 'lti';
 
                 return {
                   type,
@@ -286,7 +290,37 @@ export async function getCourseContent(
       });
     }
 
-    return { courseId, sections: sectionsData as any };
+    const result: CourseContent = { courseId, sections: sectionsData as any };
+
+    const platforms: { name: string; url: string }[] = [];
+    const seenPlatforms = new Set<string>();
+    
+    for (const sec of result.sections) {
+      for (const item of sec.items) {
+        if (item.type === 'lti' || item.url.includes('mod/lti/view.php')) {
+          const lowerName = item.name.toLowerCase();
+          const lowerUrl = item.url.toLowerCase();
+          let platformName = 'unknown_lti';
+          
+          if (EXTERNAL_PLATFORMS.KEYWORDS.CENGAGE.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
+             platformName = 'cengage';
+          } else if (EXTERNAL_PLATFORMS.KEYWORDS.CROWDMARK.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
+             platformName = 'crowdmark';
+          }
+          
+          if (!seenPlatforms.has(platformName)) {
+            seenPlatforms.add(platformName);
+            platforms.push({ name: platformName, url: item.url });
+          }
+        }
+      }
+    }
+    
+    if (platforms.length > 0) {
+      result.external_platforms = platforms;
+    }
+    
+    return result;
   } finally {
     await page.close();
     await context.close();

@@ -11,7 +11,11 @@ export class SessionExpiredError extends Error {
 
 dotenv.config({ quiet: true });
 
-const SESSION_FILE = path.resolve(__dirname, '../../.eclass-mcp/session.json');
+const SESSION_DIR = path.resolve(__dirname, '../../.eclass-mcp');
+
+export function getSessionFilePath(fileName: string = 'session.json') {
+  return path.resolve(SESSION_DIR, fileName);
+}
 
 /** Hours after which a saved session is treated as stale (exported for tests). */
 export const SESSION_STALE_HOURS = 60;
@@ -45,10 +49,9 @@ interface SessionData {
   cookies: Cookie[];
 }
 
-export function saveSession(cookies: Cookie[]): void {
-  const sessionDir = path.dirname(SESSION_FILE);
-  if (!fs.existsSync(sessionDir)) {
-    fs.mkdirSync(sessionDir, { recursive: true });
+export function saveSession(cookies: Cookie[], fileName: string = 'session.json'): void {
+  if (!fs.existsSync(SESSION_DIR)) {
+    fs.mkdirSync(SESSION_DIR, { recursive: true });
   }
 
   const data: SessionData = {
@@ -57,19 +60,20 @@ export function saveSession(cookies: Cookie[]): void {
   };
 
   try {
-    fs.writeFileSync(SESSION_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(getSessionFilePath(fileName), JSON.stringify(data, null, 2), 'utf-8');
   } catch (error) {
     console.error('Error saving session:', error);
   }
 }
 
-export function loadSession(): Cookie[] | null {
-  if (!fs.existsSync(SESSION_FILE)) {
+export function loadSession(fileName: string = 'session.json'): Cookie[] | null {
+  const file = getSessionFilePath(fileName);
+  if (!fs.existsSync(file)) {
     return null;
   }
 
   try {
-    const content = fs.readFileSync(SESSION_FILE, 'utf-8');
+    const content = fs.readFileSync(file, 'utf-8');
     const data: SessionData = JSON.parse(content);
 
     if (!_isSessionFresh(data)) {
@@ -93,13 +97,14 @@ function _isSessionFresh(data: SessionData): boolean {
 /**
  * Exported check for session validity from disk
  */
-export function isSessionValid(): boolean {
-  if (!fs.existsSync(SESSION_FILE)) {
+export function isSessionValid(fileName: string = 'session.json'): boolean {
+  const file = getSessionFilePath(fileName);
+  if (!fs.existsSync(file)) {
     return false;
   }
 
   try {
-    const content = fs.readFileSync(SESSION_FILE, 'utf-8');
+    const content = fs.readFileSync(file, 'utf-8');
     const data: SessionData = JSON.parse(content);
     return _isSessionFresh(data);
   } catch (_error) {
@@ -107,10 +112,11 @@ export function isSessionValid(): boolean {
   }
 }
 
-export function clearSession(): void {
-  if (fs.existsSync(SESSION_FILE)) {
+export function clearSession(fileName: string = 'session.json'): void {
+  const file = getSessionFilePath(fileName);
+  if (fs.existsSync(file)) {
     try {
-      fs.unlinkSync(SESSION_FILE);
+      fs.unlinkSync(file);
     } catch (error) {
       console.error('Error clearing session:', error);
     }

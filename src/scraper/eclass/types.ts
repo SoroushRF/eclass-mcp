@@ -46,6 +46,7 @@ export interface SectionTextData {
     content: string;
     links: Array<{ name: string; url: string }>;
   }>;
+  external_platforms?: { name: string; url: string }[];
 }
 
 export interface Assignment {
@@ -80,11 +81,12 @@ export interface CourseContent {
   sections: {
     title: string;
     items: {
-      type: 'resource' | 'assign' | 'announcement' | 'other';
+      type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other';
       name: string;
       url: string;
     }[];
   }[];
+  external_platforms?: { name: string; url: string }[];
 }
 
 import { SessionExpiredError } from '../session';

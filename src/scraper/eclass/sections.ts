@@ -1,6 +1,7 @@
 import type { EClassBrowserSession } from './browser-session';
 import { sanitizeHttpUrlQueryParams, checkSession } from './helpers';
 import type { SectionTextData } from './types';
+import { EXTERNAL_PLATFORMS } from './external-platforms';
 
 export async function getSectionText(
   session: EClassBrowserSession,
@@ -105,13 +106,40 @@ export async function getSectionText(
         });
       }
 
-      return {
+      const result: SectionTextData = {
         url: sectionUrl,
         title,
         mainText,
         mainLinks,
         tabs,
       };
+
+      const platforms: { name: string; url: string }[] = [];
+      const seenPlatforms = new Set<string>();
+      
+      const checkLink = (l: {name: string, url: string}) => {
+        if(l.url.includes('mod/lti/view.php')) {
+          const lowerName = l.name.toLowerCase();
+          const lowerUrl = l.url.toLowerCase();
+          let platformName = 'unknown_lti';
+          if (EXTERNAL_PLATFORMS.KEYWORDS.CENGAGE.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
+             platformName = 'cengage';
+          } else if (EXTERNAL_PLATFORMS.KEYWORDS.CROWDMARK.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
+             platformName = 'crowdmark';
+          }
+          if (!seenPlatforms.has(platformName)) {
+            seenPlatforms.add(platformName);
+            platforms.push({ name: platformName, url: l.url });
+          }
+        }
+      };
+      
+      result.mainLinks.forEach(checkLink);
+      result.tabs.forEach(t => t.links.forEach(checkLink));
+      
+      if (platforms.length > 0) result.external_platforms = platforms;
+      
+      return result;
     }, targetUrl);
   } finally {
     await page.close();
