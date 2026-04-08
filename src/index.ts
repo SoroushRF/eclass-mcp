@@ -29,6 +29,7 @@ import {
   cacheRefreshPin,
   cacheDeletePinned,
 } from './tools/pins';
+import { getCengageAssignments } from './tools/cengage';
 
 // Create the MCP server
 const server = new McpServer({
@@ -269,6 +270,13 @@ server.tool(
     teacherId: z.string().describe('The RMP teacher ID (from search_professors)'),
   },
   (async (args: any) => await getProfessorDetailsTool(args)) as any
+);
+
+server.tool(
+  'get_cengage_assignments',
+  'Fetches assignment list and deadlines from Cengage/WebAssign. Provide the LTI launch URL or course SSO link found in eClass.',
+  { ssoUrl: z.string().describe('The LTI/SSO URL extracted from eClass or the Cengage dashboard') },
+  (async ({ ssoUrl }: any) => await getCengageAssignments(ssoUrl)) as any
 );
 
 server.tool(

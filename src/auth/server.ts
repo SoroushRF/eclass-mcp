@@ -4,6 +4,8 @@ import { saveSession, isSessionValid } from '../scraper/session';
 import url from 'url';
 import dotenv from 'dotenv';
 import { exec } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config({ quiet: true });
 
@@ -46,7 +48,22 @@ export async function startAuthServer() {
   const server = http.createServer(async (req, res) => {
     const parsedUrl = url.parse(req.url || '', true);
 
-    if (parsedUrl.pathname === '/auth') {
+    if (parsedUrl.pathname === '/' || parsedUrl.pathname === '') {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+              <h2 style="color: #2c3e50;">eClass MCP Local Server</h2>
+              <p>Select a platform to authenticate:</p>
+              <ul style="list-style: none; padding: 0;">
+                <li style="margin: 10px;"><a href="/auth" style="color: #3498db; text-decoration: none; font-weight: bold;">Login to eClass</a></li>
+                <li style="margin: 10px;"><a href="/auth-cengage" style="color: #e74c3c; text-decoration: none; font-weight: bold;">Login to Cengage/WebAssign</a></li>
+              </ul>
+            </body>
+          </html>
+        `);
+    } else if (parsedUrl.pathname === '/auth') {
       try {
         const browser = await chromium.launch({ headless: false });
         const context = await browser.newContext();
@@ -71,35 +88,23 @@ export async function startAuthServer() {
           /* page might 404, that's fine — we just need the WAF cookie */
         }
 
-        // --- SIS Cookie Bridging (Task 12) ---
-        // Bridge to York SIS to capture SSO cookies for Exam Schedule and Timetable.
-        // DirectAction URLs are more stable than the session-based WO URLs.
+        // --- SIS Cookie Bridging ---
         const SIS_URLS = [
-          'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/cde', // Course Timetable
-          'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/ede', // Exam Schedule
+          'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/cde',
+          'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/ede',
         ];
 
-        console.error('Login detected. Starting SIS cookie bridge...');
         for (const sisUrl of SIS_URLS) {
           try {
-            console.error(`Navigating to SIS: ${sisUrl}...`);
             await page.goto(sisUrl, { timeout: 10000, waitUntil: 'load' });
-            console.error(`Successfully hit ${sisUrl}`);
-          } catch (e) {
-            console.error(`SIS bridge skipped for ${sisUrl}:`, (e as Error).message);
-          }
+          } catch (e) {}
         }
 
-        console.error('Capturing context cookies...');
         const cookies = await context.cookies();
-        
-        console.error(`Saving session with ${cookies.length} cookies...`);
         saveSession(cookies as any);
-        // New session means old volatile data (deadlines, grades) may be stale.
         const { cache } = await import('../cache/store');
         cache.clearVolatile();
 
-        // Sending complete HTML in one block so the user sees success immediately.
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
@@ -111,23 +116,48 @@ export async function startAuthServer() {
           </html>
         `);
 
-        console.error('Sent Connected message to user browser.');
-
-        console.error('Waiting 3 seconds before closing auth browser...');
         setTimeout(async () => {
-          try {
-            await browser.close();
-            console.error('Auth browser closed successfully.');
-          } catch (e) {
-            console.error('Error closing auth browser:', e);
-          }
+          try { await browser.close(); } catch (e) {}
         }, 3000);
-        
-        console.error('Auth flow complete (browser closing in 3s).');
       } catch (error: any) {
-        console.error('Auth error:', error);
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(`<h2>Authentication failed: ${error.message}</h2>`);
+      }
+    } else if (parsedUrl.pathname === '/auth-cengage') {
+      try {
+        const browser = await chromium.launch({ headless: false });
+        const context = await browser.newContext();
+        const page = await context.newPage();
+
+        await page.goto('https://login.cengage.com/');
+
+        await page.waitForURL(/(.*dashboard.*|.*webassign\.net\/web\/Student.*)/i, { timeout: AUTH_TIMEOUT_MS });
+        
+        await page.waitForTimeout(5000);
+
+        const statePath = path.resolve(process.cwd(), '.eclass-mcp/cengage-state.json');
+        const dir = path.dirname(statePath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+        await context.storageState({ path: statePath });
+        
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
+              <h2 style="color: #c0392b;">Cengage Connected!</h2>
+              <p>Your Cengage session has been saved. You can close this tab and return to Claude.</p>
+            </body>
+          </html>
+        `);
+
+        setTimeout(async () => {
+          try { await browser.close(); } catch (e) {}
+        }, 3000);
+      } catch (error: any) {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`<h2>Cengage Authentication failed: ${error.message}</h2>`);
       }
     } else if (parsedUrl.pathname === '/status') {
       const authenticated = isSessionValid();
@@ -146,10 +176,6 @@ export async function startAuthServer() {
     if (err.code !== 'EADDRINUSE') {
       throw error;
     }
-
-    console.error(
-      `Auth port ${AUTH_PORT} is already in use; using a free port instead.`
-    );
     authServerPort = await listenOnPort(server, 0);
   }
 
@@ -161,17 +187,6 @@ export async function startAuthServer() {
 
 export function openAuthWindow() {
   const url = `http://localhost:${getAuthServerPort()}/auth`;
-  const cmd =
-    process.platform === 'win32'
-      ? `start "" "${url}"`
-      : process.platform === 'darwin'
-        ? `open "${url}"`
-        : `xdg-open "${url}"`;
-
-  console.error(`[Auth] Attempting to open browser for re-authentication at: ${url}`);
-  exec(cmd, (error) => {
-    if (error) {
-      console.error(`[Auth] Failed to open browser: ${error.message}`);
-    }
-  });
+  const cmd = process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`;
+  exec(cmd, (error) => {});
 }

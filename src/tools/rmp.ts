@@ -1,6 +1,6 @@
 import { McpError, ErrorCode } from "@modelcontextprotocol/sdk/types.js";
-import { RMPClient, type RMPTeacherSearch } from "../scraper/rmp.js";
-import { cache, TTL, getCacheKey } from "../cache/store.js";
+import { RMPClient, type RMPTeacherSearch } from "../scraper/rmp";
+import { cache, TTL, getCacheKey } from "../cache/store";
 
 const rmpClient = new RMPClient();
 
@@ -261,7 +261,7 @@ export async function getProfessorDetailsTool(args: any) {
                     wouldTakeAgainPercent: details.wouldTakeAgainPercent
                 }
             },
-            recentReviews: details.ratings.map(r => ({
+            recentReviews: details.ratings.map((r: any) => ({
                 rating: r.clarityRating,
                 difficulty: r.difficultyRating,
                 course: r.class,
