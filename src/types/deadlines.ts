@@ -22,6 +22,20 @@ export interface ItemDetailsBase {
   descriptionText?: string;
   descriptionHtml?: string;
   /**
+   * External anchors parsed from descriptionHtml, with lightweight URL classification.
+   */
+  externalLinks?: Array<{
+    name: string;
+    url: string;
+    linkType:
+      | 'eclass_lti'
+      | 'webassign_course'
+      | 'webassign_dashboard'
+      | 'cengage_dashboard'
+      | 'cengage_login'
+      | 'other';
+  }>;
+  /**
    * Instruction images extracted from descriptionHtml (vision-only; no OCR).
    * When present, the tool layer may optionally attach image bytes to the MCP response.
    */

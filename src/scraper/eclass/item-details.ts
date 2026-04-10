@@ -1,6 +1,82 @@
 import type { EClassBrowserSession } from './browser-session';
 import { inferItemType } from './helpers';
-import type { AssignmentDetails, ItemDetails, QuizDetails } from './types';
+import { normalizeAndClassifyCengageEntry } from '../cengage-url';
+import type {
+  AssignmentDetails,
+  ItemDetails,
+  ItemDetailsBase,
+  QuizDetails,
+} from './types';
+
+type RawDescriptionLink = {
+  name: string;
+  url: string;
+};
+
+type ExternalLinkType = NonNullable<
+  ItemDetailsBase['externalLinks']
+>[number]['linkType'];
+
+export function classifyDescriptionExternalLinks(
+  rawLinks: RawDescriptionLink[],
+  pageUrl: string
+): NonNullable<ItemDetailsBase['externalLinks']> {
+  const links: NonNullable<ItemDetailsBase['externalLinks']> = [];
+  const seen = new Set<string>();
+  const pageHost = (() => {
+    try {
+      return new URL(pageUrl).host.toLowerCase();
+    } catch {
+      return '';
+    }
+  })();
+
+  for (const raw of rawLinks) {
+    const candidate = (raw.url || '').trim();
+    if (!candidate) continue;
+
+    let parsed: URL;
+    try {
+      parsed = new URL(candidate, pageUrl);
+    } catch {
+      continue;
+    }
+
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      continue;
+    }
+
+    parsed.hash = '';
+    const normalizedUrl = parsed.toString();
+
+    let linkType: ExternalLinkType;
+    try {
+      linkType = normalizeAndClassifyCengageEntry(normalizedUrl).linkType;
+    } catch {
+      linkType = 'other';
+    }
+
+    const isInternal =
+      pageHost.length > 0 && parsed.host.toLowerCase() === pageHost;
+    if (isInternal && linkType !== 'eclass_lti') {
+      continue;
+    }
+
+    const key = normalizedUrl.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    links.push({
+      name: (raw.name || '').trim() || normalizedUrl,
+      url: normalizedUrl,
+      linkType,
+    });
+  }
+
+  return links;
+}
 
 export async function getItemDetails(
   session: EClassBrowserSession,
@@ -52,6 +128,11 @@ export async function getAssignmentDetails(
 
         const descriptionHtml = descEl?.innerHTML?.trim() || '';
         const descriptionText = descEl?.textContent?.trim() || '';
+        const rawDescriptionLinks: Array<{ name: string; url: string }> =
+          Array.from(descEl?.querySelectorAll('a[href]') || []).map((a) => ({
+            name: (a.textContent || '').trim(),
+            url: (a as HTMLAnchorElement).href || a.getAttribute('href') || '',
+          }));
 
         const descriptionImageUrls: string[] = [];
         if (descEl) {
@@ -202,6 +283,7 @@ export async function getAssignmentDetails(
           descriptionImageUrls: descriptionImageUrlsUnique.length
             ? descriptionImageUrlsUnique
             : undefined,
+          rawDescriptionLinks,
           attachments: uniqueAttachments.length
             ? (uniqueAttachments as any)
             : undefined,
@@ -213,7 +295,16 @@ export async function getAssignmentDetails(
       { url }
     );
 
-    return data;
+    const { rawDescriptionLinks, ...rest } = data;
+    const externalLinks = classifyDescriptionExternalLinks(
+      rawDescriptionLinks || [],
+      url
+    );
+
+    return {
+      ...rest,
+      externalLinks: externalLinks.length ? externalLinks : undefined,
+    } as AssignmentDetails;
   } finally {
     await page.close();
     await context.close();
@@ -247,6 +338,11 @@ export async function getQuizDetails(
 
       const descriptionHtml = descEl?.innerHTML?.trim() || '';
       const descriptionText = descEl?.textContent?.trim() || '';
+      const rawDescriptionLinks: Array<{ name: string; url: string }> =
+        Array.from(descEl?.querySelectorAll('a[href]') || []).map((a) => ({
+          name: (a.textContent || '').trim(),
+          url: (a as HTMLAnchorElement).href || a.getAttribute('href') || '',
+        }));
 
       const descriptionImageUrls: string[] = [];
       if (descEl) {
@@ -413,6 +509,7 @@ export async function getQuizDetails(
         descriptionImageUrls: descriptionImageUrlsUnique.length
           ? descriptionImageUrlsUnique
           : undefined,
+        rawDescriptionLinks,
         attachments: uniqueAttachments.length
           ? (uniqueAttachments as any)
           : undefined,
@@ -422,7 +519,16 @@ export async function getQuizDetails(
       };
     }, url);
 
-    return data;
+    const { rawDescriptionLinks, ...rest } = data;
+    const externalLinks = classifyDescriptionExternalLinks(
+      rawDescriptionLinks || [],
+      url
+    );
+
+    return {
+      ...rest,
+      externalLinks: externalLinks.length ? externalLinks : undefined,
+    } as QuizDetails;
   } finally {
     await page.close();
     await context.close();
