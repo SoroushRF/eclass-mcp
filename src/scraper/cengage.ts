@@ -29,9 +29,14 @@ import { normalizeAndClassifyCengageEntry } from './cengage-url';
 export interface WebAssignAssignment {
   name: string;
   dueDate: string;
+  dueDateIso?: string;
+  rawText?: string;
   score?: string;
   status: string;
   id?: string;
+  courseId?: string;
+  courseTitle?: string;
+  url?: string;
 }
 
 export class CengageScraper {
@@ -67,16 +72,16 @@ export class CengageScraper {
           text,
           titleAttr: (anchor.getAttribute('title') || '').trim(),
           ariaLabel: (anchor.getAttribute('aria-label') || '').trim(),
-          dataCourseId:
-            (anchor.getAttribute('data-course-id') ||
-              anchor.getAttribute('data-courseid') ||
-              '')
-              .trim(),
-          dataCourseKey:
-            (anchor.getAttribute('data-course-key') ||
-              anchor.getAttribute('data-coursekey') ||
-              '')
-              .trim(),
+          dataCourseId: (
+            anchor.getAttribute('data-course-id') ||
+            anchor.getAttribute('data-courseid') ||
+            ''
+          ).trim(),
+          dataCourseKey: (
+            anchor.getAttribute('data-course-key') ||
+            anchor.getAttribute('data-coursekey') ||
+            ''
+          ).trim(),
         };
       });
     });
@@ -139,7 +144,9 @@ export class CengageScraper {
           );
 
           for (const heading of headings) {
-            const headingText = normalizeText(heading.textContent).toLowerCase();
+            const headingText = normalizeText(
+              heading.textContent
+            ).toLowerCase();
             if (!headingText.includes('assignment')) continue;
 
             const region = heading.closest('section, article, main, div');
@@ -156,7 +163,9 @@ export class CengageScraper {
           const rowCandidates: Element[] = [];
 
           for (const selector of rowSelectors) {
-            for (const row of Array.from(container.querySelectorAll(selector))) {
+            for (const row of Array.from(
+              container.querySelectorAll(selector)
+            )) {
               rowCandidates.push(row);
             }
           }
@@ -271,7 +280,9 @@ export class CengageScraper {
     );
   }
 
-  async listDashboardCourses(entryUrlInput: string): Promise<CengageDashboardCourse[]> {
+  async listDashboardCourses(
+    entryUrlInput: string
+  ): Promise<CengageDashboardCourse[]> {
     const entry = normalizeAndClassifyCengageEntry(entryUrlInput);
     const entryUrl = entry.normalizedUrl;
 
@@ -331,7 +342,10 @@ export class CengageScraper {
       }
 
       if (state.state === 'course' || state.state === 'assignments') {
-        const fallback = inferCourseFromCurrentPage(page.url(), await page.title());
+        const fallback = inferCourseFromCurrentPage(
+          page.url(),
+          await page.title()
+        );
         if (fallback) {
           return [fallback];
         }
@@ -429,9 +443,8 @@ export class CengageScraper {
         }
 
         if (currentState.state === 'dashboard') {
-          const dashboardCourses = await this.extractDashboardCourseInventory(
-            page
-          );
+          const dashboardCourses =
+            await this.extractDashboardCourseInventory(page);
 
           throw new CengageNavigationError(
             dashboardCourses.length > 0
@@ -505,7 +518,16 @@ export class CengageScraper {
         );
       }
 
-      return parseWebAssignAssignments(rowCandidates);
+      const inferredCourse = inferCourseFromCurrentPage(
+        page.url(),
+        await page.title()
+      );
+
+      return parseWebAssignAssignments(rowCandidates, {
+        courseId: inferredCourse?.courseId,
+        courseKey: inferredCourse?.courseKey,
+        courseTitle: inferredCourse?.title,
+      });
     } finally {
       await context.close();
     }

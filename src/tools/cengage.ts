@@ -32,9 +32,14 @@ export async function getCengageAssignments(ssoUrl: string) {
     const assignmentRows = assignments.map((a) => ({
       name: a.name,
       dueDate: a.dueDate,
+      dueDateIso: a.dueDateIso,
+      courseId: a.courseId,
+      courseTitle: a.courseTitle,
       status: normalizeAssignmentStatus(a.status),
       score: a.score,
       assignmentId: a.id,
+      url: a.url,
+      rawText: a.rawText,
     }));
 
     if (assignments.length === 0) {

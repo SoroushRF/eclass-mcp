@@ -83,17 +83,25 @@ function inferPlatform(host: string): 'webassign' | 'cengage' {
   return host.includes('webassign.net') ? 'webassign' : 'cengage';
 }
 
-function getCourseKey(url: URL, candidate: CengageCourseLinkCandidate): string | undefined {
+function getCourseKey(
+  url: URL,
+  candidate: CengageCourseLinkCandidate
+): string | undefined {
   const fromData = normalizeText(candidate.dataCourseKey);
   if (fromData) return fromData;
 
-  const fromQuery = normalizeText(url.searchParams.get('courseKey') || undefined);
+  const fromQuery = normalizeText(
+    url.searchParams.get('courseKey') || undefined
+  );
   if (fromQuery) return fromQuery;
 
   return undefined;
 }
 
-function getCourseId(url: URL, candidate: CengageCourseLinkCandidate): string | undefined {
+function getCourseId(
+  url: URL,
+  candidate: CengageCourseLinkCandidate
+): string | undefined {
   const fromData = normalizeText(candidate.dataCourseId);
   if (fromData) return fromData;
 
@@ -113,7 +121,11 @@ function getCourseId(url: URL, candidate: CengageCourseLinkCandidate): string | 
   return undefined;
 }
 
-function looksLikeCourseLaunch(url: URL, courseId?: string, courseKey?: string): boolean {
+function looksLikeCourseLaunch(
+  url: URL,
+  courseId?: string,
+  courseKey?: string
+): boolean {
   const host = url.hostname.toLowerCase();
   const path = url.pathname.toLowerCase();
 
@@ -439,7 +451,8 @@ function scoreFuzzyTitleMatch(
 
   const titleTokens = new Set(normalizedTitle.split(' ').filter(Boolean));
   const overlap = queryTokens.filter((token) => titleTokens.has(token)).length;
-  const overlapRatio = queryTokens.length > 0 ? overlap / queryTokens.length : 0;
+  const overlapRatio =
+    queryTokens.length > 0 ? overlap / queryTokens.length : 0;
 
   let score = 0;
   if (normalizedTitle.includes(query)) score += 0.6;
@@ -540,7 +553,10 @@ export function resolveDashboardCourseSelection(
     const exactTitle = resolveByExactTitle(sortedCourses, courseQuery);
     if (exactTitle) return exactTitle;
 
-    const normalizedTitle = resolveByNormalizedTitle(sortedCourses, courseQuery);
+    const normalizedTitle = resolveByNormalizedTitle(
+      sortedCourses,
+      courseQuery
+    );
     if (normalizedTitle) return normalizedTitle;
 
     return resolveByFuzzyTitle(sortedCourses, courseQuery);

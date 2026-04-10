@@ -28,7 +28,8 @@ const SAMPLE_COURSES: CengageDashboardCourse[] = [
   {
     courseId: 'bio-abc',
     title: 'Biology: Intro to Cells',
-    launchUrl: 'https://www.cengage.com/mindtap/course/bio-abc?courseId=bio-abc',
+    launchUrl:
+      'https://www.cengage.com/mindtap/course/bio-abc?courseId=bio-abc',
     platform: 'cengage',
     confidence: 0.8,
   },

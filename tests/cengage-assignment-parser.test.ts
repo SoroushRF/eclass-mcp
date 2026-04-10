@@ -26,9 +26,14 @@ describe('cengage assignment parser v1', () => {
     expect(assignments[0]).toEqual({
       id: 'asg-1001',
       name: 'Chapter 1 Homework',
-      dueDate: 'Feb 12, 2026 11:59 PM',
+      dueDate: '2026-02-12 23:59',
+      dueDateIso: '2026-02-12T23:59:00',
+      dueDateRaw: 'Feb 12, 2026 11:59 PM',
       status: 'Graded',
       score: '9/10',
+      url: '/assignment/1001',
+      rawText:
+        'Chapter 1 Homework Due Date Feb 12, 2026 11:59 PM Submitted Score 9/10',
     });
   });
 
@@ -36,16 +41,51 @@ describe('cengage assignment parser v1', () => {
     const rows: CengageAssignmentRowCandidate[] = [
       {
         name: 'Quiz 2',
-        rowText:
-          'Quiz 2 Assignment Due Date Mar 03, 2026 Not Submitted',
+        rowText: 'Quiz 2 Assignment Due Date Mar 03, 2026 Not Submitted',
       },
     ];
 
     const assignments = parseWebAssignAssignments(rows);
     expect(assignments).toHaveLength(1);
     expect(assignments[0].name).toBe('Quiz 2');
-    expect(assignments[0].dueDate).toBe('Mar 03, 2026');
+    expect(assignments[0].dueDate).toBe('2026-03-03');
+    expect(assignments[0].dueDateIso).toBe('2026-03-03T00:00:00');
+    expect(assignments[0].dueDateRaw).toBe('Mar 03, 2026');
     expect(assignments[0].status).toBe('Pending');
+  });
+
+  it('parses numeric slash date formats and normalizes to ISO-friendly strings', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        id: 'asg-3003',
+        name: 'Unit Test 3',
+        dueDate: '03/28/2026 11:30 PM',
+        rowText: 'Unit Test 3 Due 03/28/2026 11:30 PM',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].dueDate).toBe('2026-03-28 23:30');
+    expect(assignments[0].dueDateIso).toBe('2026-03-28T23:30:00');
+    expect(assignments[0].dueDateRaw).toBe('03/28/2026 11:30 PM');
+  });
+
+  it('keeps unknown status instead of defaulting to submitted/pending when no status signal exists', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        id: 'asg-3004',
+        name: 'Reading Reflection',
+        dueDate: '2026-04-12',
+        rowText: 'Reading Reflection Due Date 2026-04-12',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].status).toBe('Unknown');
+    expect(assignments[0].dueDate).toBe('2026-04-12');
+    expect(assignments[0].dueDateIso).toBe('2026-04-12T00:00:00');
   });
 
   it('dedupes duplicate rows by assignment id and keeps richer candidate', () => {
@@ -60,8 +100,7 @@ describe('cengage assignment parser v1', () => {
         name: 'Lab 3 - Electric Fields',
         dueDate: 'Apr 10, 2026',
         statusHint: 'Submitted',
-        rowText:
-          'Lab 3 - Electric Fields Due Date Apr 10, 2026 Submitted',
+        rowText: 'Lab 3 - Electric Fields Due Date Apr 10, 2026 Submitted',
       },
     ];
 
@@ -84,6 +123,81 @@ describe('cengage assignment parser v1', () => {
 
     const assignments = parseWebAssignAssignments(rows);
     expect(assignments).toHaveLength(0);
+  });
+});
+
+describe('cengage assignment dedupe identity', () => {
+  it('does not collapse rows with same assignment id across different courses', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        id: 'asg-5001',
+        courseId: 'math-1010',
+        name: 'Weekly Quiz',
+        dueDate: 'Apr 20, 2026',
+        rowText: 'Weekly Quiz Due Date Apr 20, 2026 Submitted',
+      },
+      {
+        id: 'asg-5001',
+        courseId: 'phys-1420',
+        name: 'Weekly Quiz',
+        dueDate: 'Apr 20, 2026',
+        rowText: 'Weekly Quiz Due Date Apr 20, 2026 Submitted',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows);
+    expect(assignments).toHaveLength(2);
+
+    const courseIds = assignments.map((item) => item.courseId).sort();
+    expect(courseIds).toEqual(['math-1010', 'phys-1420']);
+  });
+
+  it('dedupes by href-derived assignment id inside one course scope', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        href: '/assignment/view/7777?attempt=1',
+        name: 'Practice Set 7',
+        dueDate: '2026-04-25',
+        rowText: 'Practice Set 7 Due Date 2026-04-25',
+      },
+      {
+        href: '/assignment/view/7777?attempt=2',
+        name: 'Practice Set 7',
+        dueDate: '2026-04-25',
+        rowText: 'Practice Set 7 Due Date 2026-04-25 Submitted',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows, {
+      courseId: 'math-2010',
+      courseTitle: 'MATH 2010 - Calculus II',
+    });
+
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].courseId).toBe('math-2010');
+    expect(assignments[0].courseTitle).toBe('MATH 2010 - Calculus II');
+  });
+
+  it('uses normalized title+due fallback key when no id/href exists', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        name: 'Lab #8: Newtons Law',
+        dueDate: 'May 01, 2026',
+        rowText: 'Lab #8: Newtons Law Due Date May 01, 2026',
+      },
+      {
+        name: 'Lab 8 Newtons Law',
+        dueDate: 'May 01, 2026',
+        rowText: 'Lab 8 Newtons Law Due Date May 01, 2026 Submitted',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows, {
+      courseKey: 'WA-production-8888',
+    });
+
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].name).toBe('Lab #8: Newtons Law');
   });
 });
 
