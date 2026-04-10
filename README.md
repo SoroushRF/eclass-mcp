@@ -81,6 +81,9 @@ flowchart LR
 | `get_class_timetable` | List your personal class timetable (lectures/labs) from York SIS | — |
 | `search_professors` | Finds professor profiles on RateMyProfessors | `name`, `campus?` |
 | `get_professor_details` | Fetches detailed ratings, difficulty, and comments for a professor | `teacherId` |
+| `discover_cengage_links` | Detect and classify Cengage/WebAssign links from pasted text or extracted content | `text`, `source?`, `courseId?`, `sectionUrl?`, `sourceFile?` |
+| `list_cengage_courses` | List Cengage/WebAssign courses from dashboard/course entry links | `entryUrl`, `discoveredLink?`, `courseQuery?` |
+| `get_cengage_assignments` | Fetch Cengage/WebAssign assignments from dashboard, direct-course, or legacy launch links | `entryUrl?`, `ssoUrl?` (legacy), `courseId?`, `courseKey?`, `courseQuery?` |
 | `clear_cache` | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed | `scope?` |
 | `cache_pin` | Pin a resource already in cache (kept past TTL until unpinned) | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?` |
 | `cache_unpin` | Remove pin metadata without deleting cache files | `pinId` |
@@ -95,6 +98,14 @@ flowchart LR
 3. **Removing pins** — `cache_unpin` drops the pin only; **`cache_delete_pinned`** deletes the on-disk cache file(s) and registry rows (use `pinId`, or `mode=all`, or `mode=by_type` + `resource_type`).
 4. **Stale data** — pinned entries past TTL may still be served; JSON tools add `_cache.stale: true`; `get_file_text` prepends a short notice. Use `cache_refresh_pin` to refetch.
 5. **Quota** — set `ECLASS_MCP_PIN_QUOTA_BYTES` in `.env` (bytes). Pinning fails with a structured `quota_exceeded` payload if the new pin would exceed the limit.
+
+### Cengage and WebAssign migration notes
+
+1. **New workflow:** use `discover_cengage_links` for raw text discovery, `list_cengage_courses` to inspect/select courses, then `get_cengage_assignments` for assignment extraction.
+2. **Compatibility path:** `get_cengage_assignments` still accepts legacy `ssoUrl` input; `entryUrl` is the preferred modern field.
+3. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
+4. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
+5. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
 
 > 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
@@ -190,6 +201,9 @@ You're done. Ask Claude anything about your courses.
 "What is my class schedule this week?"
 "Find professor John Doe on RateMyProfessors."
 "What do students say about the difficulty of John Doe's classes?"
+"Find Cengage/WebAssign links in this syllabus text."
+"List Cengage courses from this dashboard URL."
+"Get Cengage assignments from this course URL (or using a courseQuery)."
 ```
 
 For large PDFs, Claude will automatically paginate:
@@ -241,6 +255,15 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | File content outdated | Delete the specific `file_<hash>_v2.json` from `.eclass-mcp/cache/` |
 | Grades not updating | Cache TTL for grades is 12 hours — delete `grades_*.json` to force refresh |
 
+### 🔗 Cengage / WebAssign Link and Session Issues
+
+| Symptom | Fix |
+|---------|-----|
+| `status="auth_required"` from Cengage tools | Open the returned `retry.authUrl` (typically `http://localhost:<AUTH_PORT>/auth-cengage`), complete login, retry the same tool call |
+| `status="needs_course_selection"` | Retry with `courseId`, `courseKey`, or `courseQuery`; if unsure, call `list_cengage_courses` first |
+| `discover_cengage_links` returns `no_data` | Provide raw text that still contains full URLs; include extracted file/announcement text instead of paraphrases |
+| Direct assignment call returns `no_data` | Verify link points to an active course/dashboard for your account; then select the intended course explicitly |
+
 ### 🏗️ Build Errors
 
 ```bash
@@ -257,7 +280,8 @@ rm -rf dist && npm.cmd run build
 
 | Topic | Location |
 |-------|----------|
-| Tool-by-tool docs index (all 13 tools) | [`docs/tools/README.md`](docs/tools/README.md) |
+| Tool-by-tool docs index (all 22 tools) | [`docs/tools/README.md`](docs/tools/README.md) |
+| Cengage implementation and migration plan | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md) |
 | Deadlines tool — full roadmap & architecture | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md) |
 | Deadlines — implementation history | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md) |
 | Deadlines — known issues & investigation log | [`docs/tools/deadlines/failed-prompts-investigation-plan.md`](docs/tools/deadlines/failed-prompts-investigation-plan.md) |
@@ -281,6 +305,7 @@ rm -rf dist && npm.cmd run build
 - [x] DOCX and PPTX parsers
 - [x] **Grades tool** — full gradebook scraping with feedback (`get_grades`)
 - [x] **Announcements tool** — recent post extraction (`get_announcements`)
+- [x] **Cengage/WebAssign tools** — discovery, course listing, and assignment retrieval with auth-retry + `_cache` parity
 - [ ] **Harden quiz page selectors** — grade extraction missing in some cases *(P3)*
 - [ ] **Richer assignment descriptions** — extract authored content, not just boilerplate *(P4)*
 - [ ] **Smart image detection** — entropy/vision-based diagram isolation for PDFs
