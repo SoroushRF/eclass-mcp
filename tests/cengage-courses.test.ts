@@ -2,7 +2,37 @@ import { describe, expect, it } from 'vitest';
 import {
   extractDashboardCourses,
   inferCourseFromCurrentPage,
+  resolveDashboardCourseSelection,
+  type CengageDashboardCourse,
 } from '../src/scraper/cengage-courses';
+
+const SAMPLE_COURSES: CengageDashboardCourse[] = [
+  {
+    courseId: 'course-001',
+    courseKey: 'WA-production-1001',
+    title: 'MATH 1010 - Calculus I',
+    launchUrl:
+      'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1001',
+    platform: 'webassign',
+    confidence: 0.95,
+  },
+  {
+    courseId: 'course-002',
+    courseKey: 'WA-production-1002',
+    title: 'MATH 1010 - Calculus II',
+    launchUrl:
+      'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1002',
+    platform: 'webassign',
+    confidence: 0.93,
+  },
+  {
+    courseId: 'bio-abc',
+    title: 'Biology: Intro to Cells',
+    launchUrl: 'https://www.cengage.com/mindtap/course/bio-abc?courseId=bio-abc',
+    platform: 'cengage',
+    confidence: 0.8,
+  },
+];
 
 describe('cengage dashboard course inventory extraction', () => {
   it('extracts multiple course links with stable identifiers', () => {
@@ -115,5 +145,83 @@ describe('cengage current-page course inference', () => {
     );
 
     expect(course).toBeNull();
+  });
+});
+
+describe('cengage course selection resolver', () => {
+  it('matches by courseId first when provided', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {
+      courseId: 'course-002',
+      courseQuery: 'MATH 1010 - Calculus I',
+    });
+
+    expect(result.status).toBe('selected');
+    expect(result.strategy).toBe('course_id');
+    expect(result.selectedCourse?.courseId).toBe('course-002');
+  });
+
+  it('matches by courseKey when courseId is not provided', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {
+      courseKey: 'wa-production-1001',
+    });
+
+    expect(result.status).toBe('selected');
+    expect(result.strategy).toBe('course_key');
+    expect(result.selectedCourse?.courseKey).toBe('WA-production-1001');
+  });
+
+  it('uses exact title match before fuzzy fallback', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {
+      courseQuery: 'MATH 1010 - Calculus II',
+    });
+
+    expect(result.status).toBe('selected');
+    expect(result.strategy).toBe('exact_title');
+    expect(result.selectedCourse?.title).toBe('MATH 1010 - Calculus II');
+  });
+
+  it('uses normalized title match when punctuation differs', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {
+      courseQuery: 'biology intro to cells',
+    });
+
+    expect(result.status).toBe('selected');
+    expect(result.strategy).toBe('normalized_title');
+    expect(result.selectedCourse?.courseId).toBe('bio-abc');
+  });
+
+  it('returns ambiguous instead of silently selecting on close fuzzy matches', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {
+      courseQuery: 'math 1010 calculus',
+    });
+
+    expect(result.status).toBe('ambiguous');
+    expect(result.strategy).toBe('fuzzy_title');
+    expect(result.candidates.length).toBeGreaterThan(1);
+  });
+
+  it('returns selection_required when multiple courses exist and no selector is provided', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {});
+
+    expect(result.status).toBe('selection_required');
+    expect(result.selectedCourse).toBeUndefined();
+    expect(result.candidates).toHaveLength(3);
+  });
+
+  it('auto-selects when only one course is available', () => {
+    const result = resolveDashboardCourseSelection([SAMPLE_COURSES[0]], {});
+
+    expect(result.status).toBe('selected');
+    expect(result.strategy).toBe('single');
+    expect(result.selectedCourse?.courseId).toBe('course-001');
+  });
+
+  it('returns not_found when selectors do not match any course', () => {
+    const result = resolveDashboardCourseSelection(SAMPLE_COURSES, {
+      courseId: 'missing-id',
+    });
+
+    expect(result.status).toBe('not_found');
+    expect(result.strategy).toBe('course_id');
   });
 });

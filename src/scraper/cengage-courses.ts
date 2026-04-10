@@ -16,6 +16,34 @@ export interface CengageDashboardCourse {
   confidence: number;
 }
 
+export interface CengageCourseSelectionInput {
+  courseId?: string;
+  courseKey?: string;
+  courseQuery?: string;
+}
+
+export type CengageCourseSelectionStrategy =
+  | 'single'
+  | 'course_id'
+  | 'course_key'
+  | 'exact_title'
+  | 'normalized_title'
+  | 'fuzzy_title';
+
+export type CengageCourseSelectionStatus =
+  | 'selected'
+  | 'selection_required'
+  | 'ambiguous'
+  | 'not_found';
+
+export interface CengageCourseSelectionResult {
+  status: CengageCourseSelectionStatus;
+  strategy?: CengageCourseSelectionStrategy;
+  selectedCourse?: CengageDashboardCourse;
+  candidates: CengageDashboardCourse[];
+  message: string;
+}
+
 const GENERIC_TITLE_WORDS = new Set([
   'launch',
   'open',
@@ -212,6 +240,328 @@ function shouldReplaceCourse(
   }
 
   return incoming.launchUrl < current.launchUrl;
+}
+
+function normalizeComparableText(value: string | undefined): string {
+  return normalizeText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function sortCoursesForSelection(
+  courses: CengageDashboardCourse[]
+): CengageDashboardCourse[] {
+  return [...courses].sort((a, b) => {
+    if (b.confidence !== a.confidence) {
+      return b.confidence - a.confidence;
+    }
+
+    const titleOrder = a.title.localeCompare(b.title);
+    if (titleOrder !== 0) return titleOrder;
+
+    return a.launchUrl.localeCompare(b.launchUrl);
+  });
+}
+
+function buildCandidatesSummary(courses: CengageDashboardCourse[]): string {
+  return courses
+    .slice(0, 5)
+    .map((course) => {
+      const tags: string[] = [];
+      if (course.courseId) tags.push(`id=${course.courseId}`);
+      if (course.courseKey) tags.push(`key=${course.courseKey}`);
+      const suffix = tags.length > 0 ? ` (${tags.join(', ')})` : '';
+      return `${course.title}${suffix}`;
+    })
+    .join('; ');
+}
+
+function resolveByExactCourseId(
+  sortedCourses: CengageDashboardCourse[],
+  rawCourseId: string
+): CengageCourseSelectionResult {
+  const wantedId = normalizeComparableText(rawCourseId);
+  const matches = sortedCourses.filter(
+    (course) => normalizeComparableText(course.courseId) === wantedId
+  );
+
+  if (matches.length === 1) {
+    return {
+      status: 'selected',
+      strategy: 'course_id',
+      selectedCourse: matches[0],
+      candidates: matches,
+      message: `Selected course by courseId '${rawCourseId}'.`,
+    };
+  }
+
+  if (matches.length > 1) {
+    return {
+      status: 'ambiguous',
+      strategy: 'course_id',
+      candidates: matches,
+      message:
+        `Multiple courses matched courseId '${rawCourseId}'. ` +
+        `Please specify courseKey or a more precise courseQuery. Candidates: ${buildCandidatesSummary(matches)}`,
+    };
+  }
+
+  return {
+    status: 'not_found',
+    strategy: 'course_id',
+    candidates: sortedCourses,
+    message: `No course matched courseId '${rawCourseId}'.`,
+  };
+}
+
+function resolveByExactCourseKey(
+  sortedCourses: CengageDashboardCourse[],
+  rawCourseKey: string
+): CengageCourseSelectionResult {
+  const wantedKey = normalizeComparableText(rawCourseKey);
+  const matches = sortedCourses.filter(
+    (course) => normalizeComparableText(course.courseKey) === wantedKey
+  );
+
+  if (matches.length === 1) {
+    return {
+      status: 'selected',
+      strategy: 'course_key',
+      selectedCourse: matches[0],
+      candidates: matches,
+      message: `Selected course by courseKey '${rawCourseKey}'.`,
+    };
+  }
+
+  if (matches.length > 1) {
+    return {
+      status: 'ambiguous',
+      strategy: 'course_key',
+      candidates: matches,
+      message:
+        `Multiple courses matched courseKey '${rawCourseKey}'. ` +
+        `Please specify courseId or a more precise courseQuery. Candidates: ${buildCandidatesSummary(matches)}`,
+    };
+  }
+
+  return {
+    status: 'not_found',
+    strategy: 'course_key',
+    candidates: sortedCourses,
+    message: `No course matched courseKey '${rawCourseKey}'.`,
+  };
+}
+
+function resolveByExactTitle(
+  sortedCourses: CengageDashboardCourse[],
+  rawQuery: string
+): CengageCourseSelectionResult | null {
+  const query = normalizeText(rawQuery).toLowerCase();
+  if (!query) return null;
+
+  const matches = sortedCourses.filter(
+    (course) => normalizeText(course.title).toLowerCase() === query
+  );
+
+  if (matches.length === 1) {
+    return {
+      status: 'selected',
+      strategy: 'exact_title',
+      selectedCourse: matches[0],
+      candidates: matches,
+      message: `Selected course by exact title '${rawQuery}'.`,
+    };
+  }
+
+  if (matches.length > 1) {
+    return {
+      status: 'ambiguous',
+      strategy: 'exact_title',
+      candidates: matches,
+      message:
+        `Multiple courses matched exact title '${rawQuery}'. ` +
+        `Please specify courseId or courseKey. Candidates: ${buildCandidatesSummary(matches)}`,
+    };
+  }
+
+  return null;
+}
+
+function resolveByNormalizedTitle(
+  sortedCourses: CengageDashboardCourse[],
+  rawQuery: string
+): CengageCourseSelectionResult | null {
+  const query = normalizeComparableText(rawQuery);
+  if (!query) return null;
+
+  const matches = sortedCourses.filter(
+    (course) => normalizeComparableText(course.title) === query
+  );
+
+  if (matches.length === 1) {
+    return {
+      status: 'selected',
+      strategy: 'normalized_title',
+      selectedCourse: matches[0],
+      candidates: matches,
+      message: `Selected course by normalized title '${rawQuery}'.`,
+    };
+  }
+
+  if (matches.length > 1) {
+    return {
+      status: 'ambiguous',
+      strategy: 'normalized_title',
+      candidates: matches,
+      message:
+        `Multiple courses matched normalized title '${rawQuery}'. ` +
+        `Please specify courseId or courseKey. Candidates: ${buildCandidatesSummary(matches)}`,
+    };
+  }
+
+  return null;
+}
+
+interface ScoredCourseCandidate {
+  course: CengageDashboardCourse;
+  score: number;
+}
+
+function scoreFuzzyTitleMatch(
+  course: CengageDashboardCourse,
+  query: string,
+  queryTokens: string[]
+): number {
+  const normalizedTitle = normalizeComparableText(course.title);
+  if (!normalizedTitle) return 0;
+
+  const titleTokens = new Set(normalizedTitle.split(' ').filter(Boolean));
+  const overlap = queryTokens.filter((token) => titleTokens.has(token)).length;
+  const overlapRatio = queryTokens.length > 0 ? overlap / queryTokens.length : 0;
+
+  let score = 0;
+  if (normalizedTitle.includes(query)) score += 0.6;
+  if (normalizedTitle.startsWith(query)) score += 0.15;
+  score += overlapRatio * 0.2;
+  score += Math.min(0.05, course.confidence * 0.05);
+
+  return Number(score.toFixed(4));
+}
+
+function resolveByFuzzyTitle(
+  sortedCourses: CengageDashboardCourse[],
+  rawQuery: string
+): CengageCourseSelectionResult {
+  const query = normalizeComparableText(rawQuery);
+  const queryTokens = query.split(' ').filter(Boolean);
+
+  const scored: ScoredCourseCandidate[] = sortedCourses
+    .map((course) => ({
+      course,
+      score: scoreFuzzyTitleMatch(course, query, queryTokens),
+    }))
+    .filter((entry) => entry.score >= 0.55)
+    .sort((a, b) => {
+      if (b.score !== a.score) {
+        return b.score - a.score;
+      }
+
+      if (b.course.confidence !== a.course.confidence) {
+        return b.course.confidence - a.course.confidence;
+      }
+
+      return a.course.title.localeCompare(b.course.title);
+    });
+
+  if (scored.length === 0) {
+    return {
+      status: 'not_found',
+      strategy: 'fuzzy_title',
+      candidates: sortedCourses,
+      message: `No course matched courseQuery '${rawQuery}'.`,
+    };
+  }
+
+  const best = scored[0];
+  const second = scored[1];
+
+  if (!second || best.score - second.score >= 0.15) {
+    return {
+      status: 'selected',
+      strategy: 'fuzzy_title',
+      selectedCourse: best.course,
+      candidates: [best.course],
+      message: `Selected course by fuzzy title match '${rawQuery}'.`,
+    };
+  }
+
+  const ambiguous = scored
+    .filter((entry) => best.score - entry.score <= 0.15)
+    .map((entry) => entry.course);
+
+  return {
+    status: 'ambiguous',
+    strategy: 'fuzzy_title',
+    candidates: ambiguous,
+    message:
+      `Course query '${rawQuery}' is ambiguous. ` +
+      `Please refine courseQuery or specify courseId/courseKey. Candidates: ${buildCandidatesSummary(ambiguous)}`,
+  };
+}
+
+export function resolveDashboardCourseSelection(
+  courses: CengageDashboardCourse[],
+  input: CengageCourseSelectionInput
+): CengageCourseSelectionResult {
+  const sortedCourses = sortCoursesForSelection(courses);
+  const courseId = normalizeText(input.courseId);
+  const courseKey = normalizeText(input.courseKey);
+  const courseQuery = normalizeText(input.courseQuery);
+
+  if (sortedCourses.length === 0) {
+    return {
+      status: 'not_found',
+      candidates: [],
+      message: 'No courses are available for selection.',
+    };
+  }
+
+  if (courseId) {
+    return resolveByExactCourseId(sortedCourses, courseId);
+  }
+
+  if (courseKey) {
+    return resolveByExactCourseKey(sortedCourses, courseKey);
+  }
+
+  if (courseQuery) {
+    const exactTitle = resolveByExactTitle(sortedCourses, courseQuery);
+    if (exactTitle) return exactTitle;
+
+    const normalizedTitle = resolveByNormalizedTitle(sortedCourses, courseQuery);
+    if (normalizedTitle) return normalizedTitle;
+
+    return resolveByFuzzyTitle(sortedCourses, courseQuery);
+  }
+
+  if (sortedCourses.length === 1) {
+    return {
+      status: 'selected',
+      strategy: 'single',
+      selectedCourse: sortedCourses[0],
+      candidates: sortedCourses,
+      message: 'Selected the only available course.',
+    };
+  }
+
+  return {
+    status: 'selection_required',
+    candidates: sortedCourses,
+    message:
+      'Multiple courses are available. Provide courseId, courseKey, or courseQuery to choose one.',
+  };
 }
 
 export function extractDashboardCourses(
