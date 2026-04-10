@@ -3,10 +3,10 @@ import fs from 'fs';
 import path from 'path';
 import {
   CengageAuthRequiredError,
-  CengageInvalidInputError,
   CengageNavigationError,
   CengageParseError,
 } from './cengage-errors';
+import { normalizeAndClassifyCengageEntry } from './cengage-url';
 
 export interface WebAssignAssignment {
   name: string;
@@ -17,21 +17,6 @@ export interface WebAssignAssignment {
 }
 
 const STATE_PATH = path.resolve(process.cwd(), '.eclass-mcp/cengage-state.json');
-
-function ensureValidEntryUrl(rawUrl: string): string {
-  const trimmed = rawUrl?.trim();
-  if (!trimmed) {
-    throw new CengageInvalidInputError('A non-empty Cengage/WebAssign URL is required.');
-  }
-
-  try {
-    return new URL(trimmed).toString();
-  } catch {
-    throw new CengageInvalidInputError('Invalid Cengage/WebAssign URL format.', {
-      entryUrl: rawUrl,
-    });
-  }
-}
 
 export class CengageScraper {
   private browser: Browser | null = null;
@@ -52,12 +37,13 @@ export class CengageScraper {
   }
 
   async getAssignments(ssoUrl: string): Promise<WebAssignAssignment[]> {
-    const entryUrl = ensureValidEntryUrl(ssoUrl);
+    const entry = normalizeAndClassifyCengageEntry(ssoUrl);
+    const entryUrl = entry.normalizedUrl;
 
     if (!fs.existsSync(STATE_PATH)) {
       throw new CengageAuthRequiredError(
         'Cengage session state not found. Please authenticate first.',
-        { entryUrl }
+        { entryUrl, linkType: entry.linkType }
       );
     }
 
@@ -78,6 +64,7 @@ export class CengageScraper {
           'Failed to open the provided Cengage/WebAssign URL.',
           {
             entryUrl,
+            linkType: entry.linkType,
             cause: error instanceof Error ? error.message : 'Unknown error',
           }
         );
@@ -99,7 +86,7 @@ export class CengageScraper {
         if (looksLikeLogin) {
           throw new CengageAuthRequiredError(
             'Cengage authentication is required before assignment extraction.',
-            { entryUrl, currentUrl }
+            { entryUrl, linkType: entry.linkType, currentUrl }
           );
         }
 
@@ -107,6 +94,7 @@ export class CengageScraper {
           'Could not reach a WebAssign student page from the provided URL.',
           {
             entryUrl,
+            linkType: entry.linkType,
             currentUrl,
             cause: error instanceof Error ? error.message : 'Unknown error',
           }
@@ -186,6 +174,7 @@ export class CengageScraper {
       if (!Array.isArray(assignments)) {
         throw new CengageParseError('Unexpected assignment extraction payload type.', {
           entryUrl,
+          linkType: entry.linkType,
         });
       }
 
