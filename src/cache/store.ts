@@ -8,7 +8,7 @@ dotenv.config({ quiet: true });
 export const CACHE_ROOT = path.resolve(__dirname, '../../.eclass-mcp');
 export const CACHE_DIR = path.join(CACHE_ROOT, 'cache');
 
-/** 
+/**
  * Increment this version whenever the JSON structure of cached data changes.
  * This ensures that old, incompatible cache files are naturally ignored.
  */
@@ -191,7 +191,7 @@ class CacheStore {
     for (const p of volatilePrefixes) {
       // Clear both versioned and legacy keys for these prefixes
       total += this.clearByPrefix(`v${CACHE_SCHEMA_VERSION}:${p}`);
-      total += this.clearByPrefix(p); 
+      total += this.clearByPrefix(p);
     }
     return total;
   }

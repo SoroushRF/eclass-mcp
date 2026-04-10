@@ -25,11 +25,14 @@ export async function getAnnouncements(
 
       forumUrl = await page.evaluate(() => {
         const links = Array.from(
-          document.querySelectorAll('.generaltable a[href*="mod/forum/view.php"]')
+          document.querySelectorAll(
+            '.generaltable a[href*="mod/forum/view.php"]'
+          )
         ) as HTMLAnchorElement[];
         const target =
-          links.find((l) => /announcement|news|forum/i.test(l.textContent || '')) ||
-          links[0];
+          links.find((l) =>
+            /announcement|news|forum/i.test(l.textContent || '')
+          ) || links[0];
         return target ? target.href : '';
       });
 
@@ -49,8 +52,9 @@ export async function getAnnouncements(
           document.querySelectorAll('a[href*="mod/forum/view.php"]')
         ) as HTMLAnchorElement[];
         const target =
-          links.find((l) => /announcement|news|forum/i.test(l.textContent || '')) ||
-          links[0];
+          links.find((l) =>
+            /announcement|news|forum/i.test(l.textContent || '')
+          ) || links[0];
         return target?.href || '';
       });
       if (foundLink) {
@@ -61,23 +65,29 @@ export async function getAnnouncements(
     }
 
     const announcementsMeta = await page.evaluate(() => {
-      const topics = Array.from(document.querySelectorAll('.topic, .discussion'));
+      const topics = Array.from(
+        document.querySelectorAll('.topic, .discussion')
+      );
       return topics
         .map((row) => {
           const titleLink = row.querySelector(
             '.subject a, .topic-name a, th.topic a'
           ) as HTMLAnchorElement;
 
-          let authorText = row.querySelector('.author')?.textContent?.trim() || '';
+          let authorText =
+            row.querySelector('.author')?.textContent?.trim() || '';
           if (!authorText) {
-            const authorDiv = row.querySelectorAll('.author-info .text-truncate');
+            const authorDiv = row.querySelectorAll(
+              '.author-info .text-truncate'
+            );
             if (authorDiv.length > 0)
               authorText = authorDiv[0].textContent?.trim() || '';
           }
 
           let dateText =
-            row.querySelector('.lastpost date, .modified')?.textContent?.trim() ||
-            '';
+            row
+              .querySelector('.lastpost date, .modified')
+              ?.textContent?.trim() || '';
           if (!dateText) {
             const times = row.querySelectorAll('time');
             if (times.length > 0) dateText = times[0].textContent?.trim() || '';

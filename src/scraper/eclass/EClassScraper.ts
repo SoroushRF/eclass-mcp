@@ -12,11 +12,19 @@ import type {
   SectionTextData,
 } from './types';
 import { getAnnouncements } from './announcements';
-import { getAllAssignmentDeadlines, getDeadlines, getMonthDeadlines } from './deadlines';
+import {
+  getAllAssignmentDeadlines,
+  getDeadlines,
+  getMonthDeadlines,
+} from './deadlines';
 import { downloadFile } from './files';
 import { getCourses, getCourseContent } from './courses';
 import { getGrades } from './grades';
-import { getAssignmentDetails, getItemDetails, getQuizDetails } from './item-details';
+import {
+  getAssignmentDetails,
+  getItemDetails,
+  getQuizDetails,
+} from './item-details';
 import { getSectionText } from './sections';
 
 export class EClassScraper {
@@ -62,7 +70,10 @@ export class EClassScraper {
     return getGrades(this.session, courseId);
   }
 
-  getAnnouncements(courseId?: string, limit: number = 10): Promise<Announcement[]> {
+  getAnnouncements(
+    courseId?: string,
+    limit: number = 10
+  ): Promise<Announcement[]> {
     return getAnnouncements(this.session, courseId, limit);
   }
 

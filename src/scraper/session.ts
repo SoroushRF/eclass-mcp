@@ -3,7 +3,9 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 export class SessionExpiredError extends Error {
-  constructor(message: string = 'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth') {
+  constructor(
+    message: string = 'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth'
+  ) {
     super(message);
     this.name = 'SessionExpiredError';
   }
@@ -49,7 +51,10 @@ interface SessionData {
   cookies: Cookie[];
 }
 
-export function saveSession(cookies: Cookie[], fileName: string = 'session.json'): void {
+export function saveSession(
+  cookies: Cookie[],
+  fileName: string = 'session.json'
+): void {
   if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
   }
@@ -60,13 +65,19 @@ export function saveSession(cookies: Cookie[], fileName: string = 'session.json'
   };
 
   try {
-    fs.writeFileSync(getSessionFilePath(fileName), JSON.stringify(data, null, 2), 'utf-8');
+    fs.writeFileSync(
+      getSessionFilePath(fileName),
+      JSON.stringify(data, null, 2),
+      'utf-8'
+    );
   } catch (error) {
     console.error('Error saving session:', error);
   }
 }
 
-export function loadSession(fileName: string = 'session.json'): Cookie[] | null {
+export function loadSession(
+  fileName: string = 'session.json'
+): Cookie[] | null {
   const file = getSessionFilePath(fileName);
   if (!fs.existsSync(file)) {
     return null;

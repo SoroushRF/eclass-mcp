@@ -1,6 +1,6 @@
 import { cache } from '../cache/store';
 
-export type CacheScope = 
+export type CacheScope =
   | 'all'
   | 'volatile'
   | 'deadlines'
@@ -13,10 +13,12 @@ export type CacheScope =
 
 export async function clearCache(scope: CacheScope = 'all') {
   try {
-    console.error(`[MCP Server] Manual cache clear requested for scope: ${scope}`);
+    console.error(
+      `[MCP Server] Manual cache clear requested for scope: ${scope}`
+    );
 
     let clearedCount = 0;
-    
+
     switch (scope) {
       case 'volatile':
         clearedCount = cache.clearVolatile();
@@ -31,7 +33,8 @@ export async function clearCache(scope: CacheScope = 'all') {
         clearedCount = cache.clearByPrefix('grades');
         break;
       case 'content':
-        clearedCount = cache.clearByPrefix('content') + cache.clearByPrefix('sectiontext');
+        clearedCount =
+          cache.clearByPrefix('content') + cache.clearByPrefix('sectiontext');
         break;
       case 'courses':
         clearedCount = cache.clearByPrefix('courses');
@@ -40,7 +43,9 @@ export async function clearCache(scope: CacheScope = 'all') {
         clearedCount = cache.clearByPrefix('file');
         break;
       case 'rmp':
-        clearedCount = cache.clearByPrefix('rmp_search') + cache.clearByPrefix('rmp_details');
+        clearedCount =
+          cache.clearByPrefix('rmp_search') +
+          cache.clearByPrefix('rmp_details');
         break;
       case 'all':
       default:

@@ -126,7 +126,9 @@ export const GetCengageAssignmentsInputSchema = z
     ssoUrl: z
       .string()
       .optional()
-      .describe('Legacy alias for entryUrl used by existing get_cengage_assignments calls.'),
+      .describe(
+        'Legacy alias for entryUrl used by existing get_cengage_assignments calls.'
+      ),
     courseId: z
       .string()
       .optional()
@@ -138,7 +140,9 @@ export const GetCengageAssignmentsInputSchema = z
     courseQuery: z
       .string()
       .optional()
-      .describe('Optional course name query when selecting among multiple courses.'),
+      .describe(
+        'Optional course name query when selecting among multiple courses.'
+      ),
   })
   .refine((value) => !!(value.entryUrl || value.ssoUrl), {
     message: 'entryUrl or ssoUrl is required',
@@ -159,11 +163,23 @@ export const GetCengageAssignmentsResponseSchema = z.object({
   _cache: CengageCacheMetaSchema.optional(),
 });
 
-export type DiscoverCengageLinksInput = z.infer<typeof DiscoverCengageLinksInputSchema>;
-export type DiscoverCengageLinksResponse = z.infer<typeof DiscoverCengageLinksResponseSchema>;
+export type DiscoverCengageLinksInput = z.infer<
+  typeof DiscoverCengageLinksInputSchema
+>;
+export type DiscoverCengageLinksResponse = z.infer<
+  typeof DiscoverCengageLinksResponseSchema
+>;
 
-export type ListCengageCoursesInput = z.infer<typeof ListCengageCoursesInputSchema>;
-export type ListCengageCoursesResponse = z.infer<typeof ListCengageCoursesResponseSchema>;
+export type ListCengageCoursesInput = z.infer<
+  typeof ListCengageCoursesInputSchema
+>;
+export type ListCengageCoursesResponse = z.infer<
+  typeof ListCengageCoursesResponseSchema
+>;
 
-export type GetCengageAssignmentsInput = z.infer<typeof GetCengageAssignmentsInputSchema>;
-export type GetCengageAssignmentsResponse = z.infer<typeof GetCengageAssignmentsResponseSchema>;
+export type GetCengageAssignmentsInput = z.infer<
+  typeof GetCengageAssignmentsInputSchema
+>;
+export type GetCengageAssignmentsResponse = z.infer<
+  typeof GetCengageAssignmentsResponseSchema
+>;

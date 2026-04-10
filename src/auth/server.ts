@@ -63,8 +63,8 @@ export async function startAuthServer() {
     const parsedUrl = url.parse(req.url || '', true);
 
     if (parsedUrl.pathname === '/' || parsedUrl.pathname === '') {
-        res.writeHead(200, { 'Content-Type': 'text/html' });
-        res.end(`
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(`
           <!DOCTYPE html>
           <html>
             <body style="font-family: sans-serif; text-align: center; padding-top: 50px;">
@@ -151,14 +151,17 @@ export async function startAuthServer() {
 
         await page.goto('https://login.cengage.com/');
 
-        await page.waitForURL(/(.*dashboard.*|.*webassign\.net\/web\/Student.*)/i, { timeout: AUTH_TIMEOUT_MS });
-        
+        await page.waitForURL(
+          /(.*dashboard.*|.*webassign\.net\/web\/Student.*)/i,
+          { timeout: AUTH_TIMEOUT_MS }
+        );
+
         await page.waitForTimeout(5000);
 
         ensureCengageSessionDir(CENGAGE_STATE_PATH);
         await context.storageState({ path: CENGAGE_STATE_PATH });
         saveCengageSessionMetadata({ statePath: CENGAGE_STATE_PATH });
-        
+
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
@@ -209,6 +212,7 @@ export async function startAuthServer() {
 
 export function openAuthWindow() {
   const url = getAuthUrl('eclass');
-  const cmd = process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`;
+  const cmd =
+    process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`;
   exec(cmd, () => {});
 }

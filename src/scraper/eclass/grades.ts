@@ -91,7 +91,8 @@ export async function getGrades(
                   r.querySelector('.column-percentage')?.textContent?.trim() ||
                   '-',
                 feedback:
-                  r.querySelector('.column-feedback')?.textContent?.trim() || '',
+                  r.querySelector('.column-feedback')?.textContent?.trim() ||
+                  '',
               };
             })
             .filter(

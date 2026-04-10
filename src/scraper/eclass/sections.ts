@@ -29,9 +29,7 @@ export async function getSectionText(
         document.body;
 
       const title =
-        root
-          .querySelector('.sectionname, h2, h3')
-          ?.textContent?.trim() ||
+        root.querySelector('.sectionname, h2, h3')?.textContent?.trim() ||
         'Section Details';
 
       const extractLinks = (element: Element) => {
@@ -41,7 +39,8 @@ export async function getSectionText(
             url: (a as HTMLAnchorElement).href,
           }))
           .filter(
-            (l) => l.name.length > 0 && l.url && !l.url.startsWith('javascript:')
+            (l) =>
+              l.name.length > 0 && l.url && !l.url.startsWith('javascript:')
           );
       };
 
@@ -116,16 +115,24 @@ export async function getSectionText(
 
       const platforms: { name: string; url: string }[] = [];
       const seenPlatforms = new Set<string>();
-      
-      const checkLink = (l: {name: string, url: string}) => {
-        if(l.url.includes('mod/lti/view.php')) {
+
+      const checkLink = (l: { name: string; url: string }) => {
+        if (l.url.includes('mod/lti/view.php')) {
           const lowerName = l.name.toLowerCase();
           const lowerUrl = l.url.toLowerCase();
           let platformName = 'unknown_lti';
-          if (EXTERNAL_PLATFORMS.KEYWORDS.CENGAGE.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
-             platformName = 'cengage';
-          } else if (EXTERNAL_PLATFORMS.KEYWORDS.CROWDMARK.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
-             platformName = 'crowdmark';
+          if (
+            EXTERNAL_PLATFORMS.KEYWORDS.CENGAGE.some(
+              (k: string) => lowerName.includes(k) || lowerUrl.includes(k)
+            )
+          ) {
+            platformName = 'cengage';
+          } else if (
+            EXTERNAL_PLATFORMS.KEYWORDS.CROWDMARK.some(
+              (k: string) => lowerName.includes(k) || lowerUrl.includes(k)
+            )
+          ) {
+            platformName = 'crowdmark';
           }
           if (!seenPlatforms.has(platformName)) {
             seenPlatforms.add(platformName);
@@ -133,12 +140,12 @@ export async function getSectionText(
           }
         }
       };
-      
+
       result.mainLinks.forEach(checkLink);
-      result.tabs.forEach(t => t.links.forEach(checkLink));
-      
+      result.tabs.forEach((t) => t.links.forEach(checkLink));
+
       if (platforms.length > 0) result.external_platforms = platforms;
-      
+
       return result;
     }, targetUrl);
   } finally {

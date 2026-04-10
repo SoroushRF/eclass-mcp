@@ -1,4 +1,9 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from 'playwright';
 import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';

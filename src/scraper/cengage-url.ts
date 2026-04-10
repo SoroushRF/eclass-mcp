@@ -114,10 +114,13 @@ export function normalizeAndClassifyCengageEntry(
   try {
     parsed = new URL(candidate);
   } catch {
-    throw new CengageInvalidInputError('Invalid Cengage/WebAssign URL format.', {
-      rawInput,
-      candidate,
-    });
+    throw new CengageInvalidInputError(
+      'Invalid Cengage/WebAssign URL format.',
+      {
+        rawInput,
+        candidate,
+      }
+    );
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {

@@ -52,7 +52,9 @@ export async function getCourseContent(courseId: string) {
 export async function getSectionText(url: string) {
   try {
     const targetUrl = sanitizeHttpUrlQueryParams(url);
-    console.error(`[MCP Server] Claude requested section text for: ${targetUrl}`);
+    console.error(
+      `[MCP Server] Claude requested section text for: ${targetUrl}`
+    );
     const cacheKey = getCacheKey('sectiontext', targetUrl);
     const cached = cache.getWithMeta<SectionTextData>(cacheKey);
 

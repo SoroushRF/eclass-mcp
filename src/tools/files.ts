@@ -16,7 +16,11 @@ export async function getFileText(
     // Build a cache key
     let cacheKey = getCacheKey('file', fileUrl);
     if (startPage || endPage) {
-      cacheKey = getCacheKey('file', fileUrl, `p${startPage ?? 1}-${endPage ?? 'end'}`);
+      cacheKey = getCacheKey(
+        'file',
+        fileUrl,
+        `p${startPage ?? 1}-${endPage ?? 'end'}`
+      );
     }
 
     const cached = cache.getWithMeta<any>(cacheKey);

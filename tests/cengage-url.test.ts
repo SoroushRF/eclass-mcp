@@ -33,7 +33,9 @@ describe('cengage URL classifier', () => {
   });
 
   it('classifies Cengage login links', () => {
-    const parsed = normalizeAndClassifyCengageEntry('https://login.cengage.com/');
+    const parsed = normalizeAndClassifyCengageEntry(
+      'https://login.cengage.com/'
+    );
 
     expect(parsed.linkType).toBe('cengage_login');
   });
@@ -68,15 +70,15 @@ describe('cengage URL classifier', () => {
   });
 
   it('throws for input with no URL', () => {
-    expect(() => normalizeAndClassifyCengageEntry('please open my cengage')).toThrow(
-      CengageInvalidInputError
-    );
+    expect(() =>
+      normalizeAndClassifyCengageEntry('please open my cengage')
+    ).toThrow(CengageInvalidInputError);
   });
 
   it('throws for unsupported protocols', () => {
-    expect(() => normalizeAndClassifyCengageEntry('ftp://login.cengage.com')).toThrow(
-      CengageInvalidInputError
-    );
+    expect(() =>
+      normalizeAndClassifyCengageEntry('ftp://login.cengage.com')
+    ).toThrow(CengageInvalidInputError);
   });
 
   it('classifyCengageUrl returns other for unrelated domains', () => {

@@ -214,7 +214,12 @@ export function getCacheKeyFileSizeBytes(cacheKey: string): number {
 }
 
 export type QuotaCheckResult =
-  | { ok: true; used_bytes: number; would_use_bytes: number; limit_bytes: number }
+  | {
+      ok: true;
+      used_bytes: number;
+      would_use_bytes: number;
+      limit_bytes: number;
+    }
   | {
       ok: false;
       reason: 'quota_exceeded';
@@ -264,7 +269,12 @@ export function checkPinQuota(
       limit_bytes,
     };
   }
-  return { ok: true, used_bytes: used, would_use_bytes: targetSize, limit_bytes };
+  return {
+    ok: true,
+    used_bytes: used,
+    would_use_bytes: targetSize,
+    limit_bytes,
+  };
 }
 
 export function upsertPin(record: PinRecord): void {

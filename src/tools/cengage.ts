@@ -58,8 +58,7 @@ export async function getCengageAssignments(ssoUrl: string) {
         status: 'auth_required',
         entryUrl: ssoUrl,
         assignments: [],
-        message:
-          `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
+        message: `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
       });
     }
 

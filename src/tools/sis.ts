@@ -8,29 +8,43 @@ export async function getExamSchedule() {
     const exams = await scraper.scrapeExams();
     if (exams.length === 0) {
       return {
-        content: [{ type: 'text' as const, text: 'No upcoming exams found in your York SIS schedule.' }]
+        content: [
+          {
+            type: 'text' as const,
+            text: 'No upcoming exams found in your York SIS schedule.',
+          },
+        ],
       };
     }
 
     return {
-      content: [{
-        type: 'text' as const,
-        text: `Found ${exams.length} upcoming exams:\n\n${JSON.stringify(exams, null, 2)}`
-      }]
+      content: [
+        {
+          type: 'text' as const,
+          text: `Found ${exams.length} upcoming exams:\n\n${JSON.stringify(exams, null, 2)}`,
+        },
+      ],
     };
   } catch (error: any) {
     if (error instanceof SessionExpiredError) {
       openAuthWindow();
       return {
-        content: [{ 
-          type: 'text' as const, 
-          text: 'Your York session has expired. A login window has been opened. Please log in and try again.' 
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Your York session has expired. A login window has been opened. Please log in and try again.',
+          },
+        ],
       };
     }
     return {
-      content: [{ type: 'text' as const, text: `Error fetching exam schedule: ${error.message}` }],
-      isError: true
+      content: [
+        {
+          type: 'text' as const,
+          text: `Error fetching exam schedule: ${error.message}`,
+        },
+      ],
+      isError: true,
     };
   }
 }
@@ -40,29 +54,43 @@ export async function getClassTimetable() {
     const entries = await scraper.scrapeTimetable();
     if (entries.length === 0) {
       return {
-        content: [{ type: 'text' as const, text: 'No classes found in your York SIS timetable for the current session.' }]
+        content: [
+          {
+            type: 'text' as const,
+            text: 'No classes found in your York SIS timetable for the current session.',
+          },
+        ],
       };
     }
 
     return {
-      content: [{
-        type: 'text' as const,
-        text: `Found ${entries.length} timetable entries:\n\n${JSON.stringify(entries, null, 2)}`
-      }]
+      content: [
+        {
+          type: 'text' as const,
+          text: `Found ${entries.length} timetable entries:\n\n${JSON.stringify(entries, null, 2)}`,
+        },
+      ],
     };
   } catch (error: any) {
     if (error instanceof SessionExpiredError) {
       openAuthWindow();
       return {
-        content: [{ 
-          type: 'text' as const, 
-          text: 'Your York session has expired. A login window has been opened. Please log in and try again.' 
-        }]
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Your York session has expired. A login window has been opened. Please log in and try again.',
+          },
+        ],
       };
     }
     return {
-      content: [{ type: 'text' as const, text: `Error fetching class timetable: ${error.message}` }],
-      isError: true
+      content: [
+        {
+          type: 'text' as const,
+          text: `Error fetching class timetable: ${error.message}`,
+        },
+      ],
+      isError: true,
     };
   }
 }

@@ -168,7 +168,9 @@ export async function downloadFile(
 
     const contentDisposition = headers['content-disposition'] || '';
     const filenameMatch = contentDisposition.match(/filename="?([^";\n]+)"?/);
-    let filename = filenameMatch ? decodeURIComponent(filenameMatch[1].trim()) : '';
+    let filename = filenameMatch
+      ? decodeURIComponent(filenameMatch[1].trim())
+      : '';
 
     if (!filename) {
       try {

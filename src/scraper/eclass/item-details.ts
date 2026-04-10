@@ -1,10 +1,6 @@
 import type { EClassBrowserSession } from './browser-session';
 import { inferItemType } from './helpers';
-import type {
-  AssignmentDetails,
-  ItemDetails,
-  QuizDetails,
-} from './types';
+import type { AssignmentDetails, ItemDetails, QuizDetails } from './types';
 
 export async function getItemDetails(
   session: EClassBrowserSession,
@@ -45,8 +41,12 @@ export async function getAssignmentDetails(
           '';
 
         const descEl =
-          (document.querySelector('.description .no-overflow') as HTMLElement | null) ||
-          (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
+          (document.querySelector(
+            '.description .no-overflow'
+          ) as HTMLElement | null) ||
+          (document.querySelector(
+            '#intro .no-overflow'
+          ) as HTMLElement | null) ||
           (document.querySelector('#intro') as HTMLElement | null) ||
           (document.querySelector('.no-overflow') as HTMLElement | null);
 
@@ -130,7 +130,9 @@ export async function getAssignmentDetails(
         }
 
         const tables = Array.from(
-          document.querySelectorAll('.submissionstatustable, .feedbacktable, .generaltable')
+          document.querySelectorAll(
+            '.submissionstatustable, .feedbacktable, .generaltable'
+          )
         );
         const fields: Record<string, string> = {};
 
@@ -261,7 +263,9 @@ export async function getQuizDetails(
           }
         }
       }
-      const descriptionImageUrlsUnique = Array.from(new Set(descriptionImageUrls));
+      const descriptionImageUrlsUnique = Array.from(
+        new Set(descriptionImageUrls)
+      );
       const descriptionImageSet = new Set(descriptionImageUrlsUnique);
 
       const pluginAnchors = Array.from(
@@ -320,7 +324,9 @@ export async function getQuizDetails(
         uniqueAttachments.push(att);
       }
 
-      const pageText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
+      const pageText = (document.body?.innerText || '')
+        .replace(/\s+/g, ' ')
+        .trim();
 
       const num = `(\\d+(?:\\.\\d+)?)`;
       const highestGradeMatch = pageText.match(
@@ -343,7 +349,9 @@ export async function getQuizDetails(
       }
 
       const table =
-        (document.querySelector('table.quizattemptsummary') as HTMLTableElement | null) ||
+        (document.querySelector(
+          'table.quizattemptsummary'
+        ) as HTMLTableElement | null) ||
         (document.querySelector(
           'table.generaltable.quizattemptsummary'
         ) as HTMLTableElement | null) ||
@@ -380,7 +388,9 @@ export async function getQuizDetails(
       }
 
       if (!grade) {
-        const candidateKeys = Object.keys(fields).filter((k) => /grade|mark/i.test(k));
+        const candidateKeys = Object.keys(fields).filter((k) =>
+          /grade|mark/i.test(k)
+        );
         for (const k of candidateKeys) {
           const v = fields[k];
           if (/\d/.test(v) && (v.includes('/') || v.includes('%'))) {

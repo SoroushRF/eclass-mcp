@@ -6,19 +6,17 @@ export const EXTERNAL_PLATFORMS = {
   LTI_LINK_CLASSES: [
     'aalink stretched-link',
     'courseindex-link text-truncate',
-    'autolink'
+    'autolink',
   ],
 
   // CSS classes on the parent container (useful if link class isn't enough)
-  LTI_CONTAINER_CLASSES: [
-    'modtype_lti'
-  ],
+  LTI_CONTAINER_CLASSES: ['modtype_lti'],
 
   // Text heuristics to identify specific platforms from link text or URL
   KEYWORDS: {
     CENGAGE: ['cengage', 'webassign', 'mindtap'],
-    CROWDMARK: ['crowdmark']
-  }
+    CROWDMARK: ['crowdmark'],
+  },
 };
 
 export const OTHER_PLATFORMS = {

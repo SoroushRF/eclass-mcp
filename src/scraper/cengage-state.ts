@@ -121,7 +121,10 @@ export function classifyCengagePageState(
     };
   }
 
-  if (normalized.hasWebassignStudentUrl || normalized.hasWebassignLoginWithCourseKey) {
+  if (
+    normalized.hasWebassignStudentUrl ||
+    normalized.hasWebassignLoginWithCourseKey
+  ) {
     return {
       state: 'course',
       reason: 'Detected WebAssign course/student context.',
@@ -189,8 +192,7 @@ async function collectCengagePageStateSignals(
     const hasLoginButton = Array.from(
       document.querySelectorAll('button, input[type="submit"]')
     ).some((el) => {
-      const text =
-        (el as HTMLInputElement).value || el.textContent || '';
+      const text = (el as HTMLInputElement).value || el.textContent || '';
       return /sign in|log in|continue/i.test(text);
     });
 

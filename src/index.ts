@@ -268,7 +268,9 @@ server.tool(
   'get_professor_details',
   'Fetches detailed ratings, difficulty, and student comments for a specific professor from RateMyProfessors.',
   {
-    teacherId: z.string().describe('The RMP teacher ID (from search_professors)'),
+    teacherId: z
+      .string()
+      .describe('The RMP teacher ID (from search_professors)'),
   },
   (async (args: any) => await getProfessorDetailsTool(args)) as any
 );
@@ -313,8 +315,14 @@ server.tool(
     fileUrl: z.string().optional().describe('Required when resource_type=file'),
     startPage: z.number().optional(),
     endPage: z.number().optional(),
-    url: z.string().optional().describe('Required when resource_type=sectiontext'),
-    courseId: z.string().optional().describe('Required when resource_type=content'),
+    url: z
+      .string()
+      .optional()
+      .describe('Required when resource_type=sectiontext'),
+    courseId: z
+      .string()
+      .optional()
+      .describe('Required when resource_type=content'),
     note: z.string().optional(),
   },
   (async (args: any) => await cachePin(args)) as any

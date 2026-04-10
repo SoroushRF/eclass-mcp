@@ -18,32 +18,40 @@ export async function getCourses(
     await checkSession(page);
 
     await page
-      .waitForFunction(() => {
-        const selectors = [
-          '.course-listitem .coursename',
-          '.coursebox .coursename a',
-          '.card-body .coursename',
-          '.course_title a',
-        ];
+      .waitForFunction(
+        () => {
+          const selectors = [
+            '.course-listitem .coursename',
+            '.coursebox .coursename a',
+            '.card-body .coursename',
+            '.course_title a',
+          ];
 
-        const hasLegacyCourseNode = selectors.some(
-          (s) => document.querySelectorAll(s).length > 0
-        );
-        const hasCourseLinks =
-          document.querySelectorAll('a[href*="course/view.php?id="]').length > 0;
+          const hasLegacyCourseNode = selectors.some(
+            (s) => document.querySelectorAll(s).length > 0
+          );
+          const hasCourseLinks =
+            document.querySelectorAll('a[href*="course/view.php?id="]').length >
+            0;
 
-        const coursesView = document.querySelector('[data-region="courses-view"]');
-        const pageContainer = document.querySelector('[data-region="page-container"]');
-        const isBusy = pageContainer?.getAttribute('aria-busy') === 'true';
-        const totalCount = Number(
-          coursesView?.getAttribute('data-totalcoursecount') || '0'
-        );
-        const settledNoCourses = !!coursesView && !isBusy && totalCount === 0;
+          const coursesView = document.querySelector(
+            '[data-region="courses-view"]'
+          );
+          const pageContainer = document.querySelector(
+            '[data-region="page-container"]'
+          );
+          const isBusy = pageContainer?.getAttribute('aria-busy') === 'true';
+          const totalCount = Number(
+            coursesView?.getAttribute('data-totalcoursecount') || '0'
+          );
+          const settledNoCourses = !!coursesView && !isBusy && totalCount === 0;
 
-        return hasLegacyCourseNode || hasCourseLinks || settledNoCourses;
-      }, {
-        timeout: 20000,
-      })
+          return hasLegacyCourseNode || hasCourseLinks || settledNoCourses;
+        },
+        {
+          timeout: 20000,
+        }
+      )
       .catch(() => null);
 
     const courses = await page.evaluate(() => {
@@ -156,8 +164,12 @@ export async function getCourseContent(
             const items = links
               .map((a) => {
                 const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other' =
-                  'other';
+                let type:
+                  | 'resource'
+                  | 'assign'
+                  | 'announcement'
+                  | 'lti'
+                  | 'other' = 'other';
                 if (href.includes('resource')) type = 'resource';
                 else if (href.includes('assign')) type = 'assign';
                 else if (href.includes('forum')) type = 'announcement';
@@ -220,8 +232,12 @@ export async function getCourseContent(
             const items = moduleLinkEls
               .map((a) => {
                 const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other' =
-                  'other';
+                let type:
+                  | 'resource'
+                  | 'assign'
+                  | 'announcement'
+                  | 'lti'
+                  | 'other' = 'other';
                 if (href.includes('resource')) type = 'resource';
                 else if (href.includes('assign')) type = 'assign';
                 else if (href.includes('forum')) type = 'announcement';
@@ -230,7 +246,8 @@ export async function getCourseContent(
                 return {
                   type,
                   name:
-                    a.querySelector('.instancename, .activityname')
+                    a
+                      .querySelector('.instancename, .activityname')
                       ?.textContent?.trim() ||
                     a.textContent?.trim() ||
                     'Item',
@@ -264,8 +281,12 @@ export async function getCourseContent(
             const items = moduleLinkEls
               .map((a) => {
                 const href = (a as HTMLAnchorElement).href;
-                let type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other' =
-                  'other';
+                let type:
+                  | 'resource'
+                  | 'assign'
+                  | 'announcement'
+                  | 'lti'
+                  | 'other' = 'other';
 
                 if (href.includes('resource')) type = 'resource';
                 else if (href.includes('assign')) type = 'assign';
@@ -275,7 +296,8 @@ export async function getCourseContent(
                 return {
                   type,
                   name:
-                    a.querySelector('.instancename, .activityname')
+                    a
+                      .querySelector('.instancename, .activityname')
                       ?.textContent?.trim() ||
                     a.textContent?.trim() ||
                     'Item',
@@ -294,20 +316,28 @@ export async function getCourseContent(
 
     const platforms: { name: string; url: string }[] = [];
     const seenPlatforms = new Set<string>();
-    
+
     for (const sec of result.sections) {
       for (const item of sec.items) {
         if (item.type === 'lti' || item.url.includes('mod/lti/view.php')) {
           const lowerName = item.name.toLowerCase();
           const lowerUrl = item.url.toLowerCase();
           let platformName = 'unknown_lti';
-          
-          if (EXTERNAL_PLATFORMS.KEYWORDS.CENGAGE.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
-             platformName = 'cengage';
-          } else if (EXTERNAL_PLATFORMS.KEYWORDS.CROWDMARK.some((k: string) => lowerName.includes(k) || lowerUrl.includes(k))) {
-             platformName = 'crowdmark';
+
+          if (
+            EXTERNAL_PLATFORMS.KEYWORDS.CENGAGE.some(
+              (k: string) => lowerName.includes(k) || lowerUrl.includes(k)
+            )
+          ) {
+            platformName = 'cengage';
+          } else if (
+            EXTERNAL_PLATFORMS.KEYWORDS.CROWDMARK.some(
+              (k: string) => lowerName.includes(k) || lowerUrl.includes(k)
+            )
+          ) {
+            platformName = 'crowdmark';
           }
-          
+
           if (!seenPlatforms.has(platformName)) {
             seenPlatforms.add(platformName);
             platforms.push({ name: platformName, url: item.url });
@@ -315,11 +345,11 @@ export async function getCourseContent(
         }
       }
     }
-    
+
     if (platforms.length > 0) {
       result.external_platforms = platforms;
     }
-    
+
     return result;
   } finally {
     await page.close();

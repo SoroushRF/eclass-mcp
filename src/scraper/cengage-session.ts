@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 
 export const CENGAGE_SESSION_DIR = path.resolve(process.cwd(), '.eclass-mcp');
-export const CENGAGE_STATE_PATH = path.join(CENGAGE_SESSION_DIR, 'cengage-state.json');
+export const CENGAGE_STATE_PATH = path.join(
+  CENGAGE_SESSION_DIR,
+  'cengage-state.json'
+);
 export const CENGAGE_SESSION_META_PATH = path.join(
   CENGAGE_SESSION_DIR,
   'cengage-session-meta.json'
@@ -38,30 +41,30 @@ export interface CengageSessionValidityOptions {
   staleHours?: number;
 }
 
-function getSessionPaths(options?: {
-  statePath?: string;
-  metaPath?: string;
-}): { statePath: string; metaPath: string } {
+function getSessionPaths(options?: { statePath?: string; metaPath?: string }): {
+  statePath: string;
+  metaPath: string;
+} {
   return {
     statePath: options?.statePath || CENGAGE_STATE_PATH,
     metaPath: options?.metaPath || CENGAGE_SESSION_META_PATH,
   };
 }
 
-export function ensureCengageSessionDir(statePath: string = CENGAGE_STATE_PATH) {
+export function ensureCengageSessionDir(
+  statePath: string = CENGAGE_STATE_PATH
+) {
   const dir = path.dirname(statePath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
 }
 
-export function saveCengageSessionMetadata(
-  options?: {
-    statePath?: string;
-    metaPath?: string;
-    savedAt?: Date;
-  }
-): void {
+export function saveCengageSessionMetadata(options?: {
+  statePath?: string;
+  metaPath?: string;
+  savedAt?: Date;
+}): void {
   const { statePath, metaPath } = getSessionPaths(options);
   ensureCengageSessionDir(statePath);
 
@@ -79,7 +82,9 @@ interface CengageSessionMetaLoadResult {
   invalid: boolean;
 }
 
-function loadCengageSessionMetadata(metaPath: string): CengageSessionMetaLoadResult {
+function loadCengageSessionMetadata(
+  metaPath: string
+): CengageSessionMetaLoadResult {
   if (!fs.existsSync(metaPath)) {
     return { meta: null, exists: false, invalid: false };
   }

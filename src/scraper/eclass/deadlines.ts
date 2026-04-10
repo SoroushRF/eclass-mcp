@@ -92,7 +92,9 @@ export async function getMonthDeadlines(
 
     const items = await page.evaluate(() => {
       const eventEls = Array.from(
-        document.querySelectorAll('.calendar_event_course, .calendar_event, .event')
+        document.querySelectorAll(
+          '.calendar_event_course, .calendar_event, .event'
+        )
       );
 
       return eventEls
@@ -115,14 +117,17 @@ export async function getMonthDeadlines(
 
           const title =
             (
-              el.querySelector('.eventname, .name, .card-title, .calendar_event_name')
-                ?.textContent ||
+              el.querySelector(
+                '.eventname, .name, .card-title, .calendar_event_name'
+              )?.textContent ||
               links[0]?.textContent ||
               ''
             ).trim() || 'Untitled Event';
 
           const dateText =
-            (el.querySelector('time') as HTMLTimeElement | null)?.getAttribute('datetime') ||
+            (el.querySelector('time') as HTMLTimeElement | null)?.getAttribute(
+              'datetime'
+            ) ||
             (el.querySelector('time') as HTMLTimeElement | null)?.textContent ||
             el.getAttribute('aria-label') ||
             '' ||
@@ -188,14 +193,20 @@ export async function getAssignmentIndexDeadlines(
             const tds = Array.from(tr.querySelectorAll('td'));
             const mapped: Record<string, string> = {};
             headers.forEach((h, i) => {
-              mapped[h] = (tds[i]?.textContent || '').trim().replace(/\s+/g, ' ');
+              mapped[h] = (tds[i]?.textContent || '')
+                .trim()
+                .replace(/\s+/g, ' ');
             });
 
             const link = tr.querySelector(
               'a[href*="/mod/assign/view.php?id="]'
             ) as HTMLAnchorElement | null;
             const href = link?.href || '';
-            const name = (link?.textContent || mapped['Assignments'] || '').trim();
+            const name = (
+              link?.textContent ||
+              mapped['Assignments'] ||
+              ''
+            ).trim();
             if (!href || !name) return null;
 
             const idMatch = href.match(/[?&]id=(\d+)/);

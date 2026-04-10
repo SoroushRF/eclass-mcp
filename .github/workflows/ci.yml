@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     timeout-minutes: 15
@@ -32,8 +36,36 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Typecheck (No Emit)
+        run: npm run typecheck
+
+      - name: Typecheck Tests (No Emit)
+        run: npm run typecheck:tests
+
       - name: Lint
         run: npm run lint
 
-      - name: Test
-        run: npm test
+      - name: Format Check
+        run: npm run format:check
+
+      - name: Test (Coverage)
+        run: npm run test:coverage
+
+      - name: Upload Coverage Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.os }}-node-${{ matrix.node-version }}
+          path: coverage/
+
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4

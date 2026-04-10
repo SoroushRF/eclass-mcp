@@ -67,11 +67,7 @@ export async function cachePin(args: {
           message: 'fileUrl is required for resource_type=file',
         });
       }
-      cacheKey = buildFileCacheKey(
-        args.fileUrl,
-        args.startPage,
-        args.endPage
-      );
+      cacheKey = buildFileCacheKey(args.fileUrl, args.startPage, args.endPage);
     } else if (resource_type === 'sectiontext') {
       if (!args.url) {
         return jsonResponse({
@@ -99,8 +95,7 @@ export async function cachePin(args: {
         ok: false,
         reason: 'not_cached',
         cacheKey,
-        hint:
-          'Fetch the resource first with get_file_text, get_section_text, or get_course_content, or use cache_refresh_pin after fixing session.',
+        hint: 'Fetch the resource first with get_file_text, get_section_text, or get_course_content, or use cache_refresh_pin after fixing session.',
       });
     }
 
@@ -146,7 +141,11 @@ export async function cacheUnpin(args: { pinId: string }) {
   try {
     const removed = removePin(args.pinId);
     if (!removed) {
-      return jsonResponse({ ok: false, reason: 'not_found', pinId: args.pinId });
+      return jsonResponse({
+        ok: false,
+        reason: 'not_found',
+        pinId: args.pinId,
+      });
     }
     return jsonResponse({
       ok: true,
@@ -202,7 +201,11 @@ export async function cacheRefreshPin(args: { pinId: string }) {
   try {
     const pin = getPinById(args.pinId);
     if (!pin) {
-      return jsonResponse({ ok: false, reason: 'not_found', pinId: args.pinId });
+      return jsonResponse({
+        ok: false,
+        reason: 'not_found',
+        pinId: args.pinId,
+      });
     }
 
     if (pin.resource_type === 'file') {
@@ -252,7 +255,11 @@ export async function cacheDeletePinned(args: {
     if (args.pinId) {
       const pin = getPinById(args.pinId);
       if (!pin) {
-        return jsonResponse({ ok: false, reason: 'not_found', pinId: args.pinId });
+        return jsonResponse({
+          ok: false,
+          reason: 'not_found',
+          pinId: args.pinId,
+        });
       }
       const fp = getCacheFilePathForKey(pin.cacheKey);
       if (fs.existsSync(fp)) {

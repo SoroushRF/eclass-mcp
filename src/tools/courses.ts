@@ -25,11 +25,14 @@ export async function listCourses() {
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.COURSES * 60000);
-    const resp = attachCacheMeta({ courses }, {
-      hit: false,
-      fetched_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-    });
+    const resp = attachCacheMeta(
+      { courses },
+      {
+        hit: false,
+        fetched_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+      }
+    );
 
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(resp) }],

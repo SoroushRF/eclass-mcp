@@ -4,7 +4,11 @@ import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 
 export async function getAnnouncements(courseId?: string, limit: number = 10) {
   try {
-    const cacheKey = getCacheKey('announcements', courseId || 'all', limit.toString());
+    const cacheKey = getCacheKey(
+      'announcements',
+      courseId || 'all',
+      limit.toString()
+    );
     const cached = cache.getWithMeta<Announcement[]>(cacheKey);
 
     if (cached) {

@@ -120,10 +120,12 @@ function toDeadlineItems(assignments: Assignment[]): DeadlineItem[] {
   return assignments.map((a) => ({ ...a, type: inferTypeFromUrl(a.url) }));
 }
 
-async function getDetailsWithMeta(url: string): Promise<{ data: ItemDetails; meta: any }> {
+async function getDetailsWithMeta(
+  url: string
+): Promise<{ data: ItemDetails; meta: any }> {
   const key = detailsCacheKey(url);
   const cached = cache.getWithMeta<ItemDetails>(key);
-  
+
   if (cached) {
     return {
       data: cached.data,
@@ -131,13 +133,13 @@ async function getDetailsWithMeta(url: string): Promise<{ data: ItemDetails; met
         hit: true,
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
-      }
+      },
     };
   }
-  
+
   const details = await scraper.getItemDetails(url);
   cache.set(key, details, TTL.DETAILS);
-  
+
   const now = new Date();
   const expiresAt = new Date(now.getTime() + TTL.DETAILS * 60000);
   return {
@@ -146,7 +148,7 @@ async function getDetailsWithMeta(url: string): Promise<{ data: ItemDetails; met
       hit: false,
       fetched_at: now.toISOString(),
       expires_at: expiresAt.toISOString(),
-    }
+    },
   };
 }
 
@@ -180,13 +182,23 @@ export async function getDeadlines(params: {
       const cached = cache.getWithMeta<Assignment[]>(key);
       if (cached && hasUsableItems(cached.data)) {
         items = toDeadlineItems(cached.data);
-        cacheMeta = { hit: true, fetched_at: cached.fetched_at, expires_at: cached.expires_at };
+        cacheMeta = {
+          hit: true,
+          fetched_at: cached.fetched_at,
+          expires_at: cached.expires_at,
+        };
       } else {
         const deadlines = await scraper.getDeadlines(courseId);
         cache.set(key, deadlines, TTL.DEADLINES);
         items = toDeadlineItems(deadlines);
         const now = new Date();
-        cacheMeta = { hit: false, fetched_at: now.toISOString(), expires_at: new Date(now.getTime() + TTL.DEADLINES * 60000).toISOString() };
+        cacheMeta = {
+          hit: false,
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + TTL.DEADLINES * 60000
+          ).toISOString(),
+        };
       }
     } else if (scope === 'month') {
       const m = month ?? new Date().getMonth() + 1;
@@ -196,16 +208,27 @@ export async function getDeadlines(params: {
       const cached = cache.getWithMeta<DeadlineItem[]>(key);
       if (cached && hasUsableItems(cached.data)) {
         items = cached.data;
-        cacheMeta = { hit: true, fetched_at: cached.fetched_at, expires_at: cached.expires_at };
+        cacheMeta = {
+          hit: true,
+          fetched_at: cached.fetched_at,
+          expires_at: cached.expires_at,
+        };
       } else {
-        const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
+        const allAssignments =
+          await scraper.getAllAssignmentDeadlines(courseId);
         items = allAssignments.filter((it) => {
           const d = parseEClassDate(it.dueDate);
           return d ? isSameMonthYear(d, m, y) : false;
         });
         cache.set(key, items, TTL.DEADLINES);
         const now = new Date();
-        cacheMeta = { hit: false, fetched_at: now.toISOString(), expires_at: new Date(now.getTime() + TTL.DEADLINES * 60000).toISOString() };
+        cacheMeta = {
+          hit: false,
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + TTL.DEADLINES * 60000
+          ).toISOString(),
+        };
       }
     } else if (scope === 'range') {
       if (!from || !to) {
@@ -221,9 +244,14 @@ export async function getDeadlines(params: {
       const cached = cache.getWithMeta<DeadlineItem[]>(key);
       if (cached && hasUsableItems(cached.data)) {
         items = cached.data;
-        cacheMeta = { hit: true, fetched_at: cached.fetched_at, expires_at: cached.expires_at };
+        cacheMeta = {
+          hit: true,
+          fetched_at: cached.fetched_at,
+          expires_at: cached.expires_at,
+        };
       } else {
-        const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
+        const allAssignments =
+          await scraper.getAllAssignmentDeadlines(courseId);
         const filtered = allAssignments.filter((it) => {
           const d = parseEClassDate(it.dueDate);
           if (!d) return false;
@@ -241,7 +269,13 @@ export async function getDeadlines(params: {
 
         cache.set(key, items, TTL.DEADLINES);
         const now = new Date();
-        cacheMeta = { hit: false, fetched_at: now.toISOString(), expires_at: new Date(now.getTime() + TTL.DEADLINES * 60000).toISOString() };
+        cacheMeta = {
+          hit: false,
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + TTL.DEADLINES * 60000
+          ).toISOString(),
+        };
       }
     }
 
@@ -504,7 +538,7 @@ export async function getItemDetails(params: {
       const allImageUrls = details.descriptionImageUrls ?? [];
       const offset = Math.max(0, imageOffset);
       const slice = allImageUrls.slice(offset);
-      
+
       const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
       let usedBytes = 0;
       for (let i = 0; i < slice.length; i++) {
