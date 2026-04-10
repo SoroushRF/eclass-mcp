@@ -8,6 +8,7 @@ import {
   CENGAGE_SESSION_STALE_HOURS,
   getCengageSessionValidity,
 } from './cengage-session';
+import { detectCengagePageState } from './cengage-state';
 import { normalizeAndClassifyCengageEntry } from './cengage-url';
 
 export interface WebAssignAssignment {
@@ -81,23 +82,47 @@ export class CengageScraper {
         );
       }
 
+      // Initial state snapshot gives deterministic context for auth/dashboard/course transitions.
+      const initialState = await detectCengagePageState(page);
+      if (initialState.state === 'login') {
+        throw new CengageAuthRequiredError(
+          'Cengage authentication is required before assignment extraction.',
+          {
+            entryUrl,
+            linkType: entry.linkType,
+            pageState: initialState,
+          }
+        );
+      }
+
       // Wait for the specific WebAssign student home URL or dashboard indicators
       try {
         await page.waitForURL(/(.*webassign\.net\/web\/Student.*|.*webassign\.net\/v4cgi\/student.*)/i, {
           timeout: 30000,
         });
       } catch (error) {
-        const currentUrl = page.url();
-        const currentLower = currentUrl.toLowerCase();
-        const looksLikeLogin =
-          currentLower.includes('login.cengage.com') ||
-          currentLower.includes('/login') ||
-          currentLower.includes('/signin');
+        const currentState = await detectCengagePageState(page);
 
-        if (looksLikeLogin) {
+        if (currentState.state === 'login') {
           throw new CengageAuthRequiredError(
             'Cengage authentication is required before assignment extraction.',
-            { entryUrl, linkType: entry.linkType, currentUrl }
+            {
+              entryUrl,
+              linkType: entry.linkType,
+              pageState: currentState,
+            }
+          );
+        }
+
+        if (currentState.state === 'dashboard') {
+          throw new CengageNavigationError(
+            'Reached Cengage dashboard but no course was selected yet.',
+            {
+              entryUrl,
+              linkType: entry.linkType,
+              pageState: currentState,
+              cause: error instanceof Error ? error.message : 'Unknown error',
+            }
           );
         }
 
@@ -106,7 +131,7 @@ export class CengageScraper {
           {
             entryUrl,
             linkType: entry.linkType,
-            currentUrl,
+            pageState: currentState,
             cause: error instanceof Error ? error.message : 'Unknown error',
           }
         );
