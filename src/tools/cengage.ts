@@ -3,6 +3,7 @@ import {
   CengageAuthRequiredError,
   CengageError,
 } from '../scraper/cengage-errors';
+import { getAuthUrl } from '../auth/server';
 import type { GetCengageAssignmentsResponse } from './cengage-contracts';
 import { GetCengageAssignmentsResponseSchema } from './cengage-contracts';
 
@@ -58,7 +59,7 @@ export async function getCengageAssignments(ssoUrl: string) {
         entryUrl: ssoUrl,
         assignments: [],
         message:
-          'Cengage authentication required. Please log in at http://localhost:3000/auth-cengage and retry.',
+          `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
       });
     }
 

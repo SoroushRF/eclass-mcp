@@ -23,6 +23,17 @@ function getAuthServerPort(): number {
   return authServerPort ?? AUTH_PORT;
 }
 
+type AuthPlatform = 'eclass' | 'cengage';
+
+const AUTH_PATHS: Record<AuthPlatform, string> = {
+  eclass: '/auth',
+  cengage: '/auth-cengage',
+};
+
+export function getAuthUrl(platform: AuthPlatform = 'eclass'): string {
+  return `http://localhost:${getAuthServerPort()}${AUTH_PATHS[platform]}`;
+}
+
 function listenOnPort(server: http.Server, port: number): Promise<number> {
   return new Promise((resolve, reject) => {
     const onError = (error: NodeJS.ErrnoException) => {
@@ -197,7 +208,7 @@ export async function startAuthServer() {
 }
 
 export function openAuthWindow() {
-  const url = `http://localhost:${getAuthServerPort()}/auth`;
+  const url = getAuthUrl('eclass');
   const cmd = process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`;
   exec(cmd, () => {});
 }
