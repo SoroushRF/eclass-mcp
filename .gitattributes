@@ -1,0 +1,6 @@
+# Keep text files on LF across all operating systems so Prettier checks are deterministic.
+* text=auto eol=lf
+
+# If Windows command scripts are added, keep their native line endings.
+*.bat text eol=crlf
+*.cmd text eol=crlf
