@@ -16,6 +16,7 @@ import { getAuthUrl } from '../auth/server';
 import type {
   DiscoverCengageLinksInput,
   DiscoverCengageLinksResponse,
+  GetCengageAssignmentsInput,
   GetCengageAssignmentsResponse,
   ListCengageCoursesInput,
   ListCengageCoursesResponse,
@@ -216,6 +217,29 @@ function mapCourseSummary(course: CengageDashboardCourse) {
   };
 }
 
+function summarizeCourseCandidates(
+  candidates: CengageDashboardCourse[]
+): string {
+  return candidates
+    .slice(0, 5)
+    .map((course) => {
+      const idParts = [course.courseId, course.courseKey].filter(Boolean);
+      const suffix = idParts.length > 0 ? ` [${idParts.join(' | ')}]` : '';
+      return `${course.title}${suffix}`;
+    })
+    .join('; ');
+}
+
+function resolveAssignmentsInput(
+  input: GetCengageAssignmentsInput | string
+): GetCengageAssignmentsInput {
+  if (typeof input === 'string') {
+    return { ssoUrl: input };
+  }
+
+  return input;
+}
+
 export async function listCengageCourses(input: ListCengageCoursesInput) {
   const scraper = new CengageScraper();
   const entryUrl = resolveListingEntryUrl(input);
@@ -333,10 +357,57 @@ export async function discoverCengageLinks(input: DiscoverCengageLinksInput) {
   }
 }
 
-export async function getCengageAssignments(ssoUrl: string) {
+export async function getCengageAssignments(
+  input: GetCengageAssignmentsInput | string
+) {
   const scraper = new CengageScraper();
+  const args = resolveAssignmentsInput(input);
+  const entryUrl = (args.entryUrl || args.ssoUrl || '').trim();
+
   try {
-    const assignments = await scraper.getAssignments(ssoUrl);
+    if (!entryUrl) {
+      return asToolResponse({
+        status: 'error',
+        assignments: [],
+        message: 'entryUrl or ssoUrl is required.',
+      });
+    }
+
+    const courses = await scraper.listDashboardCourses(entryUrl);
+    const selection = resolveDashboardCourseSelection(courses, {
+      courseId: args.courseId,
+      courseKey: args.courseKey,
+      courseQuery: args.courseQuery,
+    });
+
+    if (
+      selection.status === 'selection_required' ||
+      selection.status === 'ambiguous'
+    ) {
+      const candidatesSummary = summarizeCourseCandidates(selection.candidates);
+      const suffix = candidatesSummary
+        ? ` Candidates: ${candidatesSummary}`
+        : '';
+
+      return asToolResponse({
+        status: 'needs_course_selection',
+        entryUrl,
+        assignments: [],
+        message: `${selection.message}${suffix}`,
+      });
+    }
+
+    if (selection.status === 'not_found' || !selection.selectedCourse) {
+      return asToolResponse({
+        status: 'no_data',
+        entryUrl,
+        assignments: [],
+        message: selection.message,
+      });
+    }
+
+    const selectedCourse = selection.selectedCourse;
+    const assignments = await scraper.getAssignments(selectedCourse.launchUrl);
 
     const assignmentRows = assignments.map((a) => ({
       name: a.name,
@@ -354,7 +425,8 @@ export async function getCengageAssignments(ssoUrl: string) {
     if (assignments.length === 0) {
       return asToolResponse({
         status: 'no_data',
-        entryUrl: ssoUrl,
+        entryUrl,
+        selectedCourse: mapCourseSummary(selectedCourse),
         assignments: assignmentRows,
         message:
           'No assignments were found. Verify the URL points to the correct course/dashboard and that your Cengage session is active.',
@@ -363,14 +435,15 @@ export async function getCengageAssignments(ssoUrl: string) {
 
     return asToolResponse({
       status: 'ok',
-      entryUrl: ssoUrl,
+      entryUrl,
+      selectedCourse: mapCourseSummary(selectedCourse),
       assignments: assignmentRows,
     });
   } catch (error: unknown) {
     if (error instanceof CengageAuthRequiredError) {
       return asToolResponse({
         status: 'auth_required',
-        entryUrl: ssoUrl,
+        entryUrl,
         assignments: [],
         message: `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
       });
@@ -379,7 +452,7 @@ export async function getCengageAssignments(ssoUrl: string) {
     if (error instanceof CengageError) {
       return asToolResponse({
         status: 'error',
-        entryUrl: ssoUrl,
+        entryUrl,
         assignments: [],
         message: `${error.message} [${error.code}]`,
       });
@@ -388,7 +461,7 @@ export async function getCengageAssignments(ssoUrl: string) {
     if (error instanceof Error) {
       return asToolResponse({
         status: 'error',
-        entryUrl: ssoUrl,
+        entryUrl,
         assignments: [],
         message: `Failed to fetch Cengage assignments: ${error.message}`,
       });
@@ -396,7 +469,7 @@ export async function getCengageAssignments(ssoUrl: string) {
 
     return asToolResponse({
       status: 'error',
-      entryUrl: ssoUrl,
+      entryUrl,
       assignments: [],
       message: 'Failed to fetch Cengage assignments due to an unknown error.',
     });

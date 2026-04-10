@@ -36,7 +36,7 @@ import {
 } from './tools/cengage';
 import {
   DiscoverCengageLinksInputSchema,
-  GetCengageAssignmentsLegacyInputSchema,
+  GetCengageAssignmentsInputSchema,
   ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
 
@@ -301,9 +301,16 @@ server.tool(
 
 server.tool(
   'get_cengage_assignments',
-  'Fetches assignment list and deadlines from Cengage/WebAssign. Provide the LTI launch URL or course SSO link found in eClass.',
-  GetCengageAssignmentsLegacyInputSchema.shape,
-  (async ({ ssoUrl }: any) => await getCengageAssignments(ssoUrl)) as any
+  'Fetches assignment list and deadlines from Cengage/WebAssign using direct course links, dashboard links, or legacy SSO links. Supports optional course selection inputs when multiple courses are present.',
+  GetCengageAssignmentsInputSchema.shape,
+  (async ({ entryUrl, ssoUrl, courseId, courseKey, courseQuery }: any) =>
+    await getCengageAssignments({
+      entryUrl,
+      ssoUrl,
+      courseId,
+      courseKey,
+      courseQuery,
+    })) as any
 );
 
 server.tool(
