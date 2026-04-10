@@ -1,0 +1,28 @@
+[
+  {
+    "id": "asg-4101",
+    "name": "Homework 1",
+    "dueDate": "2026-02-12 23:59",
+    "dueDateIso": "2026-02-12T23:59:00",
+    "dueDateRaw": "Feb 12, 2026 11:59 PM",
+    "score": "9/10",
+    "status": "Graded",
+    "rawText": "Homework 1 Due Date Feb 12, 2026 11:59 PM Submitted Score 9/10",
+    "courseId": "math-1010",
+    "courseTitle": "MATH 1010 - Calculus I",
+    "url": "/assignment/4101"
+  },
+  {
+    "id": "asg-4102",
+    "name": "Practice Quiz",
+    "dueDate": "2026-03-01 20:00",
+    "dueDateIso": "2026-03-01T20:00:00",
+    "dueDateRaw": "03/01/2026 08:00 PM",
+    "score": "0/10",
+    "status": "Pending",
+    "rawText": "Practice Quiz Due Date 03/01/2026 08:00 PM Not Submitted Score 0/10",
+    "courseId": "math-1010",
+    "courseTitle": "MATH 1010 - Calculus I",
+    "url": "/assignment/4102"
+  }
+]

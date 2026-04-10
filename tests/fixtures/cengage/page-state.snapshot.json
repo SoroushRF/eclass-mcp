@@ -1,0 +1,79 @@
+[
+  {
+    "id": "login_url",
+    "state": "login",
+    "reason": "Detected login URL or login form controls.",
+    "markers": {
+      "hasLoginUrl": true,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  },
+  {
+    "id": "login_form_controls",
+    "state": "login",
+    "reason": "Detected login URL or login form controls.",
+    "markers": {
+      "hasLoginUrl": false,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  },
+  {
+    "id": "dashboard_url",
+    "state": "dashboard",
+    "reason": "Detected dashboard-style URL or course list markers.",
+    "markers": {
+      "hasLoginUrl": false,
+      "hasDashboardUrl": true,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  },
+  {
+    "id": "dashboard_by_course_links",
+    "state": "dashboard",
+    "reason": "Detected dashboard-style URL or course list markers.",
+    "markers": {
+      "hasLoginUrl": false,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  },
+  {
+    "id": "course_webassign_login_with_coursekey",
+    "state": "course",
+    "reason": "Detected WebAssign course/student context.",
+    "markers": {
+      "hasLoginUrl": true,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": true
+    }
+  },
+  {
+    "id": "assignments_webassign_student_due_date",
+    "state": "assignments",
+    "reason": "Detected WebAssign student page with assignment indicators.",
+    "markers": {
+      "hasLoginUrl": false,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": true,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  },
+  {
+    "id": "unknown_page",
+    "state": "unknown",
+    "reason": "No known Cengage/WebAssign state markers were detected.",
+    "markers": {
+      "hasLoginUrl": false,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  }
+]

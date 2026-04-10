@@ -1,0 +1,24 @@
+[
+  {
+    "title": "MATH 1010 - Calculus I",
+    "launchUrl": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9001",
+    "platform": "webassign",
+    "confidence": 0.99,
+    "courseId": "math-1010",
+    "courseKey": "WA-production-9001"
+  },
+  {
+    "title": "MATH 1020 - Calculus II",
+    "launchUrl": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9002",
+    "platform": "webassign",
+    "confidence": 0.99,
+    "courseKey": "WA-production-9002"
+  },
+  {
+    "title": "CHEM 1000 - Intro Chem",
+    "launchUrl": "https://www.cengage.com/mindtap/course/chem-1000?courseId=chem-1000",
+    "platform": "cengage",
+    "confidence": 0.7,
+    "courseId": "chem-1000"
+  }
+]

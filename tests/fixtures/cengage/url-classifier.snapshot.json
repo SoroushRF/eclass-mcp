@@ -1,0 +1,32 @@
+[
+  {
+    "id": "lti_launch",
+    "linkType": "eclass_lti",
+    "host": "eclass.yorku.ca",
+    "normalizedUrl": "https://eclass.yorku.ca/mod/lti/view.php?id=12345"
+  },
+  {
+    "id": "webassign_course",
+    "linkType": "webassign_course",
+    "host": "www.webassign.net",
+    "normalizedUrl": "https://www.webassign.net/v4cgi/login.pl?pid=571417&courseKey=WA-production-1607530"
+  },
+  {
+    "id": "webassign_dashboard",
+    "linkType": "webassign_dashboard",
+    "host": "www.webassign.net",
+    "normalizedUrl": "https://www.webassign.net/web/Student/Home.html"
+  },
+  {
+    "id": "cengage_dashboard",
+    "linkType": "cengage_dashboard",
+    "host": "www.cengage.com",
+    "normalizedUrl": "https://www.cengage.com/dashboard/home"
+  },
+  {
+    "id": "cengage_login",
+    "linkType": "cengage_login",
+    "host": "login.cengage.com",
+    "normalizedUrl": "https://login.cengage.com/"
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "Lab Report 3",
+    "dueDate": "2026-03-15",
+    "dueDateIso": "2026-03-15T00:00:00",
+    "dueDateRaw": "Mar 15, 2026",
+    "status": "Submitted",
+    "rawText": "Lab Report 3 Assignment Due Date Mar 15, 2026 Submitted"
+  },
+  {
+    "name": "Weekly Reflection",
+    "dueDate": "2026-04-10",
+    "dueDateIso": "2026-04-10T00:00:00",
+    "dueDateRaw": "2026-04-10",
+    "status": "Unknown",
+    "rawText": "Weekly Reflection Due Date 2026-04-10"
+  }
+]

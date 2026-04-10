@@ -1,0 +1,17 @@
+[
+  {
+    "href": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9001",
+    "text": "MATH 1010 - Calculus I",
+    "dataCourseId": "math-1010",
+    "dataCourseKey": "WA-production-9001"
+  },
+  {
+    "href": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9002#launch",
+    "text": "MATH 1020 - Calculus II"
+  },
+  {
+    "href": "/mindtap/course/chem-1000?courseId=chem-1000",
+    "text": "CHEM 1000 - Intro Chem",
+    "dataCourseId": "chem-1000"
+  }
+]

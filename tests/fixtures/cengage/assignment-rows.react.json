@@ -1,0 +1,20 @@
+[
+  {
+    "id": "asg-4101",
+    "href": "/assignment/4101",
+    "name": "Homework 1",
+    "dueDate": "Feb 12, 2026 11:59 PM",
+    "statusHint": "Submitted",
+    "score": "9/10",
+    "rowText": "Homework 1 Due Date Feb 12, 2026 11:59 PM Submitted Score 9/10"
+  },
+  {
+    "id": "asg-4102",
+    "href": "/assignment/4102",
+    "name": "Practice Quiz",
+    "dueDate": "03/01/2026 08:00 PM",
+    "statusHint": "Not Submitted",
+    "score": "0/10",
+    "rowText": "Practice Quiz Due Date 03/01/2026 08:00 PM Not Submitted Score 0/10"
+  }
+]

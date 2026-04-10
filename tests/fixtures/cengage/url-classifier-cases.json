@@ -1,0 +1,22 @@
+[
+  {
+    "id": "lti_launch",
+    "input": "https://eclass.yorku.ca/mod/lti/view.php?id=12345"
+  },
+  {
+    "id": "webassign_course",
+    "input": "https://www.webassign.net/v4cgi/login.pl?pid=571417&amp;courseKey=WA-production-1607530#launch"
+  },
+  {
+    "id": "webassign_dashboard",
+    "input": "https://www.webassign.net/web/Student/Home.html"
+  },
+  {
+    "id": "cengage_dashboard",
+    "input": "https://www.cengage.com/dashboard/home"
+  },
+  {
+    "id": "cengage_login",
+    "input": "https://login.cengage.com/"
+  }
+]

@@ -1,0 +1,55 @@
+[
+  {
+    "id": "login_url",
+    "signals": {
+      "url": "https://login.cengage.com/",
+      "title": "Sign In"
+    }
+  },
+  {
+    "id": "login_form_controls",
+    "signals": {
+      "url": "https://www.cengage.com/account",
+      "hasPasswordInput": true,
+      "hasLoginButton": true
+    }
+  },
+  {
+    "id": "dashboard_url",
+    "signals": {
+      "url": "https://www.cengage.com/dashboard/home",
+      "title": "Dashboard"
+    }
+  },
+  {
+    "id": "dashboard_by_course_links",
+    "signals": {
+      "url": "https://www.cengage.com/landing",
+      "hasCourseLinks": true,
+      "title": "My Courses"
+    }
+  },
+  {
+    "id": "course_webassign_login_with_coursekey",
+    "signals": {
+      "url": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1607530",
+      "title": "Launch"
+    }
+  },
+  {
+    "id": "assignments_webassign_student_due_date",
+    "signals": {
+      "url": "https://www.webassign.net/web/Student/Home.html",
+      "hasDueDateText": true,
+      "bodyTextSnippet": "Due Date Apr 20, 2026"
+    }
+  },
+  {
+    "id": "unknown_page",
+    "signals": {
+      "url": "https://example.org/path",
+      "title": "Example Page",
+      "bodyTextSnippet": "hello world"
+    }
+  }
+]
