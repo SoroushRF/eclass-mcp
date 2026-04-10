@@ -104,7 +104,7 @@ function hasUsableItems<T>(value: T[] | null): value is T[] {
 function detailsCacheKey(url: string) {
   // Use a hash or shortened URL for the key segment
   const shortened = url.length > 150 ? url.slice(-150) : url;
-  return getCacheKey('details', shortened);
+  return getCacheKey('details', 'v2', shortened);
 }
 
 function inferTypeFromUrl(url: string): 'assign' | 'quiz' | 'other' {

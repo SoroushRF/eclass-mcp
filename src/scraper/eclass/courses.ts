@@ -195,133 +195,136 @@ export async function getCourseContent(
       return null;
     });
 
-    if (indexSectionsData && indexSectionsData.length > 0) {
-      return { courseId, sections: indexSectionsData as any };
-    }
+    let sectionsData = indexSectionsData as any[] | null;
 
-    const isOneSectionPerPage = await page.evaluate(() => {
-      const modules = document.querySelectorAll(
-        '.activityinstance a, .activity-item a'
-      );
-      const sections = document.querySelectorAll(
-        'a[href*="course/view.php?id="][href*="&section="]'
-      );
-      return modules.length === 0 && sections.length > 0;
-    });
-
-    let sectionsData;
-
-    if (isOneSectionPerPage) {
-      const sectionLinks = await page.evaluate(() => {
-        const links = Array.from(
-          document.querySelectorAll(
-            'a[href*="course/view.php?id="][href*="&section="]'
-          )
-        ) as HTMLAnchorElement[];
-        return Array.from(new Set(links.map((a) => a.href)));
-      });
-
-      const gatheredSections: any[] = [];
-      for (const link of sectionLinks) {
-        try {
-          await page.goto(link, { waitUntil: 'load' });
-          const sec = await page.evaluate(() => {
-            const title =
-              document
-                .querySelector('h2, .sectionname, h3')
-                ?.textContent?.trim() || 'Topic / Week';
-            const moduleLinkEls = Array.from(
-              document.querySelectorAll('.activityinstance a, .activity-item a')
-            );
-
-            const items = moduleLinkEls
-              .map((a) => {
-                const href = (a as HTMLAnchorElement).href;
-                let type:
-                  | 'resource'
-                  | 'assign'
-                  | 'announcement'
-                  | 'lti'
-                  | 'url'
-                  | 'other' = 'other';
-                if (href.includes('resource')) type = 'resource';
-                else if (href.includes('assign')) type = 'assign';
-                else if (href.includes('forum')) type = 'announcement';
-                else if (href.includes('lti')) type = 'lti';
-                else if (href.includes('mod/url/')) type = 'url';
-
-                return {
-                  type,
-                  name:
-                    a
-                      .querySelector('.instancename, .activityname')
-                      ?.textContent?.trim() ||
-                    a.textContent?.trim() ||
-                    'Item',
-                  url: href,
-                };
-              })
-              .filter((i) => i.url);
-            return { title, items };
-          });
-          if (sec.items.length > 0) gatheredSections.push(sec);
-        } catch {
-          // Ignore single section load failures
-        }
-      }
-      sectionsData = gatheredSections;
-    } else {
-      sectionsData = await page.evaluate(() => {
-        const sectionEls = Array.from(
-          document.querySelectorAll('.section, .course-section')
+    if (!sectionsData || sectionsData.length === 0) {
+      const isOneSectionPerPage = await page.evaluate(() => {
+        const modules = document.querySelectorAll(
+          '.activityinstance a, .activity-item a'
         );
-
-        return sectionEls
-          .map((s) => {
-            const title =
-              s.querySelector('.sectionname, h3')?.textContent?.trim() ||
-              'General';
-            const moduleLinkEls = Array.from(
-              s.querySelectorAll('.activityinstance a, .activity-item a')
-            );
-
-            const items = moduleLinkEls
-              .map((a) => {
-                const href = (a as HTMLAnchorElement).href;
-                let type:
-                  | 'resource'
-                  | 'assign'
-                  | 'announcement'
-                  | 'lti'
-                  | 'url'
-                  | 'other' = 'other';
-
-                if (href.includes('resource')) type = 'resource';
-                else if (href.includes('assign')) type = 'assign';
-                else if (href.includes('forum')) type = 'announcement';
-                else if (href.includes('lti')) type = 'lti';
-                else if (href.includes('mod/url/')) type = 'url';
-
-                return {
-                  type,
-                  name:
-                    a
-                      .querySelector('.instancename, .activityname')
-                      ?.textContent?.trim() ||
-                    a.textContent?.trim() ||
-                    'Item',
-                  url: href,
-                };
-              })
-              .filter((i) => i.url);
-
-            return { title, items };
-          })
-          .filter((s) => s.items.length > 0);
+        const sections = document.querySelectorAll(
+          'a[href*="course/view.php?id="][href*="&section="]'
+        );
+        return modules.length === 0 && sections.length > 0;
       });
+
+      if (isOneSectionPerPage) {
+        const sectionLinks = await page.evaluate(() => {
+          const links = Array.from(
+            document.querySelectorAll(
+              'a[href*="course/view.php?id="][href*="&section="]'
+            )
+          ) as HTMLAnchorElement[];
+          return Array.from(new Set(links.map((a) => a.href)));
+        });
+
+        const gatheredSections: any[] = [];
+        for (const link of sectionLinks) {
+          try {
+            await page.goto(link, { waitUntil: 'load' });
+            const sec = await page.evaluate(() => {
+              const title =
+                document
+                  .querySelector('h2, .sectionname, h3')
+                  ?.textContent?.trim() || 'Topic / Week';
+              const moduleLinkEls = Array.from(
+                document.querySelectorAll(
+                  '.activityinstance a, .activity-item a'
+                )
+              );
+
+              const items = moduleLinkEls
+                .map((a) => {
+                  const href = (a as HTMLAnchorElement).href;
+                  let type:
+                    | 'resource'
+                    | 'assign'
+                    | 'announcement'
+                    | 'lti'
+                    | 'url'
+                    | 'other' = 'other';
+                  if (href.includes('resource')) type = 'resource';
+                  else if (href.includes('assign')) type = 'assign';
+                  else if (href.includes('forum')) type = 'announcement';
+                  else if (href.includes('lti')) type = 'lti';
+                  else if (href.includes('mod/url/')) type = 'url';
+
+                  return {
+                    type,
+                    name:
+                      a
+                        .querySelector('.instancename, .activityname')
+                        ?.textContent?.trim() ||
+                      a.textContent?.trim() ||
+                      'Item',
+                    url: href,
+                  };
+                })
+                .filter((i) => i.url);
+              return { title, items };
+            });
+            if (sec.items.length > 0) gatheredSections.push(sec);
+          } catch {
+            // Ignore single section load failures
+          }
+        }
+        sectionsData = gatheredSections;
+      } else {
+        sectionsData = await page.evaluate(() => {
+          const sectionEls = Array.from(
+            document.querySelectorAll('.section, .course-section')
+          );
+
+          return sectionEls
+            .map((s) => {
+              const title =
+                s.querySelector('.sectionname, h3')?.textContent?.trim() ||
+                'General';
+              const moduleLinkEls = Array.from(
+                s.querySelectorAll('.activityinstance a, .activity-item a')
+              );
+
+              const items = moduleLinkEls
+                .map((a) => {
+                  const href = (a as HTMLAnchorElement).href;
+                  let type:
+                    | 'resource'
+                    | 'assign'
+                    | 'announcement'
+                    | 'lti'
+                    | 'url'
+                    | 'other' = 'other';
+
+                  if (href.includes('resource')) type = 'resource';
+                  else if (href.includes('assign')) type = 'assign';
+                  else if (href.includes('forum')) type = 'announcement';
+                  else if (href.includes('lti')) type = 'lti';
+                  else if (href.includes('mod/url/')) type = 'url';
+
+                  return {
+                    type,
+                    name:
+                      a
+                        .querySelector('.instancename, .activityname')
+                        ?.textContent?.trim() ||
+                      a.textContent?.trim() ||
+                      'Item',
+                    url: href,
+                  };
+                })
+                .filter((i) => i.url);
+
+              return { title, items };
+            })
+            .filter((s) => s.items.length > 0);
+        });
+      }
     }
 
-    const result: CourseContent = { courseId, sections: sectionsData as any };
+    const result: CourseContent = {
+      courseId,
+      sections: (sectionsData || []) as any,
+    };
 
     const platforms: ExternalPlatformMatch[] = [];
     const seenPlatforms = new Set<string>();
