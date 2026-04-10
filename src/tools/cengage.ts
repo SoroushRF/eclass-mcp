@@ -34,6 +34,8 @@ const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
 
+type DiscoveredLinkItem = DiscoverCengageLinksResponse['links'][number];
+
 function createCacheDigest(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
@@ -164,17 +166,66 @@ function buildSourceHint(
     parts.push(`sectionUrl:${input.sectionUrl}`);
   }
 
+  if (input.sourceFile?.fileName) {
+    parts.push(`file:${input.sourceFile.fileName}`);
+  }
+
+  if (input.sourceFile?.fileUrl) {
+    parts.push(`fileUrl:${input.sourceFile.fileUrl}`);
+  }
+
+  if (input.sourceFile?.fileType) {
+    parts.push(`fileType:${input.sourceFile.fileType}`);
+  }
+
+  if (typeof input.sourceFile?.blockIndex === 'number') {
+    parts.push(`block:${input.sourceFile.blockIndex}`);
+  }
+
   return parts.join(' ');
+}
+
+function buildSourceFileMetadata(input: DiscoverCengageLinksInput) {
+  const sourceFile = input.sourceFile;
+  if (!sourceFile) {
+    return undefined;
+  }
+
+  const metadata: NonNullable<DiscoveredLinkItem['sourceFile']> = {
+    fileName: sourceFile.fileName,
+    fileUrl: sourceFile.fileUrl,
+    fileType: sourceFile.fileType,
+    blockIndex: sourceFile.blockIndex,
+  };
+
+  if (
+    metadata.fileName ||
+    metadata.fileUrl ||
+    metadata.fileType ||
+    typeof metadata.blockIndex === 'number'
+  ) {
+    return metadata;
+  }
+
+  return undefined;
+}
+
+function upsertDiscoveredLink(
+  links: Map<string, DiscoveredLinkItem>,
+  item: DiscoveredLinkItem
+) {
+  const key = `${item.normalizedUrl}|${item.source}`;
+  const existing = links.get(key);
+  if (!existing || (item.confidence || 0) > (existing.confidence || 0)) {
+    links.set(key, item);
+  }
 }
 
 export function discoverCengageLinksFromText(
   input: DiscoverCengageLinksInput
 ): DiscoverCengageLinksResponse {
   const source = input.source || 'manual';
-  const links = new Map<
-    string,
-    DiscoverCengageLinksResponse['links'][number]
-  >();
+  const links = new Map<string, DiscoveredLinkItem>();
 
   URL_REGEX_GLOBAL.lastIndex = 0;
 
@@ -189,20 +240,19 @@ export function discoverCengageLinksFromText(
         continue;
       }
 
-      const item: DiscoverCengageLinksResponse['links'][number] = {
+      const sourceFile = buildSourceFileMetadata(input);
+
+      const item: DiscoveredLinkItem = {
         rawUrl: candidate,
         normalizedUrl: classification.normalizedUrl,
         linkType: classification.linkType,
         source,
         sourceHint: buildSourceHint(input.text, match.index, input),
         confidence: calculateLinkConfidence(classification.linkType),
+        ...(sourceFile ? { sourceFile } : {}),
       };
 
-      const key = `${item.normalizedUrl}|${item.source}`;
-      const existing = links.get(key);
-      if (!existing || (item.confidence || 0) > (existing.confidence || 0)) {
-        links.set(key, item);
-      }
+      upsertDiscoveredLink(links, item);
     } catch {
       // Ignore malformed URL candidates during discovery.
     }
@@ -221,6 +271,72 @@ export function discoverCengageLinksFromText(
   return {
     status: 'ok',
     links: discovered,
+  };
+}
+
+export interface DiscoverCengageLinksFromFileBlocksInput {
+  blocks: Array<{
+    type?: string;
+    text?: string;
+  }>;
+  sourceFile?: {
+    fileName?: string;
+    fileUrl?: string;
+    fileType?: 'pdf' | 'docx' | 'pptx' | 'other';
+  };
+  courseId?: string;
+}
+
+export function discoverCengageLinksFromFileBlocks(
+  input: DiscoverCengageLinksFromFileBlocksInput
+): DiscoverCengageLinksResponse {
+  const blocks = Array.isArray(input.blocks) ? input.blocks : [];
+  const mined = new Map<string, DiscoveredLinkItem>();
+
+  blocks.forEach((block, blockIndex) => {
+    if (!block || (block.type && block.type !== 'text')) {
+      return;
+    }
+
+    const text = (block.text || '').trim();
+    if (!text) {
+      return;
+    }
+
+    const blockResult = discoverCengageLinksFromText({
+      text,
+      source: 'file_text',
+      courseId: input.courseId,
+      sourceFile: {
+        fileName: input.sourceFile?.fileName,
+        fileUrl: input.sourceFile?.fileUrl,
+        fileType: input.sourceFile?.fileType,
+        blockIndex,
+      },
+    });
+
+    if (blockResult.status !== 'ok') {
+      return;
+    }
+
+    for (const link of blockResult.links) {
+      upsertDiscoveredLink(mined, link);
+    }
+  });
+
+  const links = Array.from(mined.values());
+  if (links.length === 0) {
+    return {
+      status: 'no_data',
+      links: [],
+      message:
+        'No Cengage/WebAssign links were detected in the provided file text blocks.',
+    };
+  }
+
+  return {
+    status: 'ok',
+    links,
   };
 }
 
@@ -505,6 +621,13 @@ export async function discoverCengageLinks(input: DiscoverCengageLinksInput) {
     source: input.source || 'manual',
     courseId: input.courseId || null,
     sectionUrl: input.sectionUrl || null,
+    sourceFileName: input.sourceFile?.fileName || null,
+    sourceFileUrl: input.sourceFile?.fileUrl || null,
+    sourceFileType: input.sourceFile?.fileType || null,
+    sourceFileBlockIndex:
+      typeof input.sourceFile?.blockIndex === 'number'
+        ? input.sourceFile.blockIndex
+        : null,
   });
 
   const cached = cache.getWithMeta<DiscoverCengageLinksResponse>(cacheKey);

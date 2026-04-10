@@ -287,8 +287,14 @@ server.tool(
   'discover_cengage_links',
   'Scans raw text for Cengage/WebAssign URLs and returns normalized, classified link candidates with source hints.',
   DiscoverCengageLinksInputSchema.shape,
-  (async ({ text, source, courseId, sectionUrl }: any) =>
-    await discoverCengageLinks({ text, source, courseId, sectionUrl })) as any
+  (async ({ text, source, courseId, sectionUrl, sourceFile }: any) =>
+    await discoverCengageLinks({
+      text,
+      source,
+      courseId,
+      sectionUrl,
+      sourceFile,
+    })) as any
 );
 
 server.tool(

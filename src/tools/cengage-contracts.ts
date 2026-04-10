@@ -55,6 +55,14 @@ export const CengageDiscoveredLinkSchema = z.object({
   source: CengageLinkSourceSchema,
   sourceHint: z.string().optional(),
   confidence: z.number().min(0).max(1).optional(),
+  sourceFile: z
+    .object({
+      fileName: z.string().optional(),
+      fileUrl: z.string().optional(),
+      fileType: z.enum(['pdf', 'docx', 'pptx', 'other']).optional(),
+      blockIndex: z.number().int().min(0).optional(),
+    })
+    .optional(),
 });
 
 export const DiscoverCengageLinksInputSchema = z.object({
@@ -69,6 +77,17 @@ export const DiscoverCengageLinksInputSchema = z.object({
   ),
   courseId: z.string().optional(),
   sectionUrl: z.string().optional(),
+  sourceFile: z
+    .object({
+      fileName: z.string().optional(),
+      fileUrl: z.string().optional(),
+      fileType: z.enum(['pdf', 'docx', 'pptx', 'other']).optional(),
+      blockIndex: z.number().int().min(0).optional(),
+    })
+    .optional()
+    .describe(
+      'Optional metadata for links discovered from extracted file text.'
+    ),
 });
 
 export const DiscoverCengageLinksResponseSchema = z.object({
