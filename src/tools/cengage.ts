@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { CengageScraper } from '../scraper/cengage';
 import {
   resolveDashboardCourseSelection,
@@ -13,6 +14,7 @@ import {
   type CengageEntryLinkType,
 } from '../scraper/cengage-url';
 import { getAuthUrl } from '../auth/server';
+import { attachCacheMeta, cache, getCacheKey, TTL } from '../cache/store';
 import type {
   DiscoverCengageLinksInput,
   DiscoverCengageLinksResponse,
@@ -28,6 +30,65 @@ import {
 } from './cengage-contracts';
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s<>'"\])]+/gi;
+const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
+const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
+const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
+
+function createCacheDigest(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function cengageCacheKey(scope: string, value: unknown): string {
+  return getCacheKey('cengage', scope, createCacheDigest(value));
+}
+
+function toCacheHitMeta(cached: {
+  fetched_at: string;
+  expires_at: string;
+  stale?: boolean;
+}) {
+  return {
+    hit: true,
+    fetched_at: cached.fetched_at,
+    expires_at: cached.expires_at,
+    ...(cached.stale ? { stale: true } : {}),
+  };
+}
+
+function toCacheMissMeta(ttlMinutes: number) {
+  const now = new Date();
+  return {
+    hit: false,
+    fetched_at: now.toISOString(),
+    expires_at: new Date(now.getTime() + ttlMinutes * 60000).toISOString(),
+  };
+}
+
+function withCacheMeta<T extends Record<string, unknown>>(
+  payload: T,
+  meta: {
+    hit: boolean;
+    fetched_at: string;
+    expires_at: string;
+    stale?: boolean;
+  }
+): T & {
+  _cache: {
+    hit: boolean;
+    fetched_at: string;
+    expires_at: string;
+    stale?: boolean;
+  };
+} {
+  return attachCacheMeta(payload, meta) as unknown as T & {
+    _cache: {
+      hit: boolean;
+      fetched_at: string;
+      expires_at: string;
+      stale?: boolean;
+    };
+  };
+}
 
 function normalizeExtractedUrl(raw: string): string {
   return raw
@@ -241,20 +302,44 @@ function resolveAssignmentsInput(
 }
 
 export async function listCengageCourses(input: ListCengageCoursesInput) {
-  const scraper = new CengageScraper();
   const entryUrl = resolveListingEntryUrl(input);
+  const cacheKey = cengageCacheKey('list_courses', {
+    entryUrl,
+    discoveredLink:
+      input.discoveredLink?.normalizedUrl ||
+      input.discoveredLink?.rawUrl ||
+      null,
+    courseQuery: input.courseQuery || null,
+  });
+
+  const cached = cache.getWithMeta<ListCengageCoursesResponse>(cacheKey);
+  if (cached) {
+    return asListCoursesToolResponse(
+      withCacheMeta(cached.data, toCacheHitMeta(cached))
+    );
+  }
+
+  let scraper: CengageScraper | null = null;
 
   try {
+    scraper = new CengageScraper();
     const courses = await scraper.listDashboardCourses(entryUrl);
 
     if (courses.length === 0) {
-      return asListCoursesToolResponse({
+      const payload: ListCengageCoursesResponse = {
         status: 'no_data',
         entryUrl,
         courses: [],
         message:
           'No Cengage/WebAssign courses were discovered from the provided entry URL.',
-      });
+      };
+      cache.set(cacheKey, payload, CENGAGE_LIST_COURSES_TTL_MINUTES);
+      return asListCoursesToolResponse(
+        withCacheMeta(
+          payload,
+          toCacheMissMeta(CENGAGE_LIST_COURSES_TTL_MINUTES)
+        )
+      );
     }
 
     if (input.courseQuery && input.courseQuery.trim()) {
@@ -263,41 +348,66 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
       });
 
       if (resolved.status === 'selected' && resolved.selectedCourse) {
-        return asListCoursesToolResponse({
+        const payload: ListCengageCoursesResponse = {
           status: 'ok',
           entryUrl,
           courses: [mapCourseSummary(resolved.selectedCourse)],
           message: resolved.message,
-        });
+        };
+        cache.set(cacheKey, payload, CENGAGE_LIST_COURSES_TTL_MINUTES);
+        return asListCoursesToolResponse(
+          withCacheMeta(
+            payload,
+            toCacheMissMeta(CENGAGE_LIST_COURSES_TTL_MINUTES)
+          )
+        );
       }
 
       if (
         resolved.status === 'ambiguous' ||
         resolved.status === 'selection_required'
       ) {
-        return asListCoursesToolResponse({
+        const payload: ListCengageCoursesResponse = {
           status: 'needs_course_selection',
           entryUrl,
           courses: resolved.candidates.map(mapCourseSummary),
           message: resolved.message,
-        });
+        };
+        cache.set(cacheKey, payload, CENGAGE_LIST_COURSES_TTL_MINUTES);
+        return asListCoursesToolResponse(
+          withCacheMeta(
+            payload,
+            toCacheMissMeta(CENGAGE_LIST_COURSES_TTL_MINUTES)
+          )
+        );
       }
 
       if (resolved.status === 'not_found') {
-        return asListCoursesToolResponse({
+        const payload: ListCengageCoursesResponse = {
           status: 'no_data',
           entryUrl,
           courses: [],
           message: resolved.message,
-        });
+        };
+        cache.set(cacheKey, payload, CENGAGE_LIST_COURSES_TTL_MINUTES);
+        return asListCoursesToolResponse(
+          withCacheMeta(
+            payload,
+            toCacheMissMeta(CENGAGE_LIST_COURSES_TTL_MINUTES)
+          )
+        );
       }
     }
 
-    return asListCoursesToolResponse({
+    const payload: ListCengageCoursesResponse = {
       status: 'ok',
       entryUrl,
       courses: courses.map(mapCourseSummary),
-    });
+    };
+    cache.set(cacheKey, payload, CENGAGE_LIST_COURSES_TTL_MINUTES);
+    return asListCoursesToolResponse(
+      withCacheMeta(payload, toCacheMissMeta(CENGAGE_LIST_COURSES_TTL_MINUTES))
+    );
   } catch (error: unknown) {
     if (error instanceof CengageAuthRequiredError) {
       return asListCoursesToolResponse({
@@ -333,13 +443,33 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
       message: 'Failed to list Cengage courses due to an unknown error.',
     });
   } finally {
-    await scraper.close();
+    if (scraper) {
+      await scraper.close();
+    }
   }
 }
 
 export async function discoverCengageLinks(input: DiscoverCengageLinksInput) {
+  const cacheKey = cengageCacheKey('discover_links', {
+    text: input.text,
+    source: input.source || 'manual',
+    courseId: input.courseId || null,
+    sectionUrl: input.sectionUrl || null,
+  });
+
+  const cached = cache.getWithMeta<DiscoverCengageLinksResponse>(cacheKey);
+  if (cached) {
+    return asDiscoverToolResponse(
+      withCacheMeta(cached.data, toCacheHitMeta(cached))
+    );
+  }
+
   try {
-    return asDiscoverToolResponse(discoverCengageLinksFromText(input));
+    const payload = discoverCengageLinksFromText(input);
+    cache.set(cacheKey, payload, CENGAGE_DISCOVERY_TTL_MINUTES);
+    return asDiscoverToolResponse(
+      withCacheMeta(payload, toCacheMissMeta(CENGAGE_DISCOVERY_TTL_MINUTES))
+    );
   } catch (error) {
     if (error instanceof Error) {
       return asDiscoverToolResponse({
@@ -360,9 +490,22 @@ export async function discoverCengageLinks(input: DiscoverCengageLinksInput) {
 export async function getCengageAssignments(
   input: GetCengageAssignmentsInput | string
 ) {
-  const scraper = new CengageScraper();
   const args = resolveAssignmentsInput(input);
   const entryUrl = (args.entryUrl || args.ssoUrl || '').trim();
+
+  const cacheKey = cengageCacheKey('assignments', {
+    entryUrl,
+    courseId: args.courseId || null,
+    courseKey: args.courseKey || null,
+    courseQuery: args.courseQuery || null,
+  });
+
+  const cached = cache.getWithMeta<GetCengageAssignmentsResponse>(cacheKey);
+  if (cached) {
+    return asToolResponse(withCacheMeta(cached.data, toCacheHitMeta(cached)));
+  }
+
+  let scraper: CengageScraper | null = null;
 
   try {
     if (!entryUrl) {
@@ -372,6 +515,8 @@ export async function getCengageAssignments(
         message: 'entryUrl or ssoUrl is required.',
       });
     }
+
+    scraper = new CengageScraper();
 
     const courses = await scraper.listDashboardCourses(entryUrl);
     const selection = resolveDashboardCourseSelection(courses, {
@@ -389,21 +534,29 @@ export async function getCengageAssignments(
         ? ` Candidates: ${candidatesSummary}`
         : '';
 
-      return asToolResponse({
+      const payload: GetCengageAssignmentsResponse = {
         status: 'needs_course_selection',
         entryUrl,
         assignments: [],
         message: `${selection.message}${suffix}`,
-      });
+      };
+      cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+      return asToolResponse(
+        withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
+      );
     }
 
     if (selection.status === 'not_found' || !selection.selectedCourse) {
-      return asToolResponse({
+      const payload: GetCengageAssignmentsResponse = {
         status: 'no_data',
         entryUrl,
         assignments: [],
         message: selection.message,
-      });
+      };
+      cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+      return asToolResponse(
+        withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
+      );
     }
 
     const selectedCourse = selection.selectedCourse;
@@ -423,22 +576,30 @@ export async function getCengageAssignments(
     }));
 
     if (assignments.length === 0) {
-      return asToolResponse({
+      const payload: GetCengageAssignmentsResponse = {
         status: 'no_data',
         entryUrl,
         selectedCourse: mapCourseSummary(selectedCourse),
         assignments: assignmentRows,
         message:
           'No assignments were found. Verify the URL points to the correct course/dashboard and that your Cengage session is active.',
-      });
+      };
+      cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+      return asToolResponse(
+        withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
+      );
     }
 
-    return asToolResponse({
+    const payload: GetCengageAssignmentsResponse = {
       status: 'ok',
       entryUrl,
       selectedCourse: mapCourseSummary(selectedCourse),
       assignments: assignmentRows,
-    });
+    };
+    cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+    return asToolResponse(
+      withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
+    );
   } catch (error: unknown) {
     if (error instanceof CengageAuthRequiredError) {
       return asToolResponse({
@@ -474,6 +635,8 @@ export async function getCengageAssignments(
       message: 'Failed to fetch Cengage assignments due to an unknown error.',
     });
   } finally {
-    await scraper.close();
+    if (scraper) {
+      await scraper.close();
+    }
   }
 }

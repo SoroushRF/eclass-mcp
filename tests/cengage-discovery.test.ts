@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { discoverCengageLinksFromText } from '../src/tools/cengage';
+import {
+  discoverCengageLinks,
+  discoverCengageLinksFromText,
+} from '../src/tools/cengage';
 
 describe('cengage link discovery', () => {
   it('discovers and classifies mixed Cengage/WebAssign links', () => {
@@ -71,5 +74,23 @@ describe('cengage link discovery', () => {
     );
     expect(result.links[0].linkType).toBe('other');
     expect(result.links[0].sourceHint).toContain('sectionUrl:');
+  });
+
+  it('returns cache metadata and serves repeat requests as cache hits', async () => {
+    const nonce = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const input = {
+      text: `Use https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-${nonce}`,
+      source: 'manual' as const,
+    };
+
+    const first = await discoverCengageLinks(input);
+    const firstPayload = JSON.parse(first.content[0].text);
+    expect(firstPayload._cache).toBeDefined();
+    expect(firstPayload._cache.hit).toBe(false);
+
+    const second = await discoverCengageLinks(input);
+    const secondPayload = JSON.parse(second.content[0].text);
+    expect(secondPayload._cache).toBeDefined();
+    expect(secondPayload._cache.hit).toBe(true);
   });
 });

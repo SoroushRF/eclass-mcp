@@ -13,12 +13,17 @@ const SAMPLE_COURSE = {
   confidence: 0.95,
 };
 
+function uniqueEntryUrl(tag: string): string {
+  return `https://www.cengage.com/dashboard/home?test=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('get cengage assignments tool on new core', () => {
   it('supports legacy string input and returns selected course assignments', async () => {
+    const entryUrl = uniqueEntryUrl('legacy');
     const listSpy = vi
       .spyOn(CengageScraper.prototype, 'listDashboardCourses')
       .mockResolvedValue([SAMPLE_COURSE]);
@@ -40,23 +45,22 @@ describe('get cengage assignments tool on new core', () => {
       ]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
-    const result = await getCengageAssignments(
-      'https://www.cengage.com/dashboard/home'
-    );
+    const result = await getCengageAssignments(entryUrl);
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload.status).toBe('ok');
+    expect(payload._cache).toBeDefined();
+    expect(payload._cache.hit).toBe(false);
     expect(payload.selectedCourse.title).toBe('MATH 1010 - Calculus I');
     expect(payload.assignments).toHaveLength(1);
     expect(payload.assignments[0].status).toBe('pending');
 
-    expect(listSpy).toHaveBeenCalledWith(
-      'https://www.cengage.com/dashboard/home'
-    );
+    expect(listSpy).toHaveBeenCalledWith(entryUrl);
     expect(assignmentsSpy).toHaveBeenCalledWith(SAMPLE_COURSE.launchUrl);
   });
 
   it('returns needs_course_selection when multiple courses exist without selector', async () => {
+    const entryUrl = uniqueEntryUrl('needs-selection');
     vi.spyOn(
       CengageScraper.prototype,
       'listDashboardCourses'
@@ -78,7 +82,7 @@ describe('get cengage assignments tool on new core', () => {
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
-      entryUrl: 'https://www.cengage.com/dashboard/home',
+      entryUrl,
     });
     const payload = JSON.parse(result.content[0].text);
 
@@ -88,6 +92,7 @@ describe('get cengage assignments tool on new core', () => {
   });
 
   it('uses courseQuery to resolve and fetch assignments from selected course', async () => {
+    const entryUrl = uniqueEntryUrl('query');
     vi.spyOn(
       CengageScraper.prototype,
       'listDashboardCourses'
@@ -109,7 +114,7 @@ describe('get cengage assignments tool on new core', () => {
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
-      entryUrl: 'https://www.cengage.com/dashboard/home',
+      entryUrl,
       courseQuery: 'MATH 1010 - Calculus II',
     });
     const payload = JSON.parse(result.content[0].text);
@@ -122,6 +127,7 @@ describe('get cengage assignments tool on new core', () => {
   });
 
   it('returns no_data when selectors do not match any course', async () => {
+    const entryUrl = uniqueEntryUrl('not-found');
     vi.spyOn(
       CengageScraper.prototype,
       'listDashboardCourses'
@@ -132,7 +138,7 @@ describe('get cengage assignments tool on new core', () => {
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
-      entryUrl: 'https://www.cengage.com/dashboard/home',
+      entryUrl,
       courseId: 'missing-course',
     });
     const payload = JSON.parse(result.content[0].text);
@@ -143,6 +149,7 @@ describe('get cengage assignments tool on new core', () => {
   });
 
   it('maps auth-required errors to auth_required status', async () => {
+    const entryUrl = uniqueEntryUrl('auth');
     vi.spyOn(
       CengageScraper.prototype,
       'listDashboardCourses'
@@ -150,11 +157,32 @@ describe('get cengage assignments tool on new core', () => {
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
-      entryUrl: 'https://www.cengage.com/dashboard/home',
+      entryUrl,
     });
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload.status).toBe('auth_required');
     expect(payload.message).toContain('Please log in at');
+  });
+
+  it('serves repeat identical assignment requests from cache', async () => {
+    const entryUrl = uniqueEntryUrl('cache-hit');
+    const listSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .mockResolvedValue([SAMPLE_COURSE]);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const first = await getCengageAssignments({ entryUrl });
+    const firstPayload = JSON.parse(first.content[0].text);
+    expect(firstPayload._cache.hit).toBe(false);
+
+    const second = await getCengageAssignments({ entryUrl });
+    const secondPayload = JSON.parse(second.content[0].text);
+    expect(secondPayload._cache.hit).toBe(true);
+    expect(listSpy).toHaveBeenCalledTimes(1);
+    expect(assignmentsSpy).toHaveBeenCalledTimes(1);
   });
 });
