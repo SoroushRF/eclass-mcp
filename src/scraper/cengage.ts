@@ -1,9 +1,14 @@
-import { chromium, type Browser } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 import {
   CengageAuthRequiredError,
   CengageNavigationError,
   CengageParseError,
 } from './cengage-errors';
+import {
+  extractDashboardCourses,
+  inferCourseFromCurrentPage,
+  type CengageDashboardCourse,
+} from './cengage-courses';
 import {
   CENGAGE_SESSION_STALE_HOURS,
   getCengageSessionValidity,
@@ -35,6 +40,117 @@ export class CengageScraper {
       });
     }
     return this.browser;
+  }
+
+  private async extractDashboardCourseInventory(
+    page: Page
+  ): Promise<CengageDashboardCourse[]> {
+    const candidates = await page.evaluate(() => {
+      return Array.from(
+        document.querySelectorAll<HTMLAnchorElement>('a[href]')
+      ).map((anchor) => {
+        const href = anchor.getAttribute('href') || anchor.href || '';
+        const text = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+
+        return {
+          href,
+          text,
+          titleAttr: (anchor.getAttribute('title') || '').trim(),
+          ariaLabel: (anchor.getAttribute('aria-label') || '').trim(),
+          dataCourseId:
+            (anchor.getAttribute('data-course-id') ||
+              anchor.getAttribute('data-courseid') ||
+              '')
+              .trim(),
+          dataCourseKey:
+            (anchor.getAttribute('data-course-key') ||
+              anchor.getAttribute('data-coursekey') ||
+              '')
+              .trim(),
+        };
+      });
+    });
+
+    return extractDashboardCourses(candidates, page.url());
+  }
+
+  async listDashboardCourses(entryUrlInput: string): Promise<CengageDashboardCourse[]> {
+    const entry = normalizeAndClassifyCengageEntry(entryUrlInput);
+    const entryUrl = entry.normalizedUrl;
+
+    const sessionValidity = getCengageSessionValidity();
+    if (!sessionValidity.valid) {
+      const message =
+        sessionValidity.reason === 'stale'
+          ? `Cengage session is stale (older than ${CENGAGE_SESSION_STALE_HOURS} hours). Please authenticate again.`
+          : 'Cengage session state is missing or invalid. Please authenticate first.';
+
+      throw new CengageAuthRequiredError(message, {
+        entryUrl,
+        linkType: entry.linkType,
+        sessionReason: sessionValidity.reason,
+        sessionSavedAt: sessionValidity.savedAt,
+      });
+    }
+
+    const browser = await this.getBrowser();
+    const context = await browser.newContext({
+      storageState: sessionValidity.statePath,
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      viewport: { width: 1280, height: 800 },
+    });
+
+    const page = await context.newPage();
+    try {
+      try {
+        await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+      } catch (error) {
+        throw new CengageNavigationError(
+          'Failed to open the provided Cengage/WebAssign URL.',
+          {
+            entryUrl,
+            linkType: entry.linkType,
+            cause: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
+
+      const state = await detectCengagePageState(page);
+      if (state.state === 'login') {
+        throw new CengageAuthRequiredError(
+          'Cengage authentication is required before course discovery.',
+          {
+            entryUrl,
+            linkType: entry.linkType,
+            pageState: state,
+          }
+        );
+      }
+
+      const courses = await this.extractDashboardCourseInventory(page);
+      if (courses.length > 0) {
+        return courses;
+      }
+
+      if (state.state === 'course' || state.state === 'assignments') {
+        const fallback = inferCourseFromCurrentPage(page.url(), await page.title());
+        if (fallback) {
+          return [fallback];
+        }
+      }
+
+      throw new CengageParseError(
+        'No course links were discovered from the current Cengage/WebAssign page.',
+        {
+          entryUrl,
+          linkType: entry.linkType,
+          pageState: state,
+        }
+      );
+    } finally {
+      await context.close();
+    }
   }
 
   async getAssignments(ssoUrl: string): Promise<WebAssignAssignment[]> {
@@ -116,12 +232,19 @@ export class CengageScraper {
         }
 
         if (currentState.state === 'dashboard') {
+          const dashboardCourses = await this.extractDashboardCourseInventory(
+            page
+          );
+
           throw new CengageNavigationError(
-            'Reached Cengage dashboard but no course was selected yet.',
+            dashboardCourses.length > 0
+              ? 'Reached Cengage dashboard. A specific course selection is required before assignment extraction.'
+              : 'Reached Cengage dashboard but no course links were detected.',
             {
               entryUrl,
               linkType: entry.linkType,
               pageState: currentState,
+              courses: dashboardCourses,
               cause: error instanceof Error ? error.message : 'Unknown error',
             }
           );
