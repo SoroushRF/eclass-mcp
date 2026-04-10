@@ -29,10 +29,15 @@ import {
   cacheRefreshPin,
   cacheDeletePinned,
 } from './tools/pins';
-import { discoverCengageLinks, getCengageAssignments } from './tools/cengage';
+import {
+  discoverCengageLinks,
+  getCengageAssignments,
+  listCengageCourses,
+} from './tools/cengage';
 import {
   DiscoverCengageLinksInputSchema,
   GetCengageAssignmentsLegacyInputSchema,
+  ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
 
 // Create the MCP server
@@ -284,6 +289,14 @@ server.tool(
   DiscoverCengageLinksInputSchema.shape,
   (async ({ text, source, courseId, sectionUrl }: any) =>
     await discoverCengageLinks({ text, source, courseId, sectionUrl })) as any
+);
+
+server.tool(
+  'list_cengage_courses',
+  'Lists available Cengage/WebAssign courses from a provided entry URL (or discovered link), with optional query pre-filtering.',
+  ListCengageCoursesInputSchema.shape,
+  (async ({ entryUrl, discoveredLink, courseQuery }: any) =>
+    await listCengageCourses({ entryUrl, discoveredLink, courseQuery })) as any
 );
 
 server.tool(

@@ -1,5 +1,9 @@
 import { CengageScraper } from '../scraper/cengage';
 import {
+  resolveDashboardCourseSelection,
+  type CengageDashboardCourse,
+} from '../scraper/cengage-courses';
+import {
   CengageAuthRequiredError,
   CengageError,
 } from '../scraper/cengage-errors';
@@ -13,10 +17,13 @@ import type {
   DiscoverCengageLinksInput,
   DiscoverCengageLinksResponse,
   GetCengageAssignmentsResponse,
+  ListCengageCoursesInput,
+  ListCengageCoursesResponse,
 } from './cengage-contracts';
 import {
   DiscoverCengageLinksResponseSchema,
   GetCengageAssignmentsResponseSchema,
+  ListCengageCoursesResponseSchema,
 } from './cengage-contracts';
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s<>'"\])]+/gi;
@@ -177,6 +184,133 @@ function asDiscoverToolResponse(payload: DiscoverCengageLinksResponse) {
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(validated) }],
   };
+}
+
+function asListCoursesToolResponse(payload: ListCengageCoursesResponse) {
+  const validated = ListCengageCoursesResponseSchema.parse(payload);
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(validated) }],
+  };
+}
+
+function resolveListingEntryUrl(input: ListCengageCoursesInput): string {
+  if (input.discoveredLink?.normalizedUrl) {
+    return input.discoveredLink.normalizedUrl;
+  }
+
+  if (input.discoveredLink?.rawUrl) {
+    return input.discoveredLink.rawUrl;
+  }
+
+  return input.entryUrl;
+}
+
+function mapCourseSummary(course: CengageDashboardCourse) {
+  return {
+    courseId: course.courseId,
+    courseKey: course.courseKey,
+    title: course.title,
+    launchUrl: course.launchUrl,
+    platform: course.platform,
+    confidence: course.confidence,
+  };
+}
+
+export async function listCengageCourses(input: ListCengageCoursesInput) {
+  const scraper = new CengageScraper();
+  const entryUrl = resolveListingEntryUrl(input);
+
+  try {
+    const courses = await scraper.listDashboardCourses(entryUrl);
+
+    if (courses.length === 0) {
+      return asListCoursesToolResponse({
+        status: 'no_data',
+        entryUrl,
+        courses: [],
+        message:
+          'No Cengage/WebAssign courses were discovered from the provided entry URL.',
+      });
+    }
+
+    if (input.courseQuery && input.courseQuery.trim()) {
+      const resolved = resolveDashboardCourseSelection(courses, {
+        courseQuery: input.courseQuery,
+      });
+
+      if (resolved.status === 'selected' && resolved.selectedCourse) {
+        return asListCoursesToolResponse({
+          status: 'ok',
+          entryUrl,
+          courses: [mapCourseSummary(resolved.selectedCourse)],
+          message: resolved.message,
+        });
+      }
+
+      if (
+        resolved.status === 'ambiguous' ||
+        resolved.status === 'selection_required'
+      ) {
+        return asListCoursesToolResponse({
+          status: 'needs_course_selection',
+          entryUrl,
+          courses: resolved.candidates.map(mapCourseSummary),
+          message: resolved.message,
+        });
+      }
+
+      if (resolved.status === 'not_found') {
+        return asListCoursesToolResponse({
+          status: 'no_data',
+          entryUrl,
+          courses: [],
+          message: resolved.message,
+        });
+      }
+    }
+
+    return asListCoursesToolResponse({
+      status: 'ok',
+      entryUrl,
+      courses: courses.map(mapCourseSummary),
+    });
+  } catch (error: unknown) {
+    if (error instanceof CengageAuthRequiredError) {
+      return asListCoursesToolResponse({
+        status: 'auth_required',
+        entryUrl,
+        courses: [],
+        message: `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
+      });
+    }
+
+    if (error instanceof CengageError) {
+      return asListCoursesToolResponse({
+        status: 'error',
+        entryUrl,
+        courses: [],
+        message: `${error.message} [${error.code}]`,
+      });
+    }
+
+    if (error instanceof Error) {
+      return asListCoursesToolResponse({
+        status: 'error',
+        entryUrl,
+        courses: [],
+        message: `Failed to list Cengage courses: ${error.message}`,
+      });
+    }
+
+    return asListCoursesToolResponse({
+      status: 'error',
+      entryUrl,
+      courses: [],
+      message: 'Failed to list Cengage courses due to an unknown error.',
+    });
+  } finally {
+    await scraper.close();
+  }
 }
 
 export async function discoverCengageLinks(input: DiscoverCengageLinksInput) {
