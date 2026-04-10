@@ -15,6 +15,20 @@ export const CengageCacheMetaSchema = z.object({
   stale: z.boolean().optional(),
 });
 
+export const CengageRetryGuidanceSchema = z.object({
+  afterAuth: z.boolean(),
+  authUrl: z.string().optional(),
+  reason: z
+    .enum([
+      'session_missing',
+      'session_stale',
+      'login_required',
+      'auth_required',
+    ])
+    .optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
+});
+
 export const CengageLinkTypeSchema = z.enum([
   'eclass_lti',
   'webassign_course',
@@ -61,6 +75,7 @@ export const DiscoverCengageLinksResponseSchema = z.object({
   status: CengageToolStatusSchema,
   links: z.array(CengageDiscoveredLinkSchema),
   message: z.string().optional(),
+  retry: CengageRetryGuidanceSchema.optional(),
   _cache: CengageCacheMetaSchema.optional(),
 });
 
@@ -92,6 +107,7 @@ export const ListCengageCoursesResponseSchema = z.object({
   entryUrl: z.string().optional(),
   courses: z.array(CengageCourseSummarySchema),
   message: z.string().optional(),
+  retry: CengageRetryGuidanceSchema.optional(),
   _cache: CengageCacheMetaSchema.optional(),
 });
 
@@ -160,6 +176,7 @@ export const GetCengageAssignmentsResponseSchema = z.object({
   selectedCourse: CengageCourseSummarySchema.optional(),
   assignments: z.array(CengageAssignmentSchema),
   message: z.string().optional(),
+  retry: CengageRetryGuidanceSchema.optional(),
   _cache: CengageCacheMetaSchema.optional(),
 });
 

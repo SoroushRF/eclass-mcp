@@ -210,8 +210,8 @@ export async function startAuthServer() {
   return server;
 }
 
-export function openAuthWindow() {
-  const url = getAuthUrl('eclass');
+export function openAuthWindow(platform: AuthPlatform = 'eclass') {
+  const url = getAuthUrl(platform);
   const cmd =
     process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`;
   exec(cmd, () => {});

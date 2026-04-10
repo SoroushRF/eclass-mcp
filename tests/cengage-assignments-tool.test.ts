@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import * as authServer from '../src/auth/server';
 import { CengageScraper } from '../src/scraper/cengage';
 import { CengageAuthRequiredError } from '../src/scraper/cengage-errors';
 import { getCengageAssignments } from '../src/tools/cengage';
@@ -150,6 +151,9 @@ describe('get cengage assignments tool on new core', () => {
 
   it('maps auth-required errors to auth_required status', async () => {
     const entryUrl = uniqueEntryUrl('auth');
+    const openAuthSpy = vi
+      .spyOn(authServer, 'openAuthWindow')
+      .mockImplementation(() => {});
     vi.spyOn(
       CengageScraper.prototype,
       'listDashboardCourses'
@@ -162,7 +166,11 @@ describe('get cengage assignments tool on new core', () => {
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload.status).toBe('auth_required');
-    expect(payload.message).toContain('Please log in at');
+    expect(payload.message).toContain('Opened auth at');
+    expect(payload.retry.afterAuth).toBe(true);
+    expect(payload.retry.authUrl).toContain('/auth-cengage');
+    expect(payload.retry.input.entryUrl).toBe(entryUrl);
+    expect(openAuthSpy).toHaveBeenCalledWith('cengage');
   });
 
   it('serves repeat identical assignment requests from cache', async () => {

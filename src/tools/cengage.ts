@@ -13,7 +13,7 @@ import {
   type CengageEntryClassification,
   type CengageEntryLinkType,
 } from '../scraper/cengage-url';
-import { getAuthUrl } from '../auth/server';
+import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { attachCacheMeta, cache, getCacheKey, TTL } from '../cache/store';
 import type {
   DiscoverCengageLinksInput,
@@ -278,6 +278,41 @@ function mapCourseSummary(course: CengageDashboardCourse) {
   };
 }
 
+function toRetryInputRecord(input: Record<string, unknown>) {
+  const trimmedEntries = Object.entries(input).filter(
+    ([, value]) => value !== undefined && value !== null && value !== ''
+  );
+  return Object.fromEntries(trimmedEntries);
+}
+
+function mapAuthReason(
+  error: CengageAuthRequiredError
+): 'session_missing' | 'session_stale' | 'login_required' | 'auth_required' {
+  const details = error.details || {};
+
+  if (details.sessionReason === 'stale') {
+    return 'session_stale';
+  }
+
+  if (
+    details.sessionReason === 'missing' ||
+    details.sessionReason === 'invalid'
+  ) {
+    return 'session_missing';
+  }
+
+  const pageState =
+    typeof details.pageState === 'object' && details.pageState !== null
+      ? (details.pageState as Record<string, unknown>)
+      : undefined;
+
+  if (pageState?.state === 'login') {
+    return 'login_required';
+  }
+
+  return 'auth_required';
+}
+
 function summarizeCourseCandidates(
   candidates: CengageDashboardCourse[]
 ): string {
@@ -410,11 +445,26 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
     );
   } catch (error: unknown) {
     if (error instanceof CengageAuthRequiredError) {
+      const authUrl = getAuthUrl('cengage');
+      openAuthWindow('cengage');
+
       return asListCoursesToolResponse({
         status: 'auth_required',
         entryUrl,
         courses: [],
-        message: `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
+        message:
+          `Cengage authentication required. Opened auth at ${authUrl}. ` +
+          'Complete login and retry the same tool call.',
+        retry: {
+          afterAuth: true,
+          authUrl,
+          reason: mapAuthReason(error),
+          input: toRetryInputRecord({
+            entryUrl: input.entryUrl,
+            discoveredLink: input.discoveredLink,
+            courseQuery: input.courseQuery,
+          }),
+        },
       });
     }
 
@@ -602,11 +652,28 @@ export async function getCengageAssignments(
     );
   } catch (error: unknown) {
     if (error instanceof CengageAuthRequiredError) {
+      const authUrl = getAuthUrl('cengage');
+      openAuthWindow('cengage');
+
       return asToolResponse({
         status: 'auth_required',
         entryUrl,
         assignments: [],
-        message: `Cengage authentication required. Please log in at ${getAuthUrl('cengage')} and retry.`,
+        message:
+          `Cengage authentication required. Opened auth at ${authUrl}. ` +
+          'Complete login and retry the same tool call.',
+        retry: {
+          afterAuth: true,
+          authUrl,
+          reason: mapAuthReason(error),
+          input: toRetryInputRecord({
+            entryUrl: args.entryUrl,
+            ssoUrl: args.ssoUrl,
+            courseId: args.courseId,
+            courseKey: args.courseKey,
+            courseQuery: args.courseQuery,
+          }),
+        },
       });
     }
 
