@@ -8,6 +8,56 @@ const GOTO_OPTS = {
   timeout: 30000,
 };
 
+const ECLASS_HOST = new URL(ECLASS_URL).host.toLowerCase();
+
+function normalizeAnnouncementLinkUrl(url: string): string {
+  return (url || '').trim().replace(/#.*$/, '');
+}
+
+function isExternalHttpUrl(url: string): boolean {
+  if (!url) return false;
+
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return false;
+    }
+    return parsed.host.toLowerCase() !== ECLASS_HOST;
+  } catch {
+    return false;
+  }
+}
+
+export function extractExternalAnnouncementLinks(
+  rawLinks: Array<{ name: string; url: string }>,
+  sourceDiscussionUrl: string
+): Announcement['links'] {
+  const seen = new Set<string>();
+  const links: Announcement['links'] = [];
+
+  for (const raw of rawLinks) {
+    const normalizedUrl = normalizeAnnouncementLinkUrl(raw.url);
+    if (!isExternalHttpUrl(normalizedUrl)) {
+      continue;
+    }
+
+    const key = normalizedUrl.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+
+    const name = (raw.name || '').trim() || normalizedUrl;
+    links.push({
+      name,
+      url: normalizedUrl,
+      sourceDiscussionUrl,
+    });
+  }
+
+  return links;
+}
+
 export async function getAnnouncements(
   session: EClassBrowserSession,
   courseId?: string,
@@ -136,17 +186,37 @@ export async function getAnnouncements(
 
     for (const meta of topDiscussions) {
       let content = '';
+      let rawLinks: Array<{ name: string; url: string }> = [];
       try {
         await page.goto(meta.discussionUrl, GOTO_OPTS);
-        content = await page.evaluate(() => {
+        const extracted = await page.evaluate(() => {
           const post = document.querySelector('.forumpost, article.forum-post');
-          if (!post) return '';
+          if (!post) {
+            return {
+              content: '',
+              links: [] as Array<{ name: string; url: string }>,
+            };
+          }
+
           const body = post.querySelector(
             '.post-content-container, .posting'
           ) as HTMLElement;
-          const text = body?.textContent || body?.innerText || '';
-          return text.replace(/\n\s*\n/g, '\n').trim();
+          const text = (body?.textContent || body?.innerText || '')
+            .replace(/\n\s*\n/g, '\n')
+            .trim();
+
+          const links = Array.from(body?.querySelectorAll('a[href]') || []).map(
+            (link) => ({
+              name: (link.textContent || '').trim(),
+              url: (link as HTMLAnchorElement).href || '',
+            })
+          );
+
+          return { content: text, links };
         });
+
+        content = extracted.content;
+        rawLinks = extracted.links;
       } catch {
         // ignore page navigation errors for a single post
       }
@@ -158,6 +228,7 @@ export async function getAnnouncements(
         date: meta.date,
         author: meta.author,
         discussionUrl: meta.discussionUrl,
+        links: extractExternalAnnouncementLinks(rawLinks, meta.discussionUrl),
       });
     }
 

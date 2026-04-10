@@ -6,6 +6,7 @@ export async function getAnnouncements(courseId?: string, limit: number = 10) {
   try {
     const cacheKey = getCacheKey(
       'announcements',
+      'v2',
       courseId || 'all',
       limit.toString()
     );

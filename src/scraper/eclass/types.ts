@@ -34,6 +34,11 @@ export interface Announcement {
   date: string;
   author: string;
   discussionUrl?: string;
+  links: {
+    name: string;
+    url: string;
+    sourceDiscussionUrl: string;
+  }[];
 }
 
 export interface SectionTextData {
