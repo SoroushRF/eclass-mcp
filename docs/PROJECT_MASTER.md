@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-03-25  
+**Last updated:** 2026-04-10  
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -52,10 +52,10 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T24** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
 | **T25** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
 | **T26** | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
-| **T28** | Cengage Integration Phase 1: Foundation & Discovery (Link recognition, parser integration, metadata output) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
-| **T29** | Cengage Integration Phase 2: Authentication (Auth routing, cookie persistence) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
-| **T30** | Cengage Integration Phase 3 & 4: Scraper Core & MCP Tool Wiring (DOM parsing, cache/metadata integration, index registration) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
-| **T31** | Cengage Integration Phase 5: Verification (E2E docs and test logs) — see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry) |
+| **T28** | [x] Cengage Integration Phase 1 complete: foundation + discovery/link metadata hardening — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
+| **T29** | [x] Cengage Integration Phase 2 complete: authentication routing and session handling — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
+| **T30** | [x] Cengage Integration Phases 3-4 complete: scraper core + MCP wiring + cache metadata parity — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
+| **T31** | [x] Cengage Integration Phase 5 complete: verification coverage and E2E run logging — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
 | **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
 | **T36** | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
 | **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) |
@@ -181,7 +181,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - [x] **T05** ? eClass scraper core (`src/scraper/eclass.ts`, `SessionExpiredError`, real scraping APIs; evolved well beyond original mock stage).
 - [x] **T06** ? File parsers (`src/parser/pdf.ts`, `docx.ts`, `pptx.ts`; PDF path later upgraded ? see file-tool docs).
 - [x] **T07** ? MCP tool modules (`src/tools/*.ts`, cache + session error handling).
-- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **13 tools** today vs original 6).
+- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **22 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** ??? **Formal Claude Desktop E2E verification** ??? **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
@@ -204,9 +204,9 @@ Execute **in order**; do not skip inspect/research tasks.
 
 ---
 
-### 2.4 Tracker ??? engine polish / post-beta (T21-T31)
+### 2.4 Tracker ??? engine polish / post-beta (T21-T36)
 
-Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are future engine work and are gated by **E20** (see [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)).
+Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retry work is tracked in T28-T36** (see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry)); **future write tools are T37-T40** and are gated by **E20-E21** (see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)).
 
 #### 2.4.1 Automation, scraper, cache (T21-T27)
 
@@ -220,10 +220,10 @@ Optional parallel work (does not block T14-T20). **Write tools (T28-T31)** are f
 
 #### 2.4.2 Cengage, WeBWorK, and Auth Retry (T28-T36)
 
-- [ ] **T28** ? **Cengage Phase 1 (Foundation & Discovery):** LTI/Link recognition, parser extraction, output metadata.
-- [ ] **T29** ? **Cengage Phase 2 (Authentication):** `/auth/cengage` route, visible login flow, cookie storage.
-- [ ] **T30** ? **Cengage Phase 3 & 4 (Scraper & Tools):** DOM inspection, headless scraper, session expiry check, tool generation, tier caching (`_cache`), and registration.
-- [ ] **T31** ? **Cengage Phase 5 (Verification):** Updates to E2E handbook, run log updates.
+- [x] **T28** ? **Cengage Phase 1 (Foundation & Discovery):** LTI/Link recognition, parser extraction, output metadata. **Completed 2026-04-10**.
+- [x] **T29** ? **Cengage Phase 2 (Authentication):** `/auth/cengage` route, visible login flow, cookie storage. **Completed 2026-04-10**.
+- [x] **T30** ? **Cengage Phase 3 & 4 (Scraper & Tools):** DOM inspection, headless scraper, session expiry check, tool generation, tier caching (`_cache`), and registration. **Completed 2026-04-10**.
+- [x] **T31** ? **Cengage Phase 5 (Verification):** Updates to E2E handbook, run log updates. **Completed 2026-04-10**.
 - [ ] **T32-T35** ? **WeBWorK multi-instance:** discovery, host registry, scraper + tools, E2E.
 - [ ] **T36** ? **Auth blocking poll retrofit:** apply seamless auto-retry pattern to existing eClass + SIS tools so all tools respond seamlessly without requiring a re-prompt after login.
 
@@ -642,35 +642,27 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 **Goal:** Integrate third-party assignment platforms (Cengage, WeBWorK) and ensure seamless authentication across all platforms via a blocking poll / auto-retry pattern.
 
-#### Cengage Integration (T28-T31)
+#### Status snapshot
 
-**Phase 1: Foundation & Discovery (T28)**
-1. **T28.1 Platform Keyword Config:** Define Cengage, WebAssign, and Crowdmark heuristics.
-2. **T28.2 Parser Integration:** Update `src/scraper/eclass/courses.ts` and `sections.ts` to identify Cengage URLs across LTI links, static resources, and syllabus PDFs.
-3. **T28.3 Discovery Metadata Output:** Ensure tools like `get_course_content` and `get_section_text` return `external_platforms: [{ name: "cengage", url: "..." }]` to inform the LLM.
+- **T28-T31 (Cengage):** completed.
+- **T32-T35 (WeBWorK multi-instance):** pending.
+- **T36 (auth blocking poll retrofit for eClass + SIS):** pending.
 
-**Phase 2: Authentication (T29 - Standalone Pivot)**
-*Since WebAssign is often used via standalone course keys rather than strict LTI handshakes, Cengage requires its own login.*
-1. **T29.1 Auth Strategy Scripting:** Create a new `npm run auth:cengage` command and corresponding script to perform a visible Playwright login on `cengage.com`.
-2. **T29.2 Standalone Persistence:** Update `src/scraper/session.ts` to handle a dedicated `cengage-session.json` file independently from eClass cookies.
+#### Cengage implementation overview (completed)
 
-**Phase 3 & 4: Scraper Engine & MCP Tool Wiring (T30)**
-1. **T30.1 DOM Inspection Script:** Create `scripts/inspect-cengage.ts` to map CSS selectors for Cengage dashboard (deadlines, scores, progress).
-2. **T30.2 Scraper Core:** Implement `src/scraper/cengage.ts` headless Playwright module.
-3. **T30.3 Session Expiry Logic:** Standardize `SessionExpiredError` throwing when Cengage dashboards redirect to login.
-4. **T30.4 MCP Tool Wrapper:** Create `src/tools/cengage.ts` to invoke the core scraper.
-5. **T30.5 Smart Cache Integration:** Wrap tool responses in standard Tiered Cache layer (T25) with `_cache: { fetched_at, expires_at }`.
-6. **T30.6 Server Registration:** Hook into `src/index.ts` so tools become available.
+- Discovery expanded beyond LTI-only paths, including section/activity surfaces, announcement bodies, item descriptions, and extracted file text.
+- Cengage auth/session handling and navigation were hardened for dashboard and direct-course entry links, including auth-expired recovery behavior.
+- Three Cengage MCP tools are registered and validated: `discover_cengage_links`, `list_cengage_courses`, and `get_cengage_assignments`.
+- Validation now includes fixture/snapshot coverage and explicit E2E scenario coverage documented in the handbook/run-log.
 
-**Phase 5: End-to-End Verification (T31)**
-1. **T31.1 E2E Handbook Docs:** Update `docs/t11-e2e-handbook.md` with explicit Cengage prompt sequences and expected auth-blocking flows.
-2. **T31.2 Execution Log:** Execute test and record completion in `docs/e2e-run-log.md`.
+#### Detailed implementation reference
 
-#### WeBWorK and Auth Retry (T32-T36)
+- Full task-by-task plan and evidence are maintained in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md).
 
-1. **Discovery Engine (WeBWorK):** Passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
-2. **Auth Endpoints:** Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
-3. **Blocking Poll (T36):** Implement retry logic in the tool invocation layer to handle `SessionExpiredError` by waiting for the auth server and retrying once.
+#### Remaining scope in this tracker
+
+1. **T32-T35 (WeBWorK):** multi-instance discovery, host registry, scraper/tooling, and E2E rows.
+2. **T36 (Auth retry retrofit):** apply seamless blocking poll/auto-retry pattern to existing eClass and SIS tool flows.
 
 ---
 
@@ -712,7 +704,7 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (19)
+### 3.1 MCP tools currently registered (22)
 
 | Tool | Purpose |
 |------|---------|
@@ -729,6 +721,9 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `get_class_timetable` | Personal class timetable (SIS) |
 | `search_professors` | RateMyProfessors profile search |
 | `get_professor_details` | RateMyProfessors deep ratings, comments, and student tags |
+| `discover_cengage_links` | Detect and classify Cengage/WebAssign candidates from text with source hints |
+| `list_cengage_courses` | Enumerate Cengage/WebAssign courses from entry links |
+| `get_cengage_assignments` | Retrieve Cengage/WebAssign assignment lists with normalized due/status fields |
 | `clear_cache` | Clear **non-pinned** cache by scope; pinned entries unchanged |
 | `cache_pin` | Pin file / section / course content cache entry (quota-limited) |
 | `cache_unpin` | Remove pin from registry (does not delete cache file) |
@@ -846,7 +841,7 @@ Treat them as **post-v1 excellence**, not greenfield:
 
 **Checkbox status** for T01?T13: see [?2.2](#22-tracker--v1-foundation-t01t13).
 
-The original spec targeted **6 tools**; the repo now ships **13**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20** and engineering track **E\***.
+The original spec targeted **6 tools**; the repo now ships **22**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20**, **T28?T31**, and engineering track **E\***.
 
 ---
 
@@ -876,7 +871,9 @@ The original spec targeted **6 tools**; the repo now ships **13**. Optional foll
 
 ## 9. Phase A ? Active product backlog (themes)
 
-For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-implementation-plans): engine beta **T14-T20**, post-beta **T21-T31**, engineering **E01-E21**, and tool roadmaps:
+For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-implementation-plans): engine beta **T14-T20**, post-beta **T21-T36**, engineering **E01-E21**, and tool roadmaps:
+
+Cengage hardening (**T28-T31**) is complete; the concise status summary lives in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), and full task-by-task detail/evidence lives in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md).
 
 1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).  
 2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).  
@@ -1005,7 +1002,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 |-------|------|
 | **This master plan** | `docs/PROJECT_MASTER.md` |
 | Engine versioning policy | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (19 tools) | `docs/tools/README.md` |
+| Tool-by-tool docs index (22 tools) | `docs/tools/README.md` |
 | T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md` |
 | E2E run log (create when running T11) | `docs/e2e-run-log.md` |
 | Deadlines tool ? roadmap & testing | `docs/tools/deadlines/roadmap.md` |
