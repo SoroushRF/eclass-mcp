@@ -1,6 +1,6 @@
 # E2E Run Log
 
-Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix.
+Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows.
 
 Inspector command used for server-only passes:
 ```powershell
@@ -154,6 +154,38 @@ _List any GitHub issue numbers created from failures._
 - All T25 Claude Desktop prompts passed.
 - Session expiry recovery passed.
 - No shape regressions were observed in the eClass, SIS, or RMP surfaces.
+
+## Run [4] - 2026-04-10 (T23 Cengage Scenario Coverage)
+
+### Environment
+| Field | Value |
+|-------|-------|
+| Date | 2026-04-10 |
+| OS | Windows (PowerShell) |
+| Node version | v24.11.1 |
+| Repo base commit | b0caf7d |
+| Execution mode | Automated scenario execution (Vitest tool-level harness) |
+
+### Command
+
+```powershell
+npx vitest run tests/cengage-e2e-scenarios.test.ts tests/cengage-list-courses.test.ts tests/cengage-assignments-tool.test.ts
+```
+
+Result summary:
+- Test Files: 3 passed
+- Tests: 15 passed
+
+### T23 Scenario Rows
+| # | Scenario | Tool path exercised | Status | Evidence |
+|---|----------|---------------------|--------|----------|
+| C23-S1 | Direct dashboard link | `list_cengage_courses` | Pass | `tests/cengage-e2e-scenarios.test.ts` row "scenario: direct dashboard link lists courses" passed; payload `status=ok`, course list returned |
+| C23-S2 | Direct course link | `get_cengage_assignments` | Pass | `tests/cengage-e2e-scenarios.test.ts` row "scenario: direct course link returns assignments" passed; payload `status=ok`, assignments array returned |
+| C23-S3 | Auth-expired recovery | `list_cengage_courses` auth path | Pass | `tests/cengage-e2e-scenarios.test.ts` row "scenario: auth-expired recovery returns auth_required and retry guidance" passed; payload `status=auth_required`, `retry.afterAuth=true`, `retry.authUrl` includes `/auth-cengage` |
+
+### Notes
+- These rows validate the Cengage flows required by T23 at the tool-contract level.
+- Claude Desktop and Inspector row templates for manual host verification are documented in `docs/t11-e2e-handbook.md` section 13.
 
 ## T25 Regression Template
 

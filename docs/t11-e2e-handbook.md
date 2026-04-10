@@ -287,3 +287,49 @@ Use a course that has sections, files, assignments, grades, and announcements wh
 - All T25 smoke rows pass or are explained as legitimate skips.
 - The refactor did not change tool contracts.
 - `npx tsc --noEmit` and `npm run build` stay green on the tested commit.
+
+## 13. T23 Cengage Scenario Coverage
+
+Use this section for T23 validation of Cengage-specific flows.
+
+### 13.1 Goal
+- Cover direct dashboard link flow.
+- Cover direct course link flow.
+- Cover auth-expired recovery flow with machine-usable retry output.
+
+### 13.2 Inspector Scenario Rows
+
+Run these rows in MCP Inspector against `dist/index.js`.
+
+| # | Tool | Input shape | Pass criteria |
+|---|------|-------------|---------------|
+| C23-I1 | `list_cengage_courses` | `{ entryUrl: "https://www.cengage.com/dashboard/home" }` | `status` is `ok` or `needs_course_selection`; `courses` array present |
+| C23-I2 | `get_cengage_assignments` | `{ entryUrl: "https://www.webassign.net/v4cgi/login.pl?courseKey=..." }` | `status` is `ok` or `no_data`; response includes `selectedCourse` when resolved |
+| C23-I3 | `list_cengage_courses` after invalidating Cengage session files | `{ entryUrl: "https://www.cengage.com/dashboard/home" }` | `status` is `auth_required`; `retry.afterAuth=true`; `retry.authUrl` points to `/auth-cengage` |
+
+### 13.3 Claude Desktop Prompt Rows
+
+Use these prompts for host-level verification.
+
+| # | Prompt | Expected tool | Pass criteria |
+|---|--------|---------------|---------------|
+| C23-C1 | List my Cengage courses from this dashboard URL: <dashboard URL> | `list_cengage_courses` | Claude returns course candidates or an explicit selection-needed response |
+| C23-C2 | Get Cengage assignments from this direct course URL: <course URL> | `get_cengage_assignments` | Claude returns assignments or explicit no-data with selected course context |
+| C23-C3 | I just expired my Cengage session. Try listing Cengage courses again. | `list_cengage_courses` | Claude receives `auth_required`, guides login, then succeeds on retry |
+
+### 13.4 Auth-Expired Setup (Cengage)
+
+To force auth-expired behavior before C23-I3/C23-C3:
+
+1. Stop server processes that might hold the session.
+2. Remove or rename:
+   - `.eclass-mcp/cengage-state.json`
+   - `.eclass-mcp/cengage-session-meta.json`
+3. Restart the MCP server.
+4. Run C23-I3 or C23-C3.
+
+### 13.5 Recording Rules
+
+- Record each C23 row in `docs/e2e-run-log.md` as Pass/Fail/Skip.
+- Include a short redacted snippet for `status`, `message`, and `retry` fields.
+- For auth-expired, include evidence that `/auth-cengage` was surfaced.
