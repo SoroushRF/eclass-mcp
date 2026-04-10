@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import { chromium, type Browser } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
@@ -73,7 +73,7 @@ export class CengageScraper {
               }
               // Wait for data to load after click
               await page.waitForTimeout(5000);
-          } catch (e) {
+            } catch (_error) {
               console.error(`[Cengage] Warning: Could not toggle past assignments view.`);
           }
       }

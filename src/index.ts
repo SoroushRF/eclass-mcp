@@ -30,6 +30,7 @@ import {
   cacheDeletePinned,
 } from './tools/pins';
 import { getCengageAssignments } from './tools/cengage';
+import { GetCengageAssignmentsLegacyInputSchema } from './tools/cengage-contracts';
 
 // Create the MCP server
 const server = new McpServer({
@@ -275,7 +276,7 @@ server.tool(
 server.tool(
   'get_cengage_assignments',
   'Fetches assignment list and deadlines from Cengage/WebAssign. Provide the LTI launch URL or course SSO link found in eClass.',
-  { ssoUrl: z.string().describe('The LTI/SSO URL extracted from eClass or the Cengage dashboard') },
+  GetCengageAssignmentsLegacyInputSchema.shape,
   (async ({ ssoUrl }: any) => await getCengageAssignments(ssoUrl)) as any
 );
 

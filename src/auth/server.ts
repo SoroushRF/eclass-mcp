@@ -97,7 +97,9 @@ export async function startAuthServer() {
         for (const sisUrl of SIS_URLS) {
           try {
             await page.goto(sisUrl, { timeout: 10000, waitUntil: 'load' });
-          } catch (e) {}
+          } catch (_error) {
+            // Ignore SIS bridge failures; eClass auth can still succeed.
+          }
         }
 
         const cookies = await context.cookies();
@@ -117,7 +119,11 @@ export async function startAuthServer() {
         `);
 
         setTimeout(async () => {
-          try { await browser.close(); } catch (e) {}
+          try {
+            await browser.close();
+          } catch (_error) {
+            // Browser may already be closed.
+          }
         }, 3000);
       } catch (error: any) {
         res.writeHead(500, { 'Content-Type': 'text/html' });
@@ -153,7 +159,11 @@ export async function startAuthServer() {
         `);
 
         setTimeout(async () => {
-          try { await browser.close(); } catch (e) {}
+          try {
+            await browser.close();
+          } catch (_error) {
+            // Browser may already be closed.
+          }
         }, 3000);
       } catch (error: any) {
         res.writeHead(500, { 'Content-Type': 'text/html' });
@@ -188,5 +198,5 @@ export async function startAuthServer() {
 export function openAuthWindow() {
   const url = `http://localhost:${getAuthServerPort()}/auth`;
   const cmd = process.platform === 'win32' ? `start "" "${url}"` : `open "${url}"`;
-  exec(cmd, (error) => {});
+  exec(cmd, () => {});
 }

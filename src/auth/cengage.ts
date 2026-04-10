@@ -24,7 +24,7 @@ async function main() {
     // Wait for the URL to change to the dashboard or webassign course page
     await page.waitForURL(/(.*dashboard.*|.*webassign\.net\/web\/Student.*)/i, { timeout: 180000 });
     console.log('Dashboard detected! Collecting session cookies...');
-  } catch (e) {
+  } catch (_error) {
     // Let's just give a general timeout in case their url doesn't match the regex perfectly
     console.log('Did not automatically detect dashboard URL. If you are logged in, the cookies will still be saved.');
   }
