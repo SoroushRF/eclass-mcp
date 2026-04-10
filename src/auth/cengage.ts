@@ -1,7 +1,9 @@
-import path from 'path';
-import fs from 'fs';
-
 import { chromium } from 'playwright';
+import {
+  CENGAGE_STATE_PATH,
+  ensureCengageSessionDir,
+  saveCengageSessionMetadata,
+} from '../scraper/cengage-session';
 
 async function main() {
   console.log('Starting standalone Cengage authentication...');
@@ -32,12 +34,12 @@ async function main() {
   // To be safe, wait an extra 5 seconds after they seemingly reach the dashboard
   await page.waitForTimeout(5000);
 
-  const statePath = path.resolve(__dirname, '../../.eclass-mcp/cengage-state.json');
-  const dir = path.dirname(statePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-  await context.storageState({ path: statePath });
-  console.log(`Saved full session state (Cookies + LocalStorage) to cengage-state.json...`);
+  ensureCengageSessionDir(CENGAGE_STATE_PATH);
+  await context.storageState({ path: CENGAGE_STATE_PATH });
+  saveCengageSessionMetadata({ statePath: CENGAGE_STATE_PATH });
+  console.log(
+    'Saved Cengage session state and metadata to .eclass-mcp/cengage-state.json...'
+  );
 
   console.log('Cengage authentication successful!');
   setTimeout(async () => {

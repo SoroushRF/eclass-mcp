@@ -1,11 +1,13 @@
 import { chromium, type Browser } from 'playwright';
-import fs from 'fs';
-import path from 'path';
 import {
   CengageAuthRequiredError,
   CengageNavigationError,
   CengageParseError,
 } from './cengage-errors';
+import {
+  CENGAGE_SESSION_STALE_HOURS,
+  getCengageSessionValidity,
+} from './cengage-session';
 import { normalizeAndClassifyCengageEntry } from './cengage-url';
 
 export interface WebAssignAssignment {
@@ -15,8 +17,6 @@ export interface WebAssignAssignment {
   status: string;
   id?: string;
 }
-
-const STATE_PATH = path.resolve(process.cwd(), '.eclass-mcp/cengage-state.json');
 
 export class CengageScraper {
   private browser: Browser | null = null;
@@ -40,16 +40,27 @@ export class CengageScraper {
     const entry = normalizeAndClassifyCengageEntry(ssoUrl);
     const entryUrl = entry.normalizedUrl;
 
-    if (!fs.existsSync(STATE_PATH)) {
+    const sessionValidity = getCengageSessionValidity();
+    if (!sessionValidity.valid) {
+      const message =
+        sessionValidity.reason === 'stale'
+          ? `Cengage session is stale (older than ${CENGAGE_SESSION_STALE_HOURS} hours). Please authenticate again.`
+          : 'Cengage session state is missing or invalid. Please authenticate first.';
+
       throw new CengageAuthRequiredError(
-        'Cengage session state not found. Please authenticate first.',
-        { entryUrl, linkType: entry.linkType }
+        message,
+        {
+          entryUrl,
+          linkType: entry.linkType,
+          sessionReason: sessionValidity.reason,
+          sessionSavedAt: sessionValidity.savedAt,
+        }
       );
     }
 
     const browser = await this.getBrowser();
     const context = await browser.newContext({
-      storageState: STATE_PATH,
+      storageState: sessionValidity.statePath,
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       viewport: { width: 1280, height: 800 }
     });

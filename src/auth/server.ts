@@ -1,11 +1,14 @@
 import http from 'http';
 import { chromium } from 'playwright';
 import { saveSession, isSessionValid } from '../scraper/session';
+import {
+  CENGAGE_STATE_PATH,
+  ensureCengageSessionDir,
+  saveCengageSessionMetadata,
+} from '../scraper/cengage-session';
 import url from 'url';
 import dotenv from 'dotenv';
 import { exec } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 
 dotenv.config({ quiet: true });
 
@@ -141,11 +144,9 @@ export async function startAuthServer() {
         
         await page.waitForTimeout(5000);
 
-        const statePath = path.resolve(process.cwd(), '.eclass-mcp/cengage-state.json');
-        const dir = path.dirname(statePath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-        await context.storageState({ path: statePath });
+        ensureCengageSessionDir(CENGAGE_STATE_PATH);
+        await context.storageState({ path: CENGAGE_STATE_PATH });
+        saveCengageSessionMetadata({ statePath: CENGAGE_STATE_PATH });
         
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
