@@ -29,8 +29,11 @@ import {
   cacheRefreshPin,
   cacheDeletePinned,
 } from './tools/pins';
-import { getCengageAssignments } from './tools/cengage';
-import { GetCengageAssignmentsLegacyInputSchema } from './tools/cengage-contracts';
+import { discoverCengageLinks, getCengageAssignments } from './tools/cengage';
+import {
+  DiscoverCengageLinksInputSchema,
+  GetCengageAssignmentsLegacyInputSchema,
+} from './tools/cengage-contracts';
 
 // Create the MCP server
 const server = new McpServer({
@@ -273,6 +276,14 @@ server.tool(
       .describe('The RMP teacher ID (from search_professors)'),
   },
   (async (args: any) => await getProfessorDetailsTool(args)) as any
+);
+
+server.tool(
+  'discover_cengage_links',
+  'Scans raw text for Cengage/WebAssign URLs and returns normalized, classified link candidates with source hints.',
+  DiscoverCengageLinksInputSchema.shape,
+  (async ({ text, source, courseId, sectionUrl }: any) =>
+    await discoverCengageLinks({ text, source, courseId, sectionUrl })) as any
 );
 
 server.tool(
