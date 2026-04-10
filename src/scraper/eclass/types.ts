@@ -46,7 +46,16 @@ export interface SectionTextData {
     content: string;
     links: Array<{ name: string; url: string }>;
   }>;
-  external_platforms?: { name: string; url: string }[];
+  external_platforms?: {
+    name: string;
+    url: string;
+    signal?:
+      | 'lti'
+      | 'keyword_url'
+      | 'keyword_name'
+      | 'url_activity'
+      | 'resource_activity';
+  }[];
 }
 
 export interface Assignment {
@@ -81,12 +90,21 @@ export interface CourseContent {
   sections: {
     title: string;
     items: {
-      type: 'resource' | 'assign' | 'announcement' | 'lti' | 'other';
+      type: 'resource' | 'assign' | 'announcement' | 'lti' | 'url' | 'other';
       name: string;
       url: string;
     }[];
   }[];
-  external_platforms?: { name: string; url: string }[];
+  external_platforms?: {
+    name: string;
+    url: string;
+    signal?:
+      | 'lti'
+      | 'keyword_url'
+      | 'keyword_name'
+      | 'url_activity'
+      | 'resource_activity';
+  }[];
 }
 
 import { SessionExpiredError } from '../session';
