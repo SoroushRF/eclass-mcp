@@ -1,6 +1,12 @@
 import { chromium, type Browser } from 'playwright';
 import fs from 'fs';
 import path from 'path';
+import {
+  CengageAuthRequiredError,
+  CengageInvalidInputError,
+  CengageNavigationError,
+  CengageParseError,
+} from './cengage-errors';
 
 export interface WebAssignAssignment {
   name: string;
@@ -11,6 +17,21 @@ export interface WebAssignAssignment {
 }
 
 const STATE_PATH = path.resolve(process.cwd(), '.eclass-mcp/cengage-state.json');
+
+function ensureValidEntryUrl(rawUrl: string): string {
+  const trimmed = rawUrl?.trim();
+  if (!trimmed) {
+    throw new CengageInvalidInputError('A non-empty Cengage/WebAssign URL is required.');
+  }
+
+  try {
+    return new URL(trimmed).toString();
+  } catch {
+    throw new CengageInvalidInputError('Invalid Cengage/WebAssign URL format.', {
+      entryUrl: rawUrl,
+    });
+  }
+}
 
 export class CengageScraper {
   private browser: Browser | null = null;
@@ -31,8 +52,13 @@ export class CengageScraper {
   }
 
   async getAssignments(ssoUrl: string): Promise<WebAssignAssignment[]> {
+    const entryUrl = ensureValidEntryUrl(ssoUrl);
+
     if (!fs.existsSync(STATE_PATH)) {
-      throw new Error('Cengage session state not found. Please run authentication first.');
+      throw new CengageAuthRequiredError(
+        'Cengage session state not found. Please authenticate first.',
+        { entryUrl }
+      );
     }
 
     const browser = await this.getBrowser();
@@ -45,10 +71,47 @@ export class CengageScraper {
     const page = await context.newPage();
     try {
       console.error(`[Cengage] Navigating to SSO URL...`);
-      await page.goto(ssoUrl, { waitUntil: 'load', timeout: 45000 });
+      try {
+        await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+      } catch (error) {
+        throw new CengageNavigationError(
+          'Failed to open the provided Cengage/WebAssign URL.',
+          {
+            entryUrl,
+            cause: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
 
       // Wait for the specific WebAssign student home URL or dashboard indicators
-      await page.waitForURL(/(.*webassign\.net\/web\/Student.*|.*webassign\.net\/v4cgi\/student.*)/i, { timeout: 30000 });
+      try {
+        await page.waitForURL(/(.*webassign\.net\/web\/Student.*|.*webassign\.net\/v4cgi\/student.*)/i, {
+          timeout: 30000,
+        });
+      } catch (error) {
+        const currentUrl = page.url();
+        const currentLower = currentUrl.toLowerCase();
+        const looksLikeLogin =
+          currentLower.includes('login.cengage.com') ||
+          currentLower.includes('/login') ||
+          currentLower.includes('/signin');
+
+        if (looksLikeLogin) {
+          throw new CengageAuthRequiredError(
+            'Cengage authentication is required before assignment extraction.',
+            { entryUrl, currentUrl }
+          );
+        }
+
+        throw new CengageNavigationError(
+          'Could not reach a WebAssign student page from the provided URL.',
+          {
+            entryUrl,
+            currentUrl,
+            cause: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
 
       // Check if we need to click "Past Assignments" to see anything
       // (This is common if there are no current assignments)
@@ -119,6 +182,12 @@ export class CengageScraper {
 
           return results;
       });
+
+      if (!Array.isArray(assignments)) {
+        throw new CengageParseError('Unexpected assignment extraction payload type.', {
+          entryUrl,
+        });
+      }
 
       // Filter duplicates by name
       const unique = Array.from(new Map(assignments.map(a => [a.name, a]) ).values());
