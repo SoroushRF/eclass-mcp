@@ -30,6 +30,28 @@ describe('cengage link discovery', () => {
     }
   });
 
+  it('keeps getenrolled registration links discovered from extracted file text', () => {
+    const result = discoverCengageLinksFromText({
+      text: 'Direct course link: https://www.getenrolled.com/?courseKey=yorku.ca73866101',
+      source: 'file_text',
+      sourceFile: {
+        fileName: 'WebAssign Instructions.pdf',
+        fileUrl:
+          'https://eclass.yorku.ca/pluginfile.php/7805304/mod_resource/content/2/WebAssign.pdf',
+        fileType: 'pdf',
+        blockIndex: 0,
+      },
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.links).toHaveLength(1);
+    expect(result.links[0].normalizedUrl).toBe(
+      'https://www.getenrolled.com/?courseKey=yorku.ca73866101'
+    );
+    expect(result.links[0].linkType).toBe('webassign_course');
+    expect(result.links[0].source).toBe('file_text');
+  });
+
   it('dedupes repeated links with deterministic normalized URLs', () => {
     const result = discoverCengageLinksFromText({
       text: [

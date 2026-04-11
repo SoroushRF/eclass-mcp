@@ -2,6 +2,7 @@
 
 ## Features
 - Fetches assignments from Cengage/WebAssign dashboard and direct-course flows.
+- Accepts registration-style entry links that redirect into WebAssign/Cengage, including `getenrolled.com` course-key URLs.
 - Supports explicit selection via `courseId`, `courseKey`, or `courseQuery`.
 - Returns normalized assignment rows with due/status/score fields.
 - Preserves compatibility with legacy input (`ssoUrl`) while preferring `entryUrl`.

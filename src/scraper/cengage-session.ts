@@ -1,7 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 
-export const CENGAGE_SESSION_DIR = path.resolve(process.cwd(), '.eclass-mcp');
+export const CENGAGE_SESSION_DIR = path.resolve(
+  __dirname,
+  '../../.eclass-mcp'
+);
 export const CENGAGE_STATE_PATH = path.join(
   CENGAGE_SESSION_DIR,
   'cengage-state.json'

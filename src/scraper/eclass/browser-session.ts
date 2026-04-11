@@ -13,6 +13,7 @@ import { SessionExpiredError } from './types';
 dotenv.config({ quiet: true });
 
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
+const DATA_ROOT = path.resolve(__dirname, '../../../.eclass-mcp');
 
 export class EClassBrowserSession {
   private browser: Browser | null = null;
@@ -58,11 +59,16 @@ export class EClassBrowserSession {
   }
 
   async dumpPage(page: Page, name: string) {
-    const debugDir = path.join(process.cwd(), '.eclass-mcp', 'debug');
-    if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
-    const html = await page.content();
-    fs.writeFileSync(path.join(debugDir, `${name}.html`), html);
-    console.error(`Dumped page to ${name}.html for debugging.`);
+    try {
+      const debugDir = path.join(DATA_ROOT, 'debug');
+      if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
+      const html = await page.content();
+      fs.writeFileSync(path.join(debugDir, `${name}.html`), html);
+      console.error(`Dumped page to ${name}.html for debugging.`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`Failed to dump debug page ${name}: ${message}`);
+    }
   }
 
   async close() {

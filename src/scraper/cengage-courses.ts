@@ -76,11 +76,15 @@ function normalizeUrl(candidateHref: string, baseUrl: string): URL | null {
 }
 
 function isKnownPlatformHost(host: string): boolean {
-  return host.includes('webassign.net') || host.includes('cengage.com');
+  return (
+    host.includes('webassign.net') ||
+    host.includes('getenrolled.com') ||
+    host.includes('cengage.com')
+  );
 }
 
 function inferPlatform(host: string): 'webassign' | 'cengage' {
-  return host.includes('webassign.net') ? 'webassign' : 'cengage';
+  return host.includes('cengage.com') ? 'cengage' : 'webassign';
 }
 
 function getCourseKey(
@@ -139,6 +143,10 @@ function looksLikeCourseLaunch(
       path.includes('/web/student') ||
       path.includes('/v4cgi/student')
     );
+  }
+
+  if (host.includes('getenrolled.com')) {
+    return !!courseKey;
   }
 
   return (

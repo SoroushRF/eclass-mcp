@@ -13,11 +13,13 @@ Only **setup** and a few **smoke tests** stay in the repo. One-off debug probes 
 | `test-item-details.ts` | Single assignment/quiz URL details |
 | `test-pdf-parser.ts` | Local PDF file → parser (no eClass) |
 | `debug-file-url.ts` | Trace download/parsing for one `fileUrl` |
+| `inspect-cengage-dashboard.ts` | Dump authenticated Cengage/WebAssign page HTML, screenshot, state, and candidate links |
 
 ```bash
 npm run build
 npx ts-node -P scripts/tsconfig.json scripts/test-scraper.ts
 npx ts-node scripts/test-deadlines.ts
+npx ts-node -P scripts/tsconfig.json scripts/inspect-cengage-dashboard.ts
 ```
 
 Large dumps go under `scripts/output/` (gitignored).

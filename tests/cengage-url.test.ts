@@ -48,6 +48,17 @@ describe('cengage URL classifier', () => {
     expect(parsed.linkType).toBe('cengage_dashboard');
   });
 
+  it('classifies getenrolled WebAssign registration links with course keys', () => {
+    const parsed = normalizeAndClassifyCengageEntry(
+      'https://www.getenrolled.com/?courseKey=yorku.ca73866101'
+    );
+
+    expect(parsed.linkType).toBe('webassign_course');
+    expect(parsed.normalizedUrl).toBe(
+      'https://www.getenrolled.com/?courseKey=yorku.ca73866101'
+    );
+  });
+
   it('extracts URL from mixed text input from debug logs', () => {
     const parsed = normalizeAndClassifyCengageEntry(
       'OPEN WEBASSIGN -> https://www.webassign.net/v4cgi/login.pl?pid=571417&eISBN=9780357128992&courseKey=WA-production-1607530'

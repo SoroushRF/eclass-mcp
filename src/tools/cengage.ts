@@ -104,6 +104,7 @@ function normalizeExtractedUrl(raw: string): string {
 function isLikelyCengageHost(host: string): boolean {
   return (
     host.includes('webassign.net') ||
+    host.includes('getenrolled.com') ||
     host.includes('cengage.com') ||
     host.includes('eclass.yorku.ca')
   );

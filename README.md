@@ -103,9 +103,10 @@ flowchart LR
 
 1. **New workflow:** use `discover_cengage_links` for raw text discovery, `list_cengage_courses` to inspect/select courses, then `get_cengage_assignments` for assignment extraction.
 2. **Compatibility path:** `get_cengage_assignments` still accepts legacy `ssoUrl` input; `entryUrl` is the preferred modern field.
-3. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
-4. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
-5. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
+3. **Supported entry shapes:** direct WebAssign URLs, Cengage dashboard/login URLs, York eClass launch links, and registration-style course links such as `https://www.getenrolled.com/?courseKey=...`.
+4. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
+5. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
+6. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
 
 > 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 

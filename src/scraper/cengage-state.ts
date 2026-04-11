@@ -34,6 +34,7 @@ export interface CengagePageStateResult {
       hasCourseLinks: boolean;
       hasWebassignStudentUrl: boolean;
       hasWebassignLoginWithCourseKey: boolean;
+      hasGetEnrolledCourseKey: boolean;
       hasDashboardUrl: boolean;
       hasLoginUrl: boolean;
     };
@@ -56,6 +57,8 @@ function normalizeSignals(signals: CengagePageStateSignals) {
   const hasWebassignLogin = lowerUrl.includes('webassign.net/v4cgi/login.pl');
   const hasCourseKeyInUrl = lowerUrl.includes('coursekey=');
   const hasWebassignLoginWithCourseKey = hasWebassignLogin && hasCourseKeyInUrl;
+  const hasGetEnrolledCourseKey =
+    lowerUrl.includes('getenrolled.com') && hasCourseKeyInUrl;
 
   const hasLoginUrl =
     lowerUrl.includes('login.cengage.com') ||
@@ -92,6 +95,7 @@ function normalizeSignals(signals: CengagePageStateSignals) {
     hasCourseLinks,
     hasWebassignStudentUrl,
     hasWebassignLoginWithCourseKey,
+    hasGetEnrolledCourseKey,
     hasDashboardUrl,
     hasLoginUrl,
   };
@@ -123,7 +127,8 @@ export function classifyCengagePageState(
 
   if (
     normalized.hasWebassignStudentUrl ||
-    normalized.hasWebassignLoginWithCourseKey
+    normalized.hasWebassignLoginWithCourseKey ||
+    normalized.hasGetEnrolledCourseKey
   ) {
     return {
       state: 'course',
@@ -224,9 +229,38 @@ async function collectCengagePageStateSignals(
   };
 }
 
+function isTransientNavigationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('execution context was destroyed') ||
+    message.includes('most likely because of a navigation') ||
+    message.includes('cannot find context with specified id') ||
+    message.includes('frame was detached')
+  );
+}
+
 export async function detectCengagePageState(
   page: Page
 ): Promise<CengagePageStateResult> {
-  const signals = await collectCengagePageStateSignals(page);
-  return classifyCengagePageState(signals);
+  const maxAttempts = 4;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const signals = await collectCengagePageStateSignals(page);
+      return classifyCengagePageState(signals);
+    } catch (error) {
+      if (!isTransientNavigationError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+
+      await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(
+        () => null
+      );
+      await page.waitForTimeout(250);
+    }
+  }
+
+  throw new Error('Failed to detect Cengage page state.');
 }

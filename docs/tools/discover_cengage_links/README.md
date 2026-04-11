@@ -2,6 +2,7 @@
 
 ## Features
 - Scans arbitrary text for Cengage/WebAssign URL candidates.
+- Detects direct registration-style entry links such as `getenrolled.com` course-key URLs.
 - Normalizes and classifies links (`eclass_lti`, `webassign_course`, `webassign_dashboard`, `cengage_dashboard`, `cengage_login`, `other`).
 - Preserves source context via `source`, `sourceHint`, and optional `sourceFile` metadata.
 - Returns structured status and `_cache` freshness metadata.

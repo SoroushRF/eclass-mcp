@@ -70,6 +70,14 @@ export function classifyCengageUrl(url: URL): CengageEntryLinkType {
     return 'other';
   }
 
+  if (host.includes('getenrolled.com')) {
+    if (url.searchParams.has('courseKey')) {
+      return 'webassign_course';
+    }
+
+    return 'other';
+  }
+
   if (host.includes('login.cengage.com')) {
     return 'cengage_login';
   }

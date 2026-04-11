@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   classifyCengagePageState,
+  detectCengagePageState,
   type CengagePageStateSignals,
 } from '../src/scraper/cengage-state';
 
@@ -54,6 +55,14 @@ describe('cengage page state detector', () => {
     expect(result.state).toBe('course');
   });
 
+  it('detects course when getenrolled link carries a courseKey', () => {
+    const result = classify({
+      url: 'https://www.getenrolled.com/?courseKey=yorku.ca73866101',
+    });
+
+    expect(result.state).toBe('course');
+  });
+
   it('detects dashboard from known dashboard URL', () => {
     const result = classify({
       url: 'https://www.cengage.com/dashboard/home',
@@ -80,5 +89,37 @@ describe('cengage page state detector', () => {
     });
 
     expect(result.state).toBe('unknown');
+  });
+
+  it('retries transient navigation errors before collecting page signals', async () => {
+    const evaluate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error(
+          'page.evaluate: Execution context was destroyed, most likely because of a navigation'
+        )
+      )
+      .mockResolvedValueOnce({
+        title: 'Dashboard',
+        bodyTextSnippet: 'my courses',
+        hasPasswordInput: false,
+        hasLoginButton: false,
+        hasAssignmentsWrapper: false,
+        hasDueDateText: false,
+        hasPastAssignmentsButton: false,
+        hasCourseLinks: true,
+      });
+
+    const page = {
+      evaluate,
+      url: () => 'https://www.cengage.com/dashboard/home',
+      waitForLoadState: vi.fn().mockResolvedValue(undefined),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    const result = await detectCengagePageState(page);
+    expect(result.state).toBe('dashboard');
+    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(page.waitForLoadState).toHaveBeenCalled();
   });
 });
