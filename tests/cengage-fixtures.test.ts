@@ -9,14 +9,10 @@ import {
 } from '../src/scraper/cengage-state';
 import { normalizeAndClassifyCengageEntry } from '../src/scraper/cengage-url';
 
+const CENGAGE_FIXTURE_DIR = path.resolve(__dirname, 'fixtures', 'cengage');
+
 function readFixtureJson<T>(name: string): T {
-  const fixturePath = path.join(
-    process.cwd(),
-    'tests',
-    'fixtures',
-    'cengage',
-    name
-  );
+  const fixturePath = path.join(CENGAGE_FIXTURE_DIR, name);
   return JSON.parse(fs.readFileSync(fixturePath, 'utf-8')) as T;
 }
 

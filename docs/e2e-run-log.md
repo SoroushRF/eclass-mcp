@@ -2,6 +2,13 @@
 
 Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows.
 
+## P00 Baseline Snapshot - 2026-04-10 (Pre Dashboard-First Runtime Pivot)
+
+- `list_cengage_courses` remains explicit-link driven in runtime behavior.
+- `get_cengage_assignments` remains explicit-link driven and returns `status="error"` when neither `entryUrl` nor `ssoUrl` is provided.
+- Current scenario coverage remains validated at the tool-contract level (direct dashboard link, direct course link, auth-expired recovery).
+- Cengage fixture tests were hardened to resolve fixtures relative to the test file path instead of `process.cwd()`, so runs are stable across workspace/repo working directories.
+
 Inspector command used for server-only passes:
 ```powershell
 npx.cmd @modelcontextprotocol/inspector node dist/index.js

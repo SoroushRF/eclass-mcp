@@ -23,6 +23,15 @@ afterEach(() => {
 });
 
 describe('get cengage assignments tool on new core', () => {
+  it('returns error when entry URL is missing (link-first baseline)', async () => {
+    const result = await getCengageAssignments({} as any);
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.assignments).toHaveLength(0);
+    expect(payload.message).toContain('entryUrl or ssoUrl is required');
+  });
+
   it('supports legacy string input and returns selected course assignments', async () => {
     const entryUrl = uniqueEntryUrl('legacy');
     const listSpy = vi
