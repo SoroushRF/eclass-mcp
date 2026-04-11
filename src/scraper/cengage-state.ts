@@ -255,9 +255,9 @@ export async function detectCengagePageState(
         throw error;
       }
 
-      await page.waitForLoadState('domcontentloaded', { timeout: 3000 }).catch(
-        () => null
-      );
+      await page
+        .waitForLoadState('domcontentloaded', { timeout: 3000 })
+        .catch(() => null);
       await page.waitForTimeout(250);
     }
   }

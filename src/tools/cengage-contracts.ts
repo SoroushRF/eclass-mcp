@@ -174,7 +174,9 @@ export const GetCengageAssignmentsInputSchema = z.object({
   courseQuery: z
     .string()
     .optional()
-    .describe('Optional course name query when selecting among multiple courses.'),
+    .describe(
+      'Optional course name query when selecting among multiple courses.'
+    ),
 });
 
 export const GetCengageAssignmentsLegacyInputSchema = z.object({
