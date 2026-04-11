@@ -24,24 +24,29 @@ afterEach(() => {
 
 describe('get cengage assignments tool on new core', () => {
   it('supports dashboard-first mode when entry URL is omitted', async () => {
+    const uniqueCourse = {
+      ...SAMPLE_COURSE,
+      title: `Dashboard Bootstrap ${Date.now()}`,
+    };
+
     const listSpy = vi
       .spyOn(CengageScraper.prototype, 'listDashboardCourses')
-      .mockResolvedValue([SAMPLE_COURSE]);
+      .mockResolvedValue([uniqueCourse]);
     const assignmentsSpy = vi
       .spyOn(CengageScraper.prototype, 'getAssignments')
       .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
-      courseQuery: 'MATH 1010 - Calculus I',
+      courseQuery: uniqueCourse.title,
     });
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload.status).toBe('no_data');
-    expect(payload.selectedCourse.title).toBe('MATH 1010 - Calculus I');
+    expect(payload.selectedCourse.title).toBe(uniqueCourse.title);
     expect(payload.assignments).toHaveLength(0);
-    expect(listSpy).toHaveBeenCalledWith('https://login.cengage.com/');
-    expect(assignmentsSpy).toHaveBeenCalledWith(SAMPLE_COURSE.launchUrl);
+    expect(listSpy).toHaveBeenCalledWith();
+    expect(assignmentsSpy).toHaveBeenCalledWith(uniqueCourse.launchUrl);
   });
 
   it('supports legacy string input and returns selected course assignments', async () => {

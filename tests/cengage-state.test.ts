@@ -72,6 +72,16 @@ describe('cengage page state detector', () => {
     expect(result.state).toBe('dashboard');
   });
 
+  it('detects dashboard from cengage.ca dashboard URL variant', () => {
+    const result = classify({
+      url: 'https://www.cengage.ca/dashboard/home',
+      title: 'Cengage Learning',
+    });
+
+    expect(result.state).toBe('dashboard');
+    expect(result.diagnostics.markers.hasDashboardUrl).toBe(true);
+  });
+
   it('detects dashboard from course links marker', () => {
     const result = classify({
       url: 'https://www.cengage.com/some/landing/page',

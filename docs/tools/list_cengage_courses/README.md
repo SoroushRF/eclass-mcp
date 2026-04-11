@@ -3,6 +3,7 @@
 ## Features
 - Lists Cengage/WebAssign courses from dashboard, launch, or discovered links.
 - Supports dashboard-first mode without `entryUrl` by bootstrapping from saved Cengage session state.
+- Dashboard-first bootstrap uses deterministic canonical homes (Cengage dashboard variants, then WebAssign student-home variants).
 - Supports optional pre-filtering via `courseQuery`.
 - Returns deterministic status values (`ok`, `needs_course_selection`, `no_data`, `auth_required`, `error`).
 - Returns retry guidance when authentication is required.

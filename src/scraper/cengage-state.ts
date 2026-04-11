@@ -66,8 +66,12 @@ function normalizeSignals(signals: CengagePageStateSignals) {
     lowerUrl.includes('/signin') ||
     lowerUrl.includes('/auth');
 
+  const hasCengageHost =
+    lowerUrl.includes('cengage.com') || lowerUrl.includes('cengage.ca');
+  const hasCengageDashboardPath = lowerUrl.includes('/dashboard/');
+
   const hasDashboardUrl =
-    lowerUrl.includes('cengage.com/dashboard') ||
+    (hasCengageHost && hasCengageDashboardPath) ||
     lowerUrl.includes('/mindtap') ||
     lowerUrl.includes('/nglms');
 

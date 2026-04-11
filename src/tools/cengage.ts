@@ -33,7 +33,7 @@ const URL_REGEX_GLOBAL = /https?:\/\/[^\s<>'"\])]+/gi;
 const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
-const CENGAGE_DEFAULT_ENTRY_URL = 'https://login.cengage.com/';
+const CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY = '__dashboard_session__';
 
 type DiscoveredLinkItem = DiscoverCengageLinksResponse['links'][number];
 
@@ -373,7 +373,9 @@ function asListCoursesToolResponse(payload: ListCengageCoursesResponse) {
   };
 }
 
-function resolveListingEntryUrl(input: ListCengageCoursesInput): string {
+function resolveListingEntryUrl(
+  input: ListCengageCoursesInput
+): string | undefined {
   if (input.discoveredLink?.normalizedUrl) {
     return input.discoveredLink.normalizedUrl;
   }
@@ -383,7 +385,7 @@ function resolveListingEntryUrl(input: ListCengageCoursesInput): string {
   }
 
   const entryUrl = (input.entryUrl || '').trim();
-  return entryUrl || CENGAGE_DEFAULT_ENTRY_URL;
+  return entryUrl || undefined;
 }
 
 function mapCourseSummary(course: CengageDashboardCourse) {
@@ -458,7 +460,7 @@ function resolveAssignmentsInput(
 export async function listCengageCourses(input: ListCengageCoursesInput) {
   const entryUrl = resolveListingEntryUrl(input);
   const cacheKey = cengageCacheKey('list_courses', {
-    entryUrl,
+    entryUrl: entryUrl || CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY,
     discoveredLink:
       input.discoveredLink?.normalizedUrl ||
       input.discoveredLink?.rawUrl ||
@@ -477,15 +479,18 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
 
   try {
     scraper = new CengageScraper();
-    const courses = await scraper.listDashboardCourses(entryUrl);
+    const courses = entryUrl
+      ? await scraper.listDashboardCourses(entryUrl)
+      : await scraper.listDashboardCourses();
 
     if (courses.length === 0) {
       const payload: ListCengageCoursesResponse = {
         status: 'no_data',
         entryUrl,
         courses: [],
-        message:
-          'No Cengage/WebAssign courses were discovered from the provided entry URL.',
+        message: entryUrl
+          ? 'No Cengage/WebAssign courses were discovered from the provided entry URL.'
+          : 'No Cengage/WebAssign courses were discovered from the saved session bootstrap flow.',
       };
       cache.set(cacheKey, payload, CENGAGE_LIST_COURSES_TTL_MINUTES);
       return asListCoursesToolResponse(
@@ -667,11 +672,10 @@ export async function getCengageAssignments(
   input: GetCengageAssignmentsInput | string
 ) {
   const args = resolveAssignmentsInput(input);
-  const requestedEntryUrl = (args.entryUrl || args.ssoUrl || '').trim();
-  const entryUrl = requestedEntryUrl || CENGAGE_DEFAULT_ENTRY_URL;
+  const entryUrl = (args.entryUrl || args.ssoUrl || '').trim() || undefined;
 
   const cacheKey = cengageCacheKey('assignments', {
-    entryUrl,
+    entryUrl: entryUrl || CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY,
     courseId: args.courseId || null,
     courseKey: args.courseKey || null,
     courseQuery: args.courseQuery || null,
@@ -687,7 +691,9 @@ export async function getCengageAssignments(
   try {
     scraper = new CengageScraper();
 
-    const courses = await scraper.listDashboardCourses(entryUrl);
+    const courses = entryUrl
+      ? await scraper.listDashboardCourses(entryUrl)
+      : await scraper.listDashboardCourses();
     const selection = resolveDashboardCourseSelection(courses, {
       courseId: args.courseId,
       courseKey: args.courseKey,

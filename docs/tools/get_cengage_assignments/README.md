@@ -3,6 +3,7 @@
 ## Features
 - Fetches assignments from Cengage/WebAssign dashboard and direct-course flows.
 - Supports dashboard-first mode without `entryUrl` by using saved session state.
+- Dashboard-first bootstrap uses deterministic canonical homes (Cengage dashboard variants, then WebAssign student-home variants).
 - Accepts registration-style entry links that redirect into WebAssign/Cengage, including `getenrolled.com` course-key URLs.
 - Supports explicit selection via `courseId`, `courseKey`, or `courseQuery`.
 - Returns normalized assignment rows with due/status/score fields.

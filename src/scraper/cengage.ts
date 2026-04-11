@@ -24,7 +24,18 @@ import {
   type CengageAssignmentRowCandidate,
 } from './cengage-assignment-parser';
 import { detectCengagePageState } from './cengage-state';
-import { normalizeAndClassifyCengageEntry } from './cengage-url';
+import {
+  normalizeAndClassifyCengageEntry,
+  type CengageEntryLinkType,
+} from './cengage-url';
+
+const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
+  'https://www.cengage.ca/dashboard/home',
+  'https://www.cengage.com/dashboard/home',
+  'https://www.webassign.net/web/Student/Home.html',
+  'https://www.webassign.net/v4cgi/student',
+  'https://login.cengage.com/',
+];
 
 export interface WebAssignAssignment {
   name: string;
@@ -280,11 +291,124 @@ export class CengageScraper {
     );
   }
 
-  async listDashboardCourses(
-    entryUrlInput: string
+  private async discoverCoursesFromCurrentPage(
+    page: Page,
+    context: {
+      entryUrl: string;
+      linkType: CengageEntryLinkType;
+      allowSyntheticFallback?: boolean;
+    }
   ): Promise<CengageDashboardCourse[]> {
-    const entry = normalizeAndClassifyCengageEntry(entryUrlInput);
-    const entryUrl = entry.normalizedUrl;
+    const state = await detectCengagePageState(page);
+    if (state.state === 'login') {
+      throw new CengageAuthRequiredError(
+        'Cengage authentication is required before course discovery.',
+        {
+          entryUrl: context.entryUrl,
+          linkType: context.linkType,
+          pageState: state,
+        }
+      );
+    }
+
+    const courses = await this.extractDashboardCourseInventory(page);
+    if (courses.length > 0) {
+      return courses;
+    }
+
+    if (
+      context.allowSyntheticFallback &&
+      (state.state === 'course' || state.state === 'assignments')
+    ) {
+      const fallback = inferCourseFromCurrentPage(
+        page.url(),
+        await page.title()
+      );
+      if (fallback) {
+        return [fallback];
+      }
+    }
+
+    throw new CengageParseError(
+      'No course links were discovered from the current Cengage/WebAssign page.',
+      {
+        entryUrl: context.entryUrl,
+        linkType: context.linkType,
+        pageState: state,
+      }
+    );
+  }
+
+  private async discoverCoursesViaCanonicalBootstrap(
+    page: Page
+  ): Promise<CengageDashboardCourse[]> {
+    let lastRecoverableError:
+      | CengageNavigationError
+      | CengageParseError
+      | null = null;
+
+    for (const entryUrl of CENGAGE_CANONICAL_HOME_URLS) {
+      try {
+        await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+      } catch (error) {
+        lastRecoverableError = new CengageNavigationError(
+          'Failed to open canonical Cengage/WebAssign bootstrap URL.',
+          {
+            entryUrl,
+            linkType: 'cengage_dashboard',
+            cause: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+        continue;
+      }
+
+      try {
+        return await this.discoverCoursesFromCurrentPage(page, {
+          entryUrl,
+          linkType: 'cengage_dashboard',
+          allowSyntheticFallback: true,
+        });
+      } catch (error) {
+        if (error instanceof CengageAuthRequiredError) {
+          throw error;
+        }
+
+        if (
+          error instanceof CengageNavigationError ||
+          error instanceof CengageParseError
+        ) {
+          lastRecoverableError = error;
+          continue;
+        }
+
+        throw error;
+      }
+    }
+
+    if (lastRecoverableError) {
+      throw lastRecoverableError;
+    }
+
+    throw new CengageParseError(
+      'No courses were discovered after trying canonical Cengage/WebAssign homes.',
+      {
+        attemptedEntries: [...CENGAGE_CANONICAL_HOME_URLS],
+      }
+    );
+  }
+
+  async listDashboardCourses(
+    entryUrlInput?: string
+  ): Promise<CengageDashboardCourse[]> {
+    const hasExplicitEntry =
+      typeof entryUrlInput === 'string' && entryUrlInput.trim().length > 0;
+    const entry = hasExplicitEntry
+      ? normalizeAndClassifyCengageEntry(entryUrlInput as string)
+      : null;
+    const entryUrl = entry?.normalizedUrl;
+    const linkType: CengageEntryLinkType =
+      entry?.linkType || 'cengage_dashboard';
+    const sessionEntryUrl = entryUrl || CENGAGE_CANONICAL_HOME_URLS[0];
 
     const sessionValidity = getCengageSessionValidity();
     if (!sessionValidity.valid) {
@@ -294,8 +418,8 @@ export class CengageScraper {
           : 'Cengage session state is missing or invalid. Please authenticate first.';
 
       throw new CengageAuthRequiredError(message, {
-        entryUrl,
-        linkType: entry.linkType,
+        entryUrl: sessionEntryUrl,
+        linkType,
         sessionReason: sessionValidity.reason,
         sessionSavedAt: sessionValidity.savedAt,
       });
@@ -311,54 +435,31 @@ export class CengageScraper {
 
     const page = await context.newPage();
     try {
+      if (!hasExplicitEntry) {
+        return await this.discoverCoursesViaCanonicalBootstrap(page);
+      }
+
       try {
-        await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+        await page.goto(entryUrl as string, {
+          waitUntil: 'load',
+          timeout: 45000,
+        });
       } catch (error) {
         throw new CengageNavigationError(
           'Failed to open the provided Cengage/WebAssign URL.',
           {
             entryUrl,
-            linkType: entry.linkType,
+            linkType,
             cause: error instanceof Error ? error.message : 'Unknown error',
           }
         );
       }
 
-      const state = await detectCengagePageState(page);
-      if (state.state === 'login') {
-        throw new CengageAuthRequiredError(
-          'Cengage authentication is required before course discovery.',
-          {
-            entryUrl,
-            linkType: entry.linkType,
-            pageState: state,
-          }
-        );
-      }
-
-      const courses = await this.extractDashboardCourseInventory(page);
-      if (courses.length > 0) {
-        return courses;
-      }
-
-      if (state.state === 'course' || state.state === 'assignments') {
-        const fallback = inferCourseFromCurrentPage(
-          page.url(),
-          await page.title()
-        );
-        if (fallback) {
-          return [fallback];
-        }
-      }
-
-      throw new CengageParseError(
-        'No course links were discovered from the current Cengage/WebAssign page.',
-        {
-          entryUrl,
-          linkType: entry.linkType,
-          pageState: state,
-        }
-      );
+      return await this.discoverCoursesFromCurrentPage(page, {
+        entryUrl: entryUrl as string,
+        linkType,
+        allowSyntheticFallback: true,
+      });
     } finally {
       await context.close();
     }
