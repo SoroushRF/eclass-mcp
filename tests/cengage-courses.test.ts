@@ -133,6 +133,20 @@ describe('cengage dashboard course inventory extraction', () => {
     expect(courses).toHaveLength(0);
   });
 
+  it('ignores getenrolled registration wrappers as course inventory rows', () => {
+    const courses = extractDashboardCourses(
+      [
+        {
+          href: 'https://www.getenrolled.com/?courseKey=yorku.ca73866101',
+          text: 'OPEN WEBASSIGN',
+        },
+      ],
+      'https://www.cengage.com/dashboard/home'
+    );
+
+    expect(courses).toHaveLength(0);
+  });
+
   it('uses a deterministic fallback title when link text is missing', () => {
     const courses = extractDashboardCourses(
       [
@@ -167,6 +181,15 @@ describe('cengage current-page course inference', () => {
     const course = inferCourseFromCurrentPage(
       'https://example.org/dashboard/course/123',
       'Example Course'
+    );
+
+    expect(course).toBeNull();
+  });
+
+  it('returns null for getenrolled registration wrappers', () => {
+    const course = inferCourseFromCurrentPage(
+      'https://www.getenrolled.com/?courseKey=yorku.ca73866101',
+      'OPEN WEBASSIGN'
     );
 
     expect(course).toBeNull();

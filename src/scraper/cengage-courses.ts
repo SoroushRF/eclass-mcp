@@ -89,7 +89,6 @@ function normalizeUrl(candidateHref: string, baseUrl: string): URL | null {
 function isKnownPlatformHost(host: string): boolean {
   return (
     host.includes('webassign.net') ||
-    host.includes('getenrolled.com') ||
     host.includes('cengage.com') ||
     host.includes('cengage.ca')
   );
@@ -155,10 +154,6 @@ function looksLikeCourseLaunch(
       path.includes('/web/student') ||
       path.includes('/v4cgi/student')
     );
-  }
-
-  if (host.includes('getenrolled.com')) {
-    return !!courseKey;
   }
 
   return (

@@ -45,6 +45,13 @@
     }
   },
   {
+    "id": "enrollment_getenrolled_coursekey",
+    "signals": {
+      "url": "https://www.getenrolled.com/?courseKey=yorku.ca73866101",
+      "title": "Open WebAssign"
+    }
+  },
+  {
     "id": "unknown_page",
     "signals": {
       "url": "https://example.org/path",

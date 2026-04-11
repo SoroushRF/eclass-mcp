@@ -55,12 +55,13 @@ describe('cengage page state detector', () => {
     expect(result.state).toBe('course');
   });
 
-  it('detects course when getenrolled link carries a courseKey', () => {
+  it('detects enrollment when getenrolled link carries a courseKey', () => {
     const result = classify({
       url: 'https://www.getenrolled.com/?courseKey=yorku.ca73866101',
     });
 
-    expect(result.state).toBe('course');
+    expect(result.state).toBe('enrollment');
+    expect(result.diagnostics.markers.hasGetEnrolledCourseKey).toBe(true);
   });
 
   it('detects dashboard from known dashboard URL', () => {

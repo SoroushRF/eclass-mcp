@@ -3,6 +3,7 @@ import type { Page } from 'playwright';
 export type CengagePageState =
   | 'login'
   | 'dashboard'
+  | 'enrollment'
   | 'course'
   | 'assignments'
   | 'unknown';
@@ -129,10 +130,24 @@ export function classifyCengagePageState(
     };
   }
 
+  if (normalized.hasGetEnrolledCourseKey) {
+    return {
+      state: 'enrollment',
+      reason:
+        'Detected getenrolled enrollment/registration context before course launch.',
+      diagnostics: {
+        url: normalized.url,
+        title: normalized.title,
+        markers: {
+          ...normalized,
+        },
+      },
+    };
+  }
+
   if (
     normalized.hasWebassignStudentUrl ||
-    normalized.hasWebassignLoginWithCourseKey ||
-    normalized.hasGetEnrolledCourseKey
+    normalized.hasWebassignLoginWithCourseKey
   ) {
     return {
       state: 'course',

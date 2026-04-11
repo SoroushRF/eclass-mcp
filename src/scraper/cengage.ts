@@ -484,7 +484,7 @@ export class CengageScraper {
         return await this.discoverCoursesFromCurrentPage(page, {
           entryUrl,
           linkType: 'cengage_dashboard',
-          allowSyntheticFallback: true,
+          allowSyntheticFallback: false,
         });
       } catch (error) {
         if (error instanceof CengageAuthRequiredError) {

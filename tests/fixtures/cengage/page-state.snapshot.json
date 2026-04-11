@@ -66,6 +66,17 @@
     }
   },
   {
+    "id": "enrollment_getenrolled_coursekey",
+    "state": "enrollment",
+    "reason": "Detected getenrolled enrollment/registration context before course launch.",
+    "markers": {
+      "hasLoginUrl": false,
+      "hasDashboardUrl": false,
+      "hasWebassignStudentUrl": false,
+      "hasWebassignLoginWithCourseKey": false
+    }
+  },
+  {
     "id": "unknown_page",
     "state": "unknown",
     "reason": "No known Cengage/WebAssign state markers were detected.",
