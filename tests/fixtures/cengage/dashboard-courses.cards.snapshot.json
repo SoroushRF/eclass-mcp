@@ -1,0 +1,24 @@
+[
+  {
+    "title": "MATH 1014 O",
+    "launchUrl": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9101",
+    "platform": "webassign",
+    "confidence": 0.99,
+    "courseId": "math-1014-o",
+    "courseKey": "WA-production-9101"
+  },
+  {
+    "title": "PHYS 1800 A",
+    "launchUrl": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9103",
+    "platform": "webassign",
+    "confidence": 0.99,
+    "courseKey": "WA-production-9103"
+  },
+  {
+    "title": "CHEM 1001 Intro Chemistry",
+    "launchUrl": "https://www.cengage.ca/mindtap/course/chem-1001?courseId=chem-1001",
+    "platform": "cengage",
+    "confidence": 0.7,
+    "courseId": "chem-1001"
+  }
+]

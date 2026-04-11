@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { parseWebAssignAssignments } from '../src/scraper/cengage-assignment-parser';
-import { extractDashboardCourses } from '../src/scraper/cengage-courses';
+import {
+  extractDashboardCourses,
+  extractDashboardCoursesFromCardCandidates,
+} from '../src/scraper/cengage-courses';
 import {
   classifyCengagePageState,
   type CengagePageStateSignals,
@@ -74,6 +77,41 @@ describe('cengage fixture snapshots', () => {
       extractDashboardCourses(
         candidates,
         'https://www.cengage.com/dashboard/home'
+      )
+    );
+
+    expect(actual).toStrictEqual(expected);
+  });
+
+  it('matches dashboard card extraction fixture snapshot', () => {
+    const cardCandidates = readFixtureJson<
+      Array<{
+        cardId?: string;
+        cardTitle?: string;
+        launchHref: string;
+        launchText?: string;
+        launchTitleAttr?: string;
+        launchAriaLabel?: string;
+        dataCourseId?: string;
+        dataCourseKey?: string;
+      }>
+    >('dashboard-card-candidates.dashboard.json');
+
+    const expected = readFixtureJson<
+      Array<{
+        title: string;
+        launchUrl: string;
+        platform: 'webassign' | 'cengage';
+        confidence: number;
+        courseId?: string;
+        courseKey?: string;
+      }>
+    >('dashboard-courses.cards.snapshot.json');
+
+    const actual = stable(
+      extractDashboardCoursesFromCardCandidates(
+        cardCandidates,
+        'https://www.cengage.ca/dashboard/home'
       )
     );
 

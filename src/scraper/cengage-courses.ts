@@ -7,6 +7,17 @@ export interface CengageCourseLinkCandidate {
   dataCourseKey?: string;
 }
 
+export interface CengageDashboardCardCandidate {
+  cardId?: string;
+  cardTitle?: string;
+  launchHref: string;
+  launchText?: string;
+  launchTitleAttr?: string;
+  launchAriaLabel?: string;
+  dataCourseId?: string;
+  dataCourseKey?: string;
+}
+
 export interface CengageDashboardCourse {
   courseId?: string;
   courseKey?: string;
@@ -79,12 +90,13 @@ function isKnownPlatformHost(host: string): boolean {
   return (
     host.includes('webassign.net') ||
     host.includes('getenrolled.com') ||
-    host.includes('cengage.com')
+    host.includes('cengage.com') ||
+    host.includes('cengage.ca')
   );
 }
 
 function inferPlatform(host: string): 'webassign' | 'cengage' {
-  return host.includes('cengage.com') ? 'cengage' : 'webassign';
+  return host.includes('cengage.') ? 'cengage' : 'webassign';
 }
 
 function getCourseKey(
@@ -643,6 +655,28 @@ export function extractDashboardCourses(
 
     return a.launchUrl.localeCompare(b.launchUrl);
   });
+}
+
+export function extractDashboardCoursesFromCardCandidates(
+  cardCandidates: CengageDashboardCardCandidate[],
+  baseUrl: string
+): CengageDashboardCourse[] {
+  const candidates: CengageCourseLinkCandidate[] = cardCandidates
+    .map((card) => {
+      const cardTitle = normalizeText(card.cardTitle);
+
+      return {
+        href: card.launchHref,
+        text: cardTitle || normalizeText(card.launchText),
+        titleAttr: cardTitle || normalizeText(card.launchTitleAttr),
+        ariaLabel: cardTitle || normalizeText(card.launchAriaLabel),
+        dataCourseId: normalizeText(card.dataCourseId),
+        dataCourseKey: normalizeText(card.dataCourseKey),
+      };
+    })
+    .filter((candidate) => normalizeText(candidate.href).length > 0);
+
+  return extractDashboardCourses(candidates, baseUrl);
 }
 
 export function inferCourseFromCurrentPage(

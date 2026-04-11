@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   extractDashboardCourses,
+  extractDashboardCoursesFromCardCandidates,
   inferCourseFromCurrentPage,
   resolveDashboardCourseSelection,
   type CengageDashboardCourse,
@@ -36,6 +37,29 @@ const SAMPLE_COURSES: CengageDashboardCourse[] = [
 ];
 
 describe('cengage dashboard course inventory extraction', () => {
+  it('prefers card title over generic launch text for dashboard cards', () => {
+    const courses = extractDashboardCoursesFromCardCandidates(
+      [
+        {
+          cardId: 'home-page-entitlement-card-0',
+          cardTitle: 'MATH 1014 O',
+          launchHref:
+            'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9009',
+          launchText: 'OPEN WEBASSIGN',
+          dataCourseKey: 'WA-production-9009',
+        },
+      ],
+      'https://www.cengage.ca/dashboard/home'
+    );
+
+    expect(courses).toHaveLength(1);
+    expect(courses[0].title).toBe('MATH 1014 O');
+    expect(courses[0].launchUrl).toBe(
+      'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9009'
+    );
+    expect(courses[0].courseKey).toBe('WA-production-9009');
+  });
+
   it('extracts multiple course links with stable identifiers', () => {
     const courses = extractDashboardCourses(
       [

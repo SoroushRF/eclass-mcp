@@ -1,0 +1,24 @@
+[
+  {
+    "cardId": "home-page-entitlement-card-0",
+    "cardTitle": "MATH 1014 O",
+    "launchHref": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9101",
+    "launchText": "OPEN WEBASSIGN",
+    "dataCourseId": "math-1014-o",
+    "dataCourseKey": "WA-production-9101"
+  },
+  {
+    "cardId": "home-page-entitlement-card-1",
+    "cardTitle": "CHEM 1001 Intro Chemistry",
+    "launchHref": "/mindtap/course/chem-1001?courseId=chem-1001",
+    "launchText": "Open Course",
+    "dataCourseId": "chem-1001"
+  },
+  {
+    "cardId": "home-page-entitlement-card-2",
+    "cardTitle": "PHYS 1800 A",
+    "launchHref": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-9103#launch",
+    "launchText": "OPEN WEBASSIGN",
+    "dataCourseKey": "WA-production-9103"
+  }
+]
