@@ -23,13 +23,25 @@ afterEach(() => {
 });
 
 describe('get cengage assignments tool on new core', () => {
-  it('returns error when entry URL is missing (link-first baseline)', async () => {
-    const result = await getCengageAssignments({} as any);
+  it('supports dashboard-first mode when entry URL is omitted', async () => {
+    const listSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .mockResolvedValue([SAMPLE_COURSE]);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      courseQuery: 'MATH 1010 - Calculus I',
+    });
     const payload = JSON.parse(result.content[0].text);
 
-    expect(payload.status).toBe('error');
+    expect(payload.status).toBe('no_data');
+    expect(payload.selectedCourse.title).toBe('MATH 1010 - Calculus I');
     expect(payload.assignments).toHaveLength(0);
-    expect(payload.message).toContain('entryUrl or ssoUrl is required');
+    expect(listSpy).toHaveBeenCalledWith('https://login.cengage.com/');
+    expect(assignmentsSpy).toHaveBeenCalledWith(SAMPLE_COURSE.launchUrl);
   });
 
   it('supports legacy string input and returns selected course assignments', async () => {

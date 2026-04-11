@@ -299,7 +299,7 @@ server.tool(
 
 server.tool(
   'list_cengage_courses',
-  'Lists available Cengage/WebAssign courses from a provided entry URL (or discovered link), with optional query pre-filtering.',
+  'Lists available Cengage/WebAssign courses from saved session state (dashboard-first) or from a provided entry URL/discovered link, with optional query pre-filtering.',
   ListCengageCoursesInputSchema.shape,
   (async ({ entryUrl, discoveredLink, courseQuery }: any) =>
     await listCengageCourses({ entryUrl, discoveredLink, courseQuery })) as any
@@ -307,7 +307,7 @@ server.tool(
 
 server.tool(
   'get_cengage_assignments',
-  'Fetches assignment list and deadlines from Cengage/WebAssign using direct course links, dashboard links, or legacy SSO links. Supports optional course selection inputs when multiple courses are present.',
+  'Fetches assignment list and deadlines from Cengage/WebAssign using dashboard-first saved-session flow or explicit direct course/dashboard/legacy SSO links. Supports optional course selection inputs when multiple courses are present.',
   GetCengageAssignmentsInputSchema.shape,
   (async ({ entryUrl, ssoUrl, courseId, courseKey, courseQuery }: any) =>
     await getCengageAssignments({

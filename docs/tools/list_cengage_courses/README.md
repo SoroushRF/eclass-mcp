@@ -2,6 +2,7 @@
 
 ## Features
 - Lists Cengage/WebAssign courses from dashboard, launch, or discovered links.
+- Supports dashboard-first mode without `entryUrl` by bootstrapping from saved Cengage session state.
 - Supports optional pre-filtering via `courseQuery`.
 - Returns deterministic status values (`ok`, `needs_course_selection`, `no_data`, `auth_required`, `error`).
 - Returns retry guidance when authentication is required.
@@ -18,6 +19,7 @@
 
 ## Edge Cases
 - Empty dashboards (returns `no_data`).
+- Calls without `entryUrl` still run in dashboard-first mode; stale/missing session returns `auth_required`.
 - Ambiguous query selection (returns `needs_course_selection`).
 - Session missing or stale (returns `auth_required` with `retry.authUrl`).
 

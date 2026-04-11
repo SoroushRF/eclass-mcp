@@ -34,6 +34,20 @@ afterEach(() => {
 });
 
 describe('list cengage courses tool', () => {
+  it('supports dashboard-first mode without entry URL', async () => {
+    const listSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .mockResolvedValue(SAMPLE_COURSES);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await listCengageCourses({} as any);
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.courses).toHaveLength(2);
+    expect(listSpy).toHaveBeenCalledWith('https://login.cengage.com/');
+  });
+
   it('lists courses from entry URL', async () => {
     const entryUrl = uniqueEntryUrl('list');
     const listSpy = vi

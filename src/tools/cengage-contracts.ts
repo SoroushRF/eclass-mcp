@@ -110,7 +110,7 @@ export const CengageCourseSummarySchema = z.object({
 export const ListCengageCoursesInputSchema = z.object({
   entryUrl: z
     .string()
-    .min(1)
+    .optional()
     .describe('A Cengage/WebAssign dashboard, launch, or course URL to open.'),
   discoveredLink: CengageDiscoveredLinkSchema.optional().describe(
     'Optional link candidate output from discover_cengage_links.'
@@ -150,38 +150,32 @@ export const CengageAssignmentSchema = z.object({
   rawText: z.string().optional(),
 });
 
-export const GetCengageAssignmentsInputSchema = z
-  .object({
-    entryUrl: z
-      .string()
-      .optional()
-      .describe(
-        'Any Cengage/WebAssign URL (dashboard, LTI launch, direct course, or login).'
-      ),
-    ssoUrl: z
-      .string()
-      .optional()
-      .describe(
-        'Legacy alias for entryUrl used by existing get_cengage_assignments calls.'
-      ),
-    courseId: z
-      .string()
-      .optional()
-      .describe('Optional explicit course id when multiple courses exist.'),
-    courseKey: z
-      .string()
-      .optional()
-      .describe('Optional explicit WebAssign course key when available.'),
-    courseQuery: z
-      .string()
-      .optional()
-      .describe(
-        'Optional course name query when selecting among multiple courses.'
-      ),
-  })
-  .refine((value) => !!(value.entryUrl || value.ssoUrl), {
-    message: 'entryUrl or ssoUrl is required',
-  });
+export const GetCengageAssignmentsInputSchema = z.object({
+  entryUrl: z
+    .string()
+    .optional()
+    .describe(
+      'Optional Cengage/WebAssign URL (dashboard, LTI launch, direct course, or login). If omitted, the tool attempts dashboard-first mode from saved session state.'
+    ),
+  ssoUrl: z
+    .string()
+    .optional()
+    .describe(
+      'Legacy alias for entryUrl used by existing get_cengage_assignments calls.'
+    ),
+  courseId: z
+    .string()
+    .optional()
+    .describe('Optional explicit course id when multiple courses exist.'),
+  courseKey: z
+    .string()
+    .optional()
+    .describe('Optional explicit WebAssign course key when available.'),
+  courseQuery: z
+    .string()
+    .optional()
+    .describe('Optional course name query when selecting among multiple courses.'),
+});
 
 export const GetCengageAssignmentsLegacyInputSchema = z.object({
   ssoUrl: z

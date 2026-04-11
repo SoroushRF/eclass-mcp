@@ -2,6 +2,7 @@
 
 ## Features
 - Fetches assignments from Cengage/WebAssign dashboard and direct-course flows.
+- Supports dashboard-first mode without `entryUrl` by using saved session state.
 - Accepts registration-style entry links that redirect into WebAssign/Cengage, including `getenrolled.com` course-key URLs.
 - Supports explicit selection via `courseId`, `courseKey`, or `courseQuery`.
 - Returns normalized assignment rows with due/status/score fields.
@@ -9,8 +10,9 @@
 - Returns `_cache` freshness metadata and typed retry guidance.
 
 ## Compatibility and Migration
-- Preferred input: `entryUrl`.
+- Preferred input for explicit-link mode: `entryUrl`.
 - Legacy alias: `ssoUrl` (still accepted for existing prompts/callers).
+- Optional dashboard-first mode: omit both `entryUrl` and `ssoUrl`; tool resolves from saved Cengage session.
 - When multiple courses are available, tool may return `needs_course_selection`; retry with explicit course selectors.
 
 ## Known Problems
@@ -25,6 +27,7 @@
 
 ## Edge Cases
 - Ambiguous selection on dashboard entry URLs.
+- Dashboard-first calls with multiple courses and no selectors can return `needs_course_selection`.
 - Auth-expired state during navigation (`auth_required` + retry guidance).
 - Direct course link that resolves to a dashboard with multiple courses.
 

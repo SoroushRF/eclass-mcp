@@ -33,6 +33,7 @@ const URL_REGEX_GLOBAL = /https?:\/\/[^\s<>'"\])]+/gi;
 const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
+const CENGAGE_DEFAULT_ENTRY_URL = 'https://login.cengage.com/';
 
 type DiscoveredLinkItem = DiscoverCengageLinksResponse['links'][number];
 
@@ -381,7 +382,8 @@ function resolveListingEntryUrl(input: ListCengageCoursesInput): string {
     return input.discoveredLink.rawUrl;
   }
 
-  return input.entryUrl;
+  const entryUrl = (input.entryUrl || '').trim();
+  return entryUrl || CENGAGE_DEFAULT_ENTRY_URL;
 }
 
 function mapCourseSummary(course: CengageDashboardCourse) {
@@ -665,7 +667,8 @@ export async function getCengageAssignments(
   input: GetCengageAssignmentsInput | string
 ) {
   const args = resolveAssignmentsInput(input);
-  const entryUrl = (args.entryUrl || args.ssoUrl || '').trim();
+  const requestedEntryUrl = (args.entryUrl || args.ssoUrl || '').trim();
+  const entryUrl = requestedEntryUrl || CENGAGE_DEFAULT_ENTRY_URL;
 
   const cacheKey = cengageCacheKey('assignments', {
     entryUrl,
@@ -682,14 +685,6 @@ export async function getCengageAssignments(
   let scraper: CengageScraper | null = null;
 
   try {
-    if (!entryUrl) {
-      return asToolResponse({
-        status: 'error',
-        assignments: [],
-        message: 'entryUrl or ssoUrl is required.',
-      });
-    }
-
     scraper = new CengageScraper();
 
     const courses = await scraper.listDashboardCourses(entryUrl);
