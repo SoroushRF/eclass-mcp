@@ -480,8 +480,8 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
   try {
     scraper = new CengageScraper();
     const courses = entryUrl
-      ? await scraper.listDashboardCourses(entryUrl)
-      : await scraper.listDashboardCourses();
+      ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
+      : await scraper.listDashboardCoursesFromSavedSession();
 
     if (courses.length === 0) {
       const payload: ListCengageCoursesResponse = {
@@ -692,8 +692,8 @@ export async function getCengageAssignments(
     scraper = new CengageScraper();
 
     const courses = entryUrl
-      ? await scraper.listDashboardCourses(entryUrl)
-      : await scraper.listDashboardCourses();
+      ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
+      : await scraper.listDashboardCoursesFromSavedSession();
     const selection = resolveDashboardCourseSelection(courses, {
       courseId: args.courseId,
       courseKey: args.courseKey,

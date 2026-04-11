@@ -397,19 +397,10 @@ export class CengageScraper {
     );
   }
 
-  async listDashboardCourses(
-    entryUrlInput?: string
-  ): Promise<CengageDashboardCourse[]> {
-    const hasExplicitEntry =
-      typeof entryUrlInput === 'string' && entryUrlInput.trim().length > 0;
-    const entry = hasExplicitEntry
-      ? normalizeAndClassifyCengageEntry(entryUrlInput as string)
-      : null;
-    const entryUrl = entry?.normalizedUrl;
-    const linkType: CengageEntryLinkType =
-      entry?.linkType || 'cengage_dashboard';
-    const sessionEntryUrl = entryUrl || CENGAGE_CANONICAL_HOME_URLS[0];
-
+  private getValidSessionStatePathOrThrow(
+    entryUrl: string,
+    linkType: CengageEntryLinkType
+  ): string {
     const sessionValidity = getCengageSessionValidity();
     if (!sessionValidity.valid) {
       const message =
@@ -418,16 +409,28 @@ export class CengageScraper {
           : 'Cengage session state is missing or invalid. Please authenticate first.';
 
       throw new CengageAuthRequiredError(message, {
-        entryUrl: sessionEntryUrl,
+        entryUrl,
         linkType,
         sessionReason: sessionValidity.reason,
         sessionSavedAt: sessionValidity.savedAt,
       });
     }
 
+    return sessionValidity.statePath;
+  }
+
+  private async withAuthenticatedPage<T>(
+    entryUrl: string,
+    linkType: CengageEntryLinkType,
+    callback: (page: Page) => Promise<T>
+  ): Promise<T> {
+    const storageState = this.getValidSessionStatePathOrThrow(
+      entryUrl,
+      linkType
+    );
     const browser = await this.getBrowser();
     const context = await browser.newContext({
-      storageState: sessionValidity.statePath,
+      storageState,
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       viewport: { width: 1280, height: 800 },
@@ -435,12 +438,33 @@ export class CengageScraper {
 
     const page = await context.newPage();
     try {
-      if (!hasExplicitEntry) {
-        return await this.discoverCoursesViaCanonicalBootstrap(page);
-      }
+      return await callback(page);
+    } finally {
+      await context.close();
+    }
+  }
 
+  async listDashboardCoursesFromSavedSession(): Promise<
+    CengageDashboardCourse[]
+  > {
+    const entryUrl = CENGAGE_CANONICAL_HOME_URLS[0];
+    return this.withAuthenticatedPage(
+      entryUrl,
+      'cengage_dashboard',
+      async (page) => this.discoverCoursesViaCanonicalBootstrap(page)
+    );
+  }
+
+  async listDashboardCoursesFromEntryLink(
+    entryUrlInput: string
+  ): Promise<CengageDashboardCourse[]> {
+    const entry = normalizeAndClassifyCengageEntry(entryUrlInput);
+    const entryUrl = entry.normalizedUrl;
+    const linkType = entry.linkType;
+
+    return this.withAuthenticatedPage(entryUrl, linkType, async (page) => {
       try {
-        await page.goto(entryUrl as string, {
+        await page.goto(entryUrl, {
           waitUntil: 'load',
           timeout: 45000,
         });
@@ -455,14 +479,24 @@ export class CengageScraper {
         );
       }
 
-      return await this.discoverCoursesFromCurrentPage(page, {
-        entryUrl: entryUrl as string,
+      return this.discoverCoursesFromCurrentPage(page, {
+        entryUrl,
         linkType,
         allowSyntheticFallback: true,
       });
-    } finally {
-      await context.close();
+    });
+  }
+
+  async listDashboardCourses(
+    entryUrlInput?: string
+  ): Promise<CengageDashboardCourse[]> {
+    const hasExplicitEntry =
+      typeof entryUrlInput === 'string' && entryUrlInput.trim().length > 0;
+    if (!hasExplicitEntry) {
+      return this.listDashboardCoursesFromSavedSession();
     }
+
+    return this.listDashboardCoursesFromEntryLink(entryUrlInput as string);
   }
 
   async getAssignments(ssoUrl: string): Promise<WebAssignAssignment[]> {

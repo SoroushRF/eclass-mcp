@@ -33,7 +33,7 @@ describe('cengage T23 scenario coverage', () => {
     );
 
     const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([SAMPLE_COURSE]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -53,7 +53,7 @@ describe('cengage T23 scenario coverage', () => {
     );
 
     const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([{ ...SAMPLE_COURSE, launchUrl: directCourseUrl }]);
 
     const assignmentsSpy = vi
@@ -98,7 +98,7 @@ describe('cengage T23 scenario coverage', () => {
 
     vi.spyOn(
       CengageScraper.prototype,
-      'listDashboardCourses'
+      'listDashboardCoursesFromEntryLink'
     ).mockRejectedValue(
       new CengageAuthRequiredError('Cengage session is stale.', {
         sessionReason: 'stale',

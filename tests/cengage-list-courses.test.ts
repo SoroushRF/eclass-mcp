@@ -40,8 +40,11 @@ describe('list cengage courses tool', () => {
       title: `Dashboard Bootstrap ${Date.now()}`,
     };
 
-    const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+    const sessionListSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromSavedSession')
+      .mockResolvedValue([uniqueCourse]);
+    const entryListSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([uniqueCourse]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -53,13 +56,14 @@ describe('list cengage courses tool', () => {
     expect(payload.status).toBe('ok');
     expect(payload.courses).toHaveLength(1);
     expect(payload.courses[0].title).toBe(uniqueCourse.title);
-    expect(listSpy).toHaveBeenCalledWith();
+    expect(sessionListSpy).toHaveBeenCalledTimes(1);
+    expect(entryListSpy).not.toHaveBeenCalled();
   });
 
   it('lists courses from entry URL', async () => {
     const entryUrl = uniqueEntryUrl('list');
     const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue(SAMPLE_COURSES);
     const closeSpy = vi
       .spyOn(CengageScraper.prototype, 'close')
@@ -83,7 +87,7 @@ describe('list cengage courses tool', () => {
     const discoveredCourseKey = `WA-production-discovered-${Date.now()}-${Math.random().toString(16).slice(2)}`;
     const discoveredUrl = `https://www.webassign.net/v4cgi/login.pl?courseKey=${discoveredCourseKey}`;
     const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue(SAMPLE_COURSES);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -106,7 +110,7 @@ describe('list cengage courses tool', () => {
     const entryUrl = uniqueEntryUrl('ambiguous');
     vi.spyOn(
       CengageScraper.prototype,
-      'listDashboardCourses'
+      'listDashboardCoursesFromEntryLink'
     ).mockResolvedValue(SAMPLE_COURSES);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -124,7 +128,7 @@ describe('list cengage courses tool', () => {
     const entryUrl = uniqueEntryUrl('no-data');
     vi.spyOn(
       CengageScraper.prototype,
-      'listDashboardCourses'
+      'listDashboardCoursesFromEntryLink'
     ).mockResolvedValue(SAMPLE_COURSES);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -145,7 +149,7 @@ describe('list cengage courses tool', () => {
       .mockImplementation(() => {});
     vi.spyOn(
       CengageScraper.prototype,
-      'listDashboardCourses'
+      'listDashboardCoursesFromEntryLink'
     ).mockRejectedValue(new CengageAuthRequiredError('Auth required'));
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -165,7 +169,7 @@ describe('list cengage courses tool', () => {
   it('serves repeat identical requests from cache', async () => {
     const entryUrl = uniqueEntryUrl('cache-hit');
     const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCourses')
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue(SAMPLE_COURSES);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
