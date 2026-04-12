@@ -197,7 +197,10 @@ describe('cache key + expiry helpers', () => {
       version: CACHE_SCHEMA_VERSION,
     });
 
-    const txtFile = path.join(CACHE_DIR, `${sanitizeCacheKeyForFilename(prefix)}.txt`);
+    const txtFile = path.join(
+      CACHE_DIR,
+      `${sanitizeCacheKeyForFilename(prefix)}.txt`
+    );
     fs.writeFileSync(txtFile, 'keep-me', 'utf-8');
     touchedFiles.add(txtFile);
 
@@ -223,7 +226,9 @@ describe('cache key + expiry helpers', () => {
 
     expect(clearSpy).toHaveBeenCalledWith(`v${CACHE_SCHEMA_VERSION}:deadlines`);
     expect(clearSpy).toHaveBeenCalledWith('deadlines');
-    expect(clearSpy).toHaveBeenCalledWith(`v${CACHE_SCHEMA_VERSION}:announcements`);
+    expect(clearSpy).toHaveBeenCalledWith(
+      `v${CACHE_SCHEMA_VERSION}:announcements`
+    );
     expect(clearSpy).toHaveBeenCalledWith('announcements');
     expect(clearSpy).toHaveBeenCalledWith(`v${CACHE_SCHEMA_VERSION}:grades`);
     expect(clearSpy).toHaveBeenCalledWith('grades');

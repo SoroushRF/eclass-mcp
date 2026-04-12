@@ -17,7 +17,9 @@ describe('eclass helper utility functions', () => {
   });
 
   it('builds course metadata with cleaned names and inferred code', () => {
-    expect(buildCourseMetadata('123', '  BIOL   2020  Intro Biology  ')).toEqual({
+    expect(
+      buildCourseMetadata('123', '  BIOL   2020  Intro Biology  ')
+    ).toEqual({
       courseId: '123',
       courseName: 'BIOL 2020 Intro Biology',
       courseCode: 'BIOL2020',
@@ -47,12 +49,12 @@ describe('eclass helper utility functions', () => {
   });
 
   it('infers deadline item type from Moodle URLs and fallback words', () => {
-    expect(inferItemType('https://eclass.yorku.ca/mod/assign/view.php?id=1')).toBe(
-      'assign'
-    );
-    expect(inferItemType('https://eclass.yorku.ca/mod/quiz/view.php?id=2')).toBe(
-      'quiz'
-    );
+    expect(
+      inferItemType('https://eclass.yorku.ca/mod/assign/view.php?id=1')
+    ).toBe('assign');
+    expect(
+      inferItemType('https://eclass.yorku.ca/mod/quiz/view.php?id=2')
+    ).toBe('quiz');
     expect(inferItemType('https://example.org/my-assignments')).toBe('assign');
     expect(inferItemType('https://example.org/quiz-review')).toBe('quiz');
     expect(inferItemType('https://example.org/reading')).toBe('other');

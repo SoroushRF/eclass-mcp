@@ -125,7 +125,10 @@ describe('pin cache keys', () => {
     const url =
       ' https://eclass.yorku.ca/mod/page/view.php?id= 148310   &forcedownload=   ';
     expect(buildSectionTextCacheKey(url)).toBe(
-      getCacheKey('sectiontext', 'https://eclass.yorku.ca/mod/page/view.php?id=148310')
+      getCacheKey(
+        'sectiontext',
+        'https://eclass.yorku.ca/mod/page/view.php?id=148310'
+      )
     );
   });
 
@@ -185,7 +188,10 @@ describe('pin storage and quota behavior', () => {
   });
 
   it('upserts, reads, and removes pin records', () => {
-    const cacheKey = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/2/a.pdf');
+    const cacheKey = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/2/a.pdf'
+    );
 
     upsertPin({
       pinId: TEST_PIN_IDS.alpha,
@@ -204,9 +210,15 @@ describe('pin storage and quota behavior', () => {
   });
 
   it('removes by predicate and leaves non-matching pins', () => {
-    const keyA = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/2/a.pdf');
+    const keyA = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/2/a.pdf'
+    );
     const keyB = getCacheKey('content', 'MATH1010');
-    const keyC = getCacheKey('sectiontext', 'https://eclass.yorku.ca/mod/page/view.php?id=7');
+    const keyC = getCacheKey(
+      'sectiontext',
+      'https://eclass.yorku.ca/mod/page/view.php?id=7'
+    );
 
     upsertPin({
       pinId: TEST_PIN_IDS.alpha,
@@ -237,7 +249,10 @@ describe('pin storage and quota behavior', () => {
   });
 
   it('tracks pinned filenames and pinned cache keys', () => {
-    const keyA = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/3/a.pdf');
+    const keyA = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/3/a.pdf'
+    );
     upsertPin({
       pinId: TEST_PIN_IDS.alpha,
       resource_type: 'file',
@@ -253,7 +268,10 @@ describe('pin storage and quota behavior', () => {
   });
 
   it('computes pinned bytes once per cache key even with duplicate pins', () => {
-    const keyA = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/4/a.pdf');
+    const keyA = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/4/a.pdf'
+    );
     writeCacheBlob(keyA, 21);
 
     upsertPin({
@@ -275,8 +293,14 @@ describe('pin storage and quota behavior', () => {
   });
 
   it('returns per-cache-key file size and falls back to 0 when absent', () => {
-    const existingKey = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/5/a.pdf');
-    const missingKey = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/5/missing.pdf');
+    const existingKey = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/5/a.pdf'
+    );
+    const missingKey = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/5/missing.pdf'
+    );
 
     writeCacheBlob(existingKey, 33);
 
@@ -287,10 +311,19 @@ describe('pin storage and quota behavior', () => {
   it('checks pin quota for exceeded, already-counted, and replacement cases', () => {
     process.env.ECLASS_MCP_PIN_QUOTA_BYTES = '10';
 
-    const existingKey = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/9/existing.pdf');
+    const existingKey = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/9/existing.pdf'
+    );
     const alreadyCountedKey = existingKey;
-    const candidateKey = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/9/new.pdf');
-    const tinyKey = getCacheKey('file', 'https://eclass.yorku.ca/pluginfile.php/9/tiny.pdf');
+    const candidateKey = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/9/new.pdf'
+    );
+    const tinyKey = getCacheKey(
+      'file',
+      'https://eclass.yorku.ca/pluginfile.php/9/tiny.pdf'
+    );
 
     writeCacheBlob(existingKey, 8);
     writeCacheBlob(candidateKey, 5);

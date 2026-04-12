@@ -50,7 +50,10 @@ describe('cengage selection helpers', () => {
 
   it('normalizes and resolves URLs for assignment comparison', () => {
     expect(
-      normalizeComparableUrl('/assignment/5011#top', 'https://www.webassign.net')
+      normalizeComparableUrl(
+        '/assignment/5011#top',
+        'https://www.webassign.net'
+      )
     ).toBe('www.webassign.net/assignment/5011');
 
     expect(
@@ -62,9 +65,9 @@ describe('cengage selection helpers', () => {
 
     expect(normalizeComparableUrl('not a url')).toBe('not a url');
 
-    expect(resolveAbsoluteUrl('/assignment/5011', 'https://www.webassign.net')).toBe(
-      'https://www.webassign.net/assignment/5011'
-    );
+    expect(
+      resolveAbsoluteUrl('/assignment/5011', 'https://www.webassign.net')
+    ).toBe('https://www.webassign.net/assignment/5011');
     expect(resolveAbsoluteUrl('http://[::1', 'https://www.webassign.net')).toBe(
       ''
     );
@@ -219,6 +222,8 @@ describe('cengage selection helpers', () => {
       assignmentQuery: 'final project',
     });
     expect(noQueryMatch.selected).toBeUndefined();
-    expect(noQueryMatch.message).toContain('No assignment matched assignmentQuery');
+    expect(noQueryMatch.message).toContain(
+      'No assignment matched assignmentQuery'
+    );
   });
 });

@@ -66,9 +66,11 @@ describe('deadlines tool branch behavior', () => {
     const courseId = nextCourseId('upcoming-tool');
     rememberKey(getCacheKey('deadlines', 'upcoming', courseId));
 
-    const deadlinesSpy = vi.spyOn(scraper, 'getDeadlines').mockResolvedValue([
-      mkAssignment('1', 'https://eclass.yorku.ca/mod/assign/view.php?id=11'),
-    ] as any);
+    const deadlinesSpy = vi
+      .spyOn(scraper, 'getDeadlines')
+      .mockResolvedValue([
+        mkAssignment('1', 'https://eclass.yorku.ca/mod/assign/view.php?id=11'),
+      ] as any);
 
     const first = parsePayload(await getUpcomingDeadlines(30, courseId));
     expect(first._cache.hit).toBe(false);
@@ -105,11 +107,13 @@ describe('deadlines tool branch behavior', () => {
     const courseId = nextCourseId('upcoming-scope');
     rememberKey(getCacheKey('deadlines', 'upcoming', courseId, ''));
 
-    const deadlinesSpy = vi.spyOn(scraper, 'getDeadlines').mockResolvedValue([
-      mkAssignment('1', 'https://eclass.yorku.ca/mod/assign/view.php?id=11'),
-      mkAssignment('2', 'https://eclass.yorku.ca/mod/quiz/view.php?id=22'),
-      mkAssignment('3', 'https://example.org/reading-activity'),
-    ] as any);
+    const deadlinesSpy = vi
+      .spyOn(scraper, 'getDeadlines')
+      .mockResolvedValue([
+        mkAssignment('1', 'https://eclass.yorku.ca/mod/assign/view.php?id=11'),
+        mkAssignment('2', 'https://eclass.yorku.ca/mod/quiz/view.php?id=22'),
+        mkAssignment('3', 'https://example.org/reading-activity'),
+      ] as any);
 
     const first = parsePayload(
       await getDeadlines({ scope: 'upcoming', courseId, includeDetails: false })
@@ -134,7 +138,9 @@ describe('deadlines tool branch behavior', () => {
     const courseId = nextCourseId('month');
     const month = 3;
     const year = 2026;
-    rememberKey(getCacheKey('deadlines', 'month', courseId, `${year}_${month}`));
+    rememberKey(
+      getCacheKey('deadlines', 'month', courseId, `${year}_${month}`)
+    );
 
     const monthSpy = vi
       .spyOn(scraper, 'getAllAssignmentDeadlines')
@@ -209,7 +215,9 @@ describe('deadlines tool branch behavior', () => {
     const from = '2026-03-01T00:00:00.000Z';
     const to = '2026-03-31T23:59:59.999Z';
 
-    rememberKey(getCacheKey('deadlines', 'range', courseId, '2026-03-01_2026-03-31'));
+    rememberKey(
+      getCacheKey('deadlines', 'range', courseId, '2026-03-01_2026-03-31')
+    );
 
     const rangeSpy = vi
       .spyOn(scraper, 'getAllAssignmentDeadlines')
@@ -271,10 +279,8 @@ describe('deadlines tool branch behavior', () => {
     const courseId = nextCourseId('details-fallback');
     rememberKey(getCacheKey('deadlines', 'upcoming', courseId, ''));
 
-    const itemUrlA =
-      'https://eclass.yorku.ca/mod/assign/view.php?id=detail-a';
-    const itemUrlB =
-      'https://eclass.yorku.ca/mod/quiz/view.php?id=detail-b';
+    const itemUrlA = 'https://eclass.yorku.ca/mod/assign/view.php?id=detail-a';
+    const itemUrlB = 'https://eclass.yorku.ca/mod/quiz/view.php?id=detail-b';
     rememberKey(getCacheKey('details', 'v2', itemUrlA));
     rememberKey(getCacheKey('details', 'v2', itemUrlB));
 

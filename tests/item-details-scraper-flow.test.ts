@@ -16,7 +16,9 @@ function createMockSession(options: {
     goto: vi.fn().mockResolvedValue(undefined),
     $: vi
       .fn()
-      .mockResolvedValue(options.includeCommentLink ? { click: commentLinkClick } : null),
+      .mockResolvedValue(
+        options.includeCommentLink ? { click: commentLinkClick } : null
+      ),
     waitForTimeout: vi.fn().mockResolvedValue(undefined),
     evaluate: vi.fn().mockImplementation(async () => {
       if (options.evaluateError) {
