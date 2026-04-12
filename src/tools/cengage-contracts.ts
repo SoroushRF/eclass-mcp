@@ -285,9 +285,7 @@ export const CengageAssignmentQuestionSchema = z.object({
   promptSections: z.array(CengageAssignmentPromptSectionSchema).optional(),
   hasMediaCarriers: z.boolean().optional(),
   mediaClassification: CengageAssignmentMediaClassificationSchema.optional(),
-  renderedMedia: z
-    .array(CengageAssignmentRenderedMediaAssetSchema)
-    .optional(),
+  renderedMedia: z.array(CengageAssignmentRenderedMediaAssetSchema).optional(),
   renderedMediaWarning: z.string().optional(),
   promptTruncated: z.boolean().optional(),
   answer: z.string().optional(),
@@ -394,7 +392,9 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
     .min(10000)
     .max(800 * 1024)
     .optional()
-    .describe('Max encoded media payload budget for rendered captures (default 800KB).'),
+    .describe(
+      'Max encoded media payload budget for rendered captures (default 800KB).'
+    ),
   minTextForSafeText: z
     .number()
     .int()
@@ -410,7 +410,9 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
     .min(72)
     .max(200)
     .optional()
-    .describe('Capture DPI metadata target for rendered question-region images (default 100).'),
+    .describe(
+      'Capture DPI metadata target for rendered question-region images (default 100).'
+    ),
   maxQuestions: z
     .number()
     .int()

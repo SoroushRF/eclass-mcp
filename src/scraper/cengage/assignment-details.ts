@@ -161,7 +161,9 @@ export async function extractAssignmentDetails(
         };
       };
 
-      const cleanPromptContent = (source: Element | null): HTMLElement | null => {
+      const cleanPromptContent = (
+        source: Element | null
+      ): HTMLElement | null => {
         if (!source) {
           return null;
         }
@@ -196,7 +198,7 @@ export async function extractAssignmentDetails(
           const start = current.index || 0;
           const end =
             i + 1 < matches.length
-              ? (matches[i + 1].index || value.length)
+              ? matches[i + 1].index || value.length
               : value.length;
           const text = normalizeText(value.slice(start, end));
           if (!text) {
@@ -618,7 +620,10 @@ export async function captureAssignmentRenderedMedia(
     : PDF_PARITY_DEFAULT_DPI;
 
   const candidates = await page.evaluate(
-    ({ maxCaptureUnits: maxCaptureUnitsArg, minTextForSafeText: minTextArg }) => {
+    ({
+      maxCaptureUnits: maxCaptureUnitsArg,
+      minTextForSafeText: minTextArg,
+    }) => {
       const normalizeText = (value: string | null | undefined): string =>
         (value || '').replace(/\s+/g, ' ').trim();
 
@@ -635,7 +640,9 @@ export async function captureAssignmentRenderedMedia(
       ).slice(0, maxCaptureUnitsArg);
 
       return questionElements.map((questionElement, index) => {
-        const questionHeader = questionElement.querySelector('.js-question-header');
+        const questionHeader = questionElement.querySelector(
+          '.js-question-header'
+        );
         let questionDisplay: Record<string, unknown> | null = null;
 
         const rawDisplay = normalizeText(
@@ -653,8 +660,9 @@ export async function captureAssignmentRenderedMedia(
           questionElement.getAttribute('data-view-position')
         );
         const questionNumberFromHeader = toPositiveInt(
-          questionElement.querySelector<HTMLElement>('[data-test^="questionNum"]')
-            ?.textContent
+          questionElement.querySelector<HTMLElement>(
+            '[data-test^="questionNum"]'
+          )?.textContent
         );
 
         const questionNumber =
@@ -663,7 +671,9 @@ export async function captureAssignmentRenderedMedia(
         const questionIdFromDisplay = normalizeText(
           String(questionDisplay?.questionID || '')
         );
-        const questionIdMatch = questionElement.id.match(/^question([a-z0-9._-]+)_/i);
+        const questionIdMatch = questionElement.id.match(
+          /^question([a-z0-9._-]+)_/i
+        );
         const questionIdFromContainer = normalizeText(questionIdMatch?.[1]);
         const questionId =
           questionIdFromDisplay || questionIdFromContainer || undefined;
@@ -716,8 +726,9 @@ export async function captureAssignmentRenderedMedia(
 
   for (const candidate of candidates as RenderCaptureCandidate[]) {
     const question =
-      (candidate.questionId ? questionById.get(candidate.questionId) : undefined) ||
-      questionByNumber.get(candidate.questionNumber);
+      (candidate.questionId
+        ? questionById.get(candidate.questionId)
+        : undefined) || questionByNumber.get(candidate.questionNumber);
 
     if (!question) {
       continue;
