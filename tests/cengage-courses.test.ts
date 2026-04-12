@@ -162,6 +162,24 @@ describe('cengage dashboard course inventory extraction', () => {
     expect(courses[0].title).toBe('WebAssign WA-production-4444');
     expect(courses[0].confidence).toBeGreaterThan(0.6);
   });
+
+  it('uses aria-label course name when launch text is generic', () => {
+    const courses = extractDashboardCourses(
+      [
+        {
+          href: 'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1607530',
+          text: 'OPEN WEBASSIGN',
+          ariaLabel: 'OPEN WEBASSIGN for MATH 1014 O, Opens in a New Window',
+        },
+      ],
+      'https://www.cengage.ca/dashboard/home'
+    );
+
+    expect(courses).toHaveLength(1);
+    expect(courses[0].courseKey).toBe('WA-production-1607530');
+    expect(courses[0].title).toBe('MATH 1014 O');
+    expect(courses[0].confidence).toBeGreaterThan(0.8);
+  });
 });
 
 describe('cengage current-page course inference', () => {

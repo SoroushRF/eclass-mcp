@@ -69,6 +69,17 @@ const GENERIC_TITLE_WORDS = new Set([
   'here',
 ]);
 
+const GENERIC_TITLE_PATTERNS: ReadonlyArray<RegExp> = [
+  /^open\s+webassign$/i,
+  /^open\s+owlv?2?$/i,
+  /^view\s+ebook$/i,
+  /^open\s+companion\s+site$/i,
+  /^supplemental\s+materials$/i,
+  /^enter\s+course\s+key$/i,
+  /^open\s+course$/i,
+  /^open\s+class$/i,
+];
+
 function normalizeText(value: string | undefined): string {
   return (value || '').replace(/\s+/g, ' ').trim();
 }
@@ -168,6 +179,10 @@ function isMeaningfulTitle(title: string): boolean {
   if (!title) return false;
   if (title.length < 4) return false;
 
+  if (GENERIC_TITLE_PATTERNS.some((pattern) => pattern.test(title))) {
+    return false;
+  }
+
   const normalized = title.toLowerCase();
   if (GENERIC_TITLE_WORDS.has(normalized)) {
     return false;
@@ -181,15 +196,34 @@ function isMeaningfulTitle(title: string): boolean {
   return true;
 }
 
+function extractCourseTitleFromAriaLabel(
+  ariaLabel: string | undefined
+): string | undefined {
+  const normalized = normalizeText(ariaLabel);
+  if (!normalized) return undefined;
+
+  const match = normalized.match(
+    /\bfor\s+(.+?)(?:,\s*opens?\s+in\s+a\s+new\s+window|$)/i
+  );
+
+  if (!match?.[1]) return undefined;
+
+  const extracted = normalizeText(match[1]);
+  return extracted || undefined;
+}
+
 function pickTitle(
   candidate: CengageCourseLinkCandidate,
   url: URL,
   courseId?: string,
   courseKey?: string
 ): { title: string; meaningful: boolean } {
+  const ariaCourseTitle = extractCourseTitleFromAriaLabel(candidate.ariaLabel);
+
   const options = [
     normalizeText(candidate.text),
     normalizeText(candidate.titleAttr),
+    normalizeText(ariaCourseTitle),
     normalizeText(candidate.ariaLabel),
   ].filter(Boolean);
 

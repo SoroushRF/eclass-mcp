@@ -16,6 +16,8 @@ export async function extractDashboardCourseInventory(
 
       const launchSelectorPriority = [
         'a.home-page-launch-course-link[href]',
+        'a[data-testid="home-page-launch-course-link"][href]',
+        'a[data-testid*="home-page-launch-course-link"][href]',
         'a[data-test="home-page-launch-course-link"][href]',
         'a[data-test*="home-page-launch-course-link"][href]',
         'a[class*="home-page-launch-course-link"][href]',
@@ -26,7 +28,7 @@ export async function extractDashboardCourseInventory(
 
       const cards = Array.from(
         document.querySelectorAll<HTMLElement>(
-          '[id^="home-page-entitlement-card-"], [data-test*="home-page-entitlement-card"], [class*="home-page-entitlement-card"]'
+          '[id^="home-page-entitlement-card-"], [data-testid^="home-page-entitlement-card-"], [data-testid*="home-page-entitlement-card"], [data-test*="home-page-entitlement-card"], [class*="home-page-entitlement-card"]'
         )
       );
 
@@ -80,7 +82,7 @@ export async function extractDashboardCourseInventory(
         }
 
         const titleElement = card.querySelector<HTMLElement>(
-          '[data-test="home-page-title"], [data-test*="home-page-title"], .home-page-title, [class*="home-page-title"], h2, h3, [role="heading"]'
+          '[data-testid="home-page-title"], [data-testid*="home-page-title"], [data-test="home-page-title"], [data-test*="home-page-title"], .home-page-title, [class*="home-page-title"], h2, h3, [role="heading"]'
         );
 
         results.push({
