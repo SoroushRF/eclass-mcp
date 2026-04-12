@@ -312,7 +312,11 @@ export async function getDeadlines(params: {
     }
 
     const resp = attachCacheMeta(items, cacheMeta);
-    return asValidatedMcpText('get_deadlines', EclassToolJsonPayloadSchema, resp);
+    return asValidatedMcpText(
+      'get_deadlines',
+      EclassToolJsonPayloadSchema,
+      resp
+    );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();

@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import { MACHINE_CODES } from '../errors/codes';
 
-const CengageOptionalMachineCode = z.enum(
-  MACHINE_CODES as unknown as [string, ...string[]]
-).optional();
+const CengageOptionalMachineCode = z
+  .enum(MACHINE_CODES as unknown as [string, ...string[]])
+  .optional();
 
 export const CengageToolStatusSchema = z.enum([
   'ok',

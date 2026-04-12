@@ -16,7 +16,11 @@ export async function listCourses() {
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
       });
-      return asValidatedMcpText('list_courses', EclassToolJsonPayloadSchema, resp);
+      return asValidatedMcpText(
+        'list_courses',
+        EclassToolJsonPayloadSchema,
+        resp
+      );
     }
 
     const courses = await scraper.getCourses();
@@ -46,7 +50,11 @@ export async function listCourses() {
       expires_at: expiresAt.toISOString(),
     });
 
-    return asValidatedMcpText('list_courses', EclassToolJsonPayloadSchema, resp);
+    return asValidatedMcpText(
+      'list_courses',
+      EclassToolJsonPayloadSchema,
+      resp
+    );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
@@ -54,7 +62,11 @@ export async function listCourses() {
         afterAuth: true,
         authUrl: getAuthUrl('eclass'),
       });
-      return asValidatedMcpText('list_courses', EclassToolJsonPayloadSchema, payload);
+      return asValidatedMcpText(
+        'list_courses',
+        EclassToolJsonPayloadSchema,
+        payload
+      );
     }
     throw e;
   }

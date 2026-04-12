@@ -2,8 +2,14 @@ import { scraper, SessionExpiredError } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { sessionExpiredPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey } from '../cache/store';
-import { EclassAuthRequiredSchema, GetFileTextMcpResultSchema } from './eclass-contracts';
-import { asValidatedMcpResult, asValidatedMcpText } from './mcp-validated-response';
+import {
+  EclassAuthRequiredSchema,
+  GetFileTextMcpResultSchema,
+} from './eclass-contracts';
+import {
+  asValidatedMcpResult,
+  asValidatedMcpText,
+} from './mcp-validated-response';
 import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
@@ -40,14 +46,22 @@ export async function getFileText(
         : [];
 
       if (typeof data === 'string') {
-        return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {
-          content: [...staleHint, { type: 'text' as const, text: data }],
-        });
+        return asValidatedMcpResult(
+          'get_file_text',
+          GetFileTextMcpResultSchema,
+          {
+            content: [...staleHint, { type: 'text' as const, text: data }],
+          }
+        );
       }
       if (Array.isArray(data)) {
-        return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {
-          content: [...staleHint, ...(data as ContentBlock[])],
-        });
+        return asValidatedMcpResult(
+          'get_file_text',
+          GetFileTextMcpResultSchema,
+          {
+            content: [...staleHint, ...(data as ContentBlock[])],
+          }
+        );
       }
     }
 

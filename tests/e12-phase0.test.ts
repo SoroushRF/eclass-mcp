@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { SessionExpiredError } from '../src/scraper/session';
 import { MACHINE_CODES, isMachineCode } from '../src/errors/codes';
-import { sessionExpiredPayload, toErrorPayload } from '../src/errors/tool-error';
+import {
+  sessionExpiredPayload,
+  toErrorPayload,
+} from '../src/errors/tool-error';
 import { ListCengageCoursesResponseSchema } from '../src/tools/cengage-contracts';
 import {
   EclassAuthRequiredSchema,
@@ -50,9 +53,9 @@ describe('E12 Phase 0 — tool-error helpers', () => {
 
 describe('E12 Phase 0 — schemas accept optional code', () => {
   it('PinToolJsonPayloadSchema accepts ok without code', () => {
-    expect(PinToolJsonPayloadSchema.safeParse({ ok: true, pinId: 'x' }).success).toBe(
-      true
-    );
+    expect(
+      PinToolJsonPayloadSchema.safeParse({ ok: true, pinId: 'x' }).success
+    ).toBe(true);
   });
 
   it('SisExamScheduleResponseSchema accepts code on error shape', () => {

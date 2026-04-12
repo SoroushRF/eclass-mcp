@@ -16,7 +16,11 @@ export async function getGrades(courseId?: string) {
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
       });
-      return asValidatedMcpText('get_grades', EclassToolJsonPayloadSchema, resp);
+      return asValidatedMcpText(
+        'get_grades',
+        EclassToolJsonPayloadSchema,
+        resp
+      );
     }
 
     const grades = await scraper.getGrades(courseId);
