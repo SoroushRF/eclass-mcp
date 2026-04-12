@@ -68,6 +68,16 @@ describe('get cengage assignment details tool', () => {
             questionNumber: 1,
             questionId: '4703112',
             prompt: "If f(x) = integral ... find g''(pi/6).",
+            promptSections: [
+              {
+                title: 'Part 1 of 2',
+                text: 'If f(x) = integral ...',
+              },
+              {
+                title: 'Part 2 of 2',
+                text: "Find g''(pi/6).",
+              },
+            ],
             pointsEarned: 1,
             pointsPossible: 1,
             submissionsUsed: '1/3',
@@ -102,6 +112,10 @@ describe('get cengage assignment details tool', () => {
     expect(payload.details.questionCount).toBe(2);
     expect(payload.details.questions).toHaveLength(2);
     expect(payload.details.questions[0].result).toBe('correct');
+    expect(payload.details.questions[0].promptSections).toHaveLength(2);
+    expect(payload.details.questions[0].promptSections[0].title).toBe(
+      'Part 1 of 2'
+    );
     expect(payload._cache.hit).toBe(false);
   });
 

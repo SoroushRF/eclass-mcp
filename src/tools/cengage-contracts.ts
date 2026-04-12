@@ -247,10 +247,17 @@ export const CengageAssignmentResourceLinkSchema = z.object({
   url: z.string(),
 });
 
+export const CengageAssignmentPromptSectionSchema = z.object({
+  title: z.string().optional(),
+  text: z.string(),
+  truncated: z.boolean().optional(),
+});
+
 export const CengageAssignmentQuestionSchema = z.object({
   questionNumber: z.number().int().min(1),
   questionId: z.string().optional(),
   prompt: z.string(),
+  promptSections: z.array(CengageAssignmentPromptSectionSchema).optional(),
   promptTruncated: z.boolean().optional(),
   answer: z.string().optional(),
   answerTruncated: z.boolean().optional(),

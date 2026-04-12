@@ -20,10 +20,17 @@ export interface ExtractedAssignmentResourceLink {
   url: string;
 }
 
+export interface ExtractedAssignmentPromptSection {
+  title?: string;
+  text: string;
+  truncated?: boolean;
+}
+
 export interface ExtractedAssignmentQuestion {
   questionNumber: number;
   questionId?: string;
   prompt: string;
+  promptSections?: ExtractedAssignmentPromptSection[];
   promptTruncated?: boolean;
   answer?: string;
   answerTruncated?: boolean;
@@ -112,6 +119,145 @@ export async function extractAssignmentDetails(
           text: `${value.slice(0, Math.max(0, maxChars - 3)).trimEnd()}...`,
           truncated: true,
         };
+      };
+
+      const cleanPromptContent = (source: Element | null): HTMLElement | null => {
+        if (!source) {
+          return null;
+        }
+
+        const clone = source.cloneNode(true) as HTMLElement;
+        clone
+          .querySelectorAll(
+            'script, style, noscript, template, [id^="question_resources_"], [id^="question_help_container_"], [id^="help-buttons-for-"], [id^="blue-buttons-for-"], [id^="student_assistant_button_"], .questionResources, .resourceHelpLinks, .help-buttons-paragraph'
+          )
+          .forEach((node) => node.remove());
+
+        return clone;
+      };
+
+      const splitPromptByPartMarkers = (
+        value: string
+      ): ExtractedAssignmentPromptSection[] => {
+        const markerRegex = /Part\s+(\d+)\s+of\s+(\d+)\s*-\s*/gi;
+        const matches = Array.from(value.matchAll(markerRegex));
+        if (matches.length === 0) {
+          return [];
+        }
+
+        const sections: ExtractedAssignmentPromptSection[] = [];
+        const intro = normalizeText(value.slice(0, matches[0]?.index || 0));
+        if (intro) {
+          sections.push({ title: 'Overview', text: intro });
+        }
+
+        for (let i = 0; i < matches.length; i++) {
+          const current = matches[i];
+          const start = current.index || 0;
+          const end =
+            i + 1 < matches.length
+              ? (matches[i + 1].index || value.length)
+              : value.length;
+          const text = normalizeText(value.slice(start, end));
+          if (!text) {
+            continue;
+          }
+
+          sections.push({
+            title: `Part ${current[1]} of ${current[2]}`,
+            text,
+          });
+        }
+
+        return sections;
+      };
+
+      const buildPromptSections = (
+        promptContainer: HTMLElement | null
+      ): ExtractedAssignmentPromptSection[] => {
+        if (!promptContainer) {
+          return [];
+        }
+
+        const withLineBreaks = (
+          promptContainer.innerText ||
+          promptContainer.textContent ||
+          ''
+        ).replace(/\r/g, '\n');
+
+        const lines = withLineBreaks
+          .split(/\n+/)
+          .map((line) => normalizeText(line))
+          .filter((line) => line.length > 0);
+
+        if (lines.length === 0) {
+          return [];
+        }
+
+        const dedupedLines: string[] = [];
+        for (const line of lines) {
+          if (dedupedLines[dedupedLines.length - 1] !== line) {
+            dedupedLines.push(line);
+          }
+        }
+
+        const normalizedPrompt = normalizeText(dedupedLines.join('\n'));
+        const partSections = splitPromptByPartMarkers(normalizedPrompt);
+        if (partSections.length > 0) {
+          return partSections;
+        }
+
+        if (dedupedLines.length === 1) {
+          return [{ text: dedupedLines[0] }];
+        }
+
+        return dedupedLines.map((line, index) => ({
+          title: `Section ${index + 1}`,
+          text: line,
+        }));
+      };
+
+      const truncatePromptSections = (
+        sections: ExtractedAssignmentPromptSection[],
+        maxChars: number
+      ): ExtractedAssignmentPromptSection[] => {
+        const truncated: ExtractedAssignmentPromptSection[] = [];
+        let remainingChars = maxChars;
+
+        for (const section of sections) {
+          if (remainingChars <= 0) {
+            break;
+          }
+
+          const text = normalizeText(section.text);
+          if (!text) {
+            continue;
+          }
+
+          if (text.length <= remainingChars) {
+            truncated.push({
+              ...(section.title ? { title: section.title } : {}),
+              text,
+            });
+            remainingChars -= text.length;
+            continue;
+          }
+
+          const clipped = text
+            .slice(0, Math.max(0, remainingChars - 3))
+            .trimEnd();
+          if (clipped) {
+            truncated.push({
+              ...(section.title ? { title: section.title } : {}),
+              text: `${clipped}...`,
+              truncated: true,
+            });
+          }
+
+          remainingChars = 0;
+        }
+
+        return truncated;
       };
 
       const parseQuestionDisplay = (
@@ -286,8 +432,13 @@ export async function extractAssignmentDetails(
             questionElement.querySelector('.standard.qContent .wa1par') ||
             questionElement.querySelector('.studentQuestionContent');
 
-          const promptRaw = normalizeText(promptNode?.textContent || '');
+          const promptContainer = cleanPromptContent(promptNode);
+          const promptRaw = normalizeText(promptContainer?.textContent || '');
           const prompt = truncateText(promptRaw, maxQuestionTextCharsArg);
+          const promptSections = truncatePromptSections(
+            buildPromptSections(promptContainer),
+            maxQuestionTextCharsArg
+          );
 
           let answerRaw = '';
           if (includeAnswersArg) {
@@ -336,6 +487,7 @@ export async function extractAssignmentDetails(
             questionNumber,
             ...(questionId ? { questionId } : {}),
             prompt: prompt.text,
+            ...(promptSections.length > 0 ? { promptSections } : {}),
             ...(prompt.truncated ? { promptTruncated: true } : {}),
             ...(includeAnswersArg && answer.text
               ? { answer: answer.text }
