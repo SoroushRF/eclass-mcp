@@ -101,12 +101,13 @@ flowchart LR
 
 ### Cengage and WebAssign migration notes
 
-1. **New workflow:** use `discover_cengage_links` for raw text discovery, `list_cengage_courses` to inspect/select courses, then `get_cengage_assignments` for assignment extraction.
+1. **Default workflow (dashboard-first):** call `list_cengage_courses` without `entryUrl` (saved session), then call `get_cengage_assignments` with `courseQuery`, `courseId`, or `courseKey`.
 2. **Compatibility path:** `get_cengage_assignments` still accepts legacy `ssoUrl` input; `entryUrl` is the preferred modern field.
 3. **Supported entry shapes:** direct WebAssign URLs, Cengage dashboard/login URLs, York eClass launch links, and registration-style course links such as `https://www.getenrolled.com/?courseKey=...`.
-4. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
-5. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
-6. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
+4. **Discovery role:** `discover_cengage_links` is a bootstrap/fallback path for pasted text/files when dashboard-first flow cannot identify the needed course.
+5. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
+6. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
+7. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
 
 > 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
@@ -202,9 +203,9 @@ You're done. Ask Claude anything about your courses.
 "What is my class schedule this week?"
 "Find professor John Doe on RateMyProfessors."
 "What do students say about the difficulty of John Doe's classes?"
-"Find Cengage/WebAssign links in this syllabus text."
-"List Cengage courses from this dashboard URL."
-"Get Cengage assignments from this course URL (or using a courseQuery)."
+"List my Cengage/WebAssign courses from my saved session."
+"Get Cengage assignments for MATH 1014 using courseQuery."
+"If dashboard-first misses the course, find Cengage/WebAssign links in this syllabus text."
 ```
 
 For large PDFs, Claude will automatically paginate:

@@ -308,4 +308,143 @@ describe('get cengage assignments tool on new core', () => {
     expect(entryListSpy).not.toHaveBeenCalled();
     expect(assignmentsSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('supports bounded all-courses aggregation mode from dashboard inventory', async () => {
+    isolateDashboardInventoryCache();
+    const aggregateTag = `aggregate-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    const courseA = {
+      ...SAMPLE_COURSE,
+      title: `Aggregate A ${aggregateTag}`,
+      launchUrl:
+        'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-7201',
+    };
+    const courseB = {
+      ...SAMPLE_COURSE,
+      courseId: 'math-1020',
+      courseKey: 'WA-production-7202',
+      title: `Aggregate B ${aggregateTag}`,
+      launchUrl:
+        'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-7202',
+    };
+
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromSavedSession'
+    ).mockResolvedValue([courseA, courseB]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockImplementation(async (launchUrl: string) => {
+        if (launchUrl === courseA.launchUrl) {
+          return [
+            {
+              id: 'asg-a-1',
+              name: 'A1',
+              dueDate: '2026-04-15 23:59',
+              status: 'Pending',
+              courseId: courseA.courseId,
+              courseTitle: courseA.title,
+              rawText: 'A1 Due Date',
+            } as any,
+          ];
+        }
+
+        return [
+          {
+            id: 'asg-b-1',
+            name: 'B1',
+            dueDate: '2026-04-18 23:59',
+            status: 'Submitted',
+            courseId: courseB.courseId,
+            courseTitle: courseB.title,
+            rawText: 'B1 Due Date',
+          } as any,
+        ];
+      });
+
+    const result = await getCengageAssignments({
+      allCourses: true,
+      courseQuery: aggregateTag,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.aggregation.mode).toBe('all_courses');
+    expect(payload.aggregation.coursesProcessed).toBe(2);
+    expect(payload.allCourses).toHaveLength(2);
+    expect(payload.assignments).toHaveLength(2);
+    expect(assignmentsSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('applies maxCourses and maxAssignmentsPerCourse bounds in all-courses mode', async () => {
+    isolateDashboardInventoryCache();
+    const boundedTag = `bounded-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    const courses = [
+      {
+        ...SAMPLE_COURSE,
+        title: `Bounded A ${boundedTag}`,
+        launchUrl:
+          'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-7301',
+      },
+      {
+        ...SAMPLE_COURSE,
+        courseId: 'math-1020',
+        courseKey: 'WA-production-7302',
+        title: `Bounded B ${boundedTag}`,
+        launchUrl:
+          'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-7302',
+      },
+      {
+        ...SAMPLE_COURSE,
+        courseId: 'math-1030',
+        courseKey: 'WA-production-7303',
+        title: `Bounded C ${boundedTag}`,
+        launchUrl:
+          'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-7303',
+      },
+    ];
+
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromSavedSession'
+    ).mockResolvedValue(courses);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([
+        {
+          id: 'asg-1',
+          name: 'First',
+          dueDate: '2026-04-20 23:59',
+          status: 'Pending',
+          rawText: 'First Due Date',
+        } as any,
+        {
+          id: 'asg-2',
+          name: 'Second',
+          dueDate: '2026-04-21 23:59',
+          status: 'Pending',
+          rawText: 'Second Due Date',
+        } as any,
+      ]);
+
+    const result = await getCengageAssignments({
+      allCourses: true,
+      courseQuery: boundedTag,
+      maxCourses: 2,
+      maxAssignmentsPerCourse: 1,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.aggregation.coursesConsidered).toBe(3);
+    expect(payload.aggregation.coursesProcessed).toBe(2);
+    expect(payload.aggregation.truncatedCourses).toBe(true);
+    expect(payload.aggregation.truncatedAssignments).toBe(true);
+    expect(payload.assignments).toHaveLength(2);
+    expect(payload.allCourses[0].returnedAssignments).toBe(1);
+    expect(assignmentsSpy).toHaveBeenCalledTimes(2);
+  });
 });

@@ -47,6 +47,10 @@ import {
 const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
+const CENGAGE_ALL_COURSES_DEFAULT_LIMIT = 5;
+const CENGAGE_ALL_COURSES_HARD_LIMIT = 10;
+const CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_DEFAULT = 10;
+const CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_HARD_LIMIT = 25;
 const CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY = '__dashboard_session__';
 const CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY = getCacheKey(
   'cengage',
@@ -74,6 +78,42 @@ async function getDashboardInventoryFromSessionCache(
     CENGAGE_LIST_COURSES_TTL_MINUTES
   );
   return courses;
+}
+
+function clampPositiveInt(
+  value: number | undefined,
+  fallback: number,
+  hardLimit: number
+): number {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  const normalized = Math.trunc(value as number);
+  if (normalized < 1) {
+    return fallback;
+  }
+
+  return Math.min(normalized, hardLimit);
+}
+
+function filterCoursesForAggregation(
+  courses: CengageDashboardCourse[],
+  courseQuery?: string
+): CengageDashboardCourse[] {
+  const query = (courseQuery || '').trim().toLowerCase();
+  if (!query) {
+    return courses;
+  }
+
+  return courses.filter((course) => {
+    const haystack = [course.title, course.courseId, course.courseKey]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return haystack.includes(query);
+  });
 }
 
 export async function listCengageCourses(input: ListCengageCoursesInput) {
@@ -298,6 +338,9 @@ export async function getCengageAssignments(
     courseId: args.courseId || null,
     courseKey: args.courseKey || null,
     courseQuery: args.courseQuery || null,
+    allCourses: !!args.allCourses,
+    maxCourses: args.maxCourses || null,
+    maxAssignmentsPerCourse: args.maxAssignmentsPerCourse || null,
   });
 
   const cached = cache.getWithMeta<GetCengageAssignmentsResponse>(cacheKey);
@@ -315,6 +358,155 @@ export async function getCengageAssignments(
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
       : await getDashboardInventoryFromSessionCache(scraper);
+
+    if (args.allCourses) {
+      const filteredCourses = filterCoursesForAggregation(
+        courses,
+        args.courseQuery
+      );
+
+      const maxCourses = clampPositiveInt(
+        args.maxCourses,
+        CENGAGE_ALL_COURSES_DEFAULT_LIMIT,
+        CENGAGE_ALL_COURSES_HARD_LIMIT
+      );
+      const maxAssignmentsPerCourse = clampPositiveInt(
+        args.maxAssignmentsPerCourse,
+        CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_DEFAULT,
+        CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_HARD_LIMIT
+      );
+
+      if (filteredCourses.length === 0) {
+        const payload: GetCengageAssignmentsResponse = {
+          status: 'no_data',
+          entryUrl,
+          allCourses: [],
+          assignments: [],
+          message:
+            'No courses matched the provided filters for all-courses aggregation.',
+          aggregation: {
+            mode: 'all_courses',
+            coursesConsidered: 0,
+            coursesProcessed: 0,
+            coursesReturned: 0,
+            truncatedCourses: false,
+            truncatedAssignments: false,
+          },
+        };
+
+        cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+        return asAssignmentsToolResponse(
+          withCacheMeta(
+            payload,
+            toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES)
+          )
+        );
+      }
+
+      const selectedCourses = filteredCourses.slice(0, maxCourses);
+      const truncatedCourses = filteredCourses.length > selectedCourses.length;
+      let truncatedAssignments = false;
+      const warnings: string[] = [];
+
+      const allCourseSummaries: NonNullable<
+        GetCengageAssignmentsResponse['allCourses']
+      > = [];
+      const assignmentRows: GetCengageAssignmentsResponse['assignments'] = [];
+
+      for (const course of selectedCourses) {
+        try {
+          const assignments = await scraper.getAssignments(course.launchUrl);
+          const limitedAssignments = assignments.slice(
+            0,
+            maxAssignmentsPerCourse
+          );
+          const courseTruncated =
+            assignments.length > limitedAssignments.length;
+          if (courseTruncated) {
+            truncatedAssignments = true;
+          }
+
+          allCourseSummaries.push({
+            ...mapCourseSummary(course),
+            status: assignments.length > 0 ? 'ok' : 'no_data',
+            assignmentCount: assignments.length,
+            returnedAssignments: limitedAssignments.length,
+            ...(courseTruncated ? { truncatedAssignments: true } : {}),
+            ...(assignments.length === 0
+              ? {
+                  message:
+                    'No assignments were returned for this course in the current session.',
+                }
+              : {}),
+          });
+
+          assignmentRows.push(
+            ...limitedAssignments.map((a) => ({
+              name: a.name,
+              dueDate: a.dueDate,
+              dueDateIso: a.dueDateIso,
+              courseId: a.courseId || course.courseId,
+              courseTitle: a.courseTitle || course.title,
+              status: normalizeAssignmentStatus(a.status),
+              score: a.score,
+              assignmentId: a.id,
+              url: a.url,
+              rawText: a.rawText,
+            }))
+          );
+        } catch (error: unknown) {
+          const reason =
+            error instanceof CengageError
+              ? `${error.message} [${error.code}]`
+              : error instanceof Error
+                ? error.message
+                : 'Unknown error';
+
+          warnings.push(
+            `Failed assignment fetch for ${course.title}: ${reason}`
+          );
+          allCourseSummaries.push({
+            ...mapCourseSummary(course),
+            status: 'error',
+            assignmentCount: 0,
+            returnedAssignments: 0,
+            message: reason,
+          });
+        }
+      }
+
+      const hasAssignments = assignmentRows.length > 0;
+      const hasErrors = allCourseSummaries.some(
+        (course) => course.status === 'error'
+      );
+
+      const payload: GetCengageAssignmentsResponse = {
+        status: hasAssignments ? 'ok' : hasErrors ? 'error' : 'no_data',
+        entryUrl,
+        allCourses: allCourseSummaries,
+        assignments: assignmentRows,
+        message: hasAssignments
+          ? `Aggregated ${assignmentRows.length} assignment entries across ${allCourseSummaries.length} course(s).`
+          : hasErrors
+            ? 'All-courses assignment aggregation failed before any assignments were returned.'
+            : 'No assignments were found across the selected courses.',
+        aggregation: {
+          mode: 'all_courses',
+          coursesConsidered: filteredCourses.length,
+          coursesProcessed: selectedCourses.length,
+          coursesReturned: allCourseSummaries.length,
+          truncatedCourses,
+          truncatedAssignments,
+          ...(warnings.length > 0 ? { warnings } : {}),
+        },
+      };
+
+      cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+      return asAssignmentsToolResponse(
+        withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
+      );
+    }
+
     const selection = resolveDashboardCourseSelection(courses, {
       courseId: args.courseId,
       courseKey: args.courseKey,
@@ -418,6 +610,9 @@ export async function getCengageAssignments(
             courseId: args.courseId,
             courseKey: args.courseKey,
             courseQuery: args.courseQuery,
+            allCourses: args.allCourses,
+            maxCourses: args.maxCourses,
+            maxAssignmentsPerCourse: args.maxAssignmentsPerCourse,
           }),
         },
       });

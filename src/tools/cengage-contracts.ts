@@ -177,12 +177,57 @@ export const GetCengageAssignmentsInputSchema = z.object({
     .describe(
       'Optional course name query when selecting among multiple courses.'
     ),
+  allCourses: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true, aggregate bounded assignment summaries across dashboard courses instead of selecting a single course.'
+    ),
+  maxCourses: z
+    .number()
+    .int()
+    .min(1)
+    .max(10)
+    .optional()
+    .describe(
+      'Optional cap for all-courses aggregation mode (default 5, max 10).'
+    ),
+  maxAssignmentsPerCourse: z
+    .number()
+    .int()
+    .min(1)
+    .max(25)
+    .optional()
+    .describe(
+      'Optional per-course assignment cap for all-courses aggregation mode (default 10, max 25).'
+    ),
+});
+
+export const CengageAggregatedCourseSummarySchema =
+  CengageCourseSummarySchema.extend({
+    status: z.enum(['ok', 'no_data', 'error']),
+    assignmentCount: z.number().int().min(0),
+    returnedAssignments: z.number().int().min(0),
+    truncatedAssignments: z.boolean().optional(),
+    message: z.string().optional(),
+  });
+
+export const CengageAssignmentsAggregationSchema = z.object({
+  mode: z.literal('all_courses'),
+  coursesConsidered: z.number().int().min(0),
+  coursesProcessed: z.number().int().min(0),
+  coursesReturned: z.number().int().min(0),
+  truncatedCourses: z.boolean(),
+  truncatedAssignments: z.boolean(),
+  warnings: z.array(z.string()).optional(),
 });
 
 export const GetCengageAssignmentsResponseSchema = z.object({
   status: CengageToolStatusSchema,
   entryUrl: z.string().optional(),
   selectedCourse: CengageCourseSummarySchema.optional(),
+  allCourses: z.array(CengageAggregatedCourseSummarySchema).optional(),
+  aggregation: CengageAssignmentsAggregationSchema.optional(),
   assignments: z.array(CengageAssignmentSchema),
   message: z.string().optional(),
   retry: CengageRetryGuidanceSchema.optional(),

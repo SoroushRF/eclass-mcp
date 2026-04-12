@@ -1,5 +1,7 @@
 # `discover_cengage_links`
 
+Use this as a bootstrap/fallback tool, not the default first step. Prefer dashboard-first calls (`list_cengage_courses` / `get_cengage_assignments`) when a saved Cengage session is available.
+
 ## Features
 - Scans arbitrary text for Cengage/WebAssign URL candidates.
 - Detects direct registration-style entry links such as `getenrolled.com` course-key URLs.

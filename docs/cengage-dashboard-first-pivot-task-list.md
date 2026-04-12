@@ -36,9 +36,9 @@ This pivot is motivated by a real product gap:
 - Do not redesign WeBWorK in this doc; WeBWorK may still need a more hybrid model.
 
 ## Progress Snapshot (2026-04-11)
-- Completed in repo: P00, P01, P02a, P02b, P02c, P03, P03a, P04, P05, P06, P07, P10.
-- Next task in sequence: P08 (bounded all-courses/all-assignments aggregation mode).
-- Remaining major items after P10: P08, P09, P11b, P12.
+- Completed in repo: P00, P01, P02a, P02b, P02c, P03, P03a, P04, P05, P06, P07, P08, P09, P10.
+- Next task in sequence: P11b (expand live-like fixture and scenario coverage).
+- Remaining major items after P10: P11b, P12.
 
 ## Task List (Refined)
 
