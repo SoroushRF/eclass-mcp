@@ -63,12 +63,25 @@ describe('get cengage assignment details tool', () => {
         heading: 'Assignment 1, Due Date: Friday Jan 23 (11:59PM) (Quiz)',
         questionCount: 2,
         returnedQuestionCount: 2,
+        extractionWarnings: [
+          '1 image-classified question(s) used text fallback due to rendered-media limits or capture failures.',
+        ],
+        completenessLevel: 'partial',
+        extractionOverview: {
+          mode: 'text_with_rendered_media_fallback',
+          startNote:
+            'Text extraction completed. Image-classified prompts can include rendered media fallback when enabled.',
+          endNote:
+            'Rendered media capture applied with fallback on some questions. Text extraction remains complete for all returned questions.',
+          truncated: false,
+        },
         renderedMediaSummary: {
           processedQuestionCount: 2,
           renderedImageCount: 1,
           skippedImageCount: 0,
           maxRenderedImages: 20,
           maxCaptureUnits: 50,
+          maxCapturePerQuestion: 1,
           maxPayloadBytes: 800 * 1024,
           captureDpi: 100,
           minTextForSafeText: 250,
@@ -90,6 +103,21 @@ describe('get cengage assignment details tool', () => {
             ],
             hasMediaCarriers: true,
             mediaClassification: 'image',
+            interactiveAssets: [
+              {
+                kind: 'iframe_graph',
+                tagName: 'iframe',
+                sourceUrl: 'https://example.com/graph',
+              },
+            ],
+            mediaAssets: [
+              {
+                kind: 'image',
+                tagName: 'img',
+                sourceUrl: 'https://example.com/figure.png',
+                altText: 'Figure 1',
+              },
+            ],
             renderedMedia: [
               {
                 kind: 'question_region_png',
@@ -99,6 +127,10 @@ describe('get cengage assignment details tool', () => {
                 captureDpi: 100,
               },
             ],
+            extractionWarnings: [
+              'Unsupported interactive asset detected (embed); text fallback retained.',
+            ],
+            completenessLevel: 'partial',
             pointsEarned: 1,
             pointsPossible: 1,
             submissionsUsed: '1/3',
@@ -113,6 +145,7 @@ describe('get cengage assignment details tool', () => {
             pointsPossible: 1,
             submissionsUsed: '1/3',
             result: 'correct',
+            completenessLevel: 'complete',
           },
         ],
       },
@@ -136,11 +169,73 @@ describe('get cengage assignment details tool', () => {
     expect(payload.details.questions[0].promptSections).toHaveLength(2);
     expect(payload.details.questions[0].mediaClassification).toBe('image');
     expect(payload.details.questions[0].renderedMedia).toHaveLength(1);
+    expect(payload.details.questions[0].interactiveAssets).toHaveLength(1);
+    expect(payload.details.questions[0].mediaAssets).toHaveLength(1);
+    expect(payload.details.questions[0].completenessLevel).toBe('partial');
+    expect(payload.details.completenessLevel).toBe('partial');
+    expect(payload.details.extractionOverview.mode).toBe(
+      'text_with_rendered_media_fallback'
+    );
     expect(payload.details.renderedMediaSummary.renderedImageCount).toBe(1);
+    expect(payload.details.renderedMediaSummary.maxCapturePerQuestion).toBe(1);
     expect(payload.details.questions[0].promptSections[0].title).toBe(
       'Part 1 of 2'
     );
     expect(payload._cache.hit).toBe(false);
+  });
+
+  it('forwards additive extraction knobs to scraper options', async () => {
+    const entryUrl = uniqueEntryUrl('knobs');
+
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([SAMPLE_COURSE]);
+
+    const detailsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignmentDetails')
+      .mockResolvedValue({
+        selectedAssignment: {
+          assignmentId: '39248944',
+          name: 'Assignment 1',
+          status: 'graded',
+        },
+        availableAssignments: [
+          {
+            assignmentId: '39248944',
+            name: 'Assignment 1',
+            status: 'graded',
+          },
+        ],
+        details: {
+          questionCount: 1,
+          returnedQuestionCount: 1,
+          questions: [{ questionNumber: 1, prompt: 'Prompt text' }],
+        },
+      });
+
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignmentDetails({
+      entryUrl,
+      assignmentId: '39248944',
+      includeAssetInventory: true,
+      maxInteractiveAssets: 7,
+      maxMediaAssets: 8,
+      maxCapturePerQuestion: 2,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(detailsSpy).toHaveBeenCalledWith(
+      SAMPLE_COURSE.launchUrl,
+      expect.objectContaining({
+        includeAssetInventory: true,
+        maxInteractiveAssets: 7,
+        maxMediaAssets: 8,
+        maxCapturePerQuestion: 2,
+      })
+    );
   });
 
   it('maps parse selection failures to no_data with available assignment choices', async () => {

@@ -13,6 +13,9 @@ export interface ExtractAssignmentDetailsOptions {
   maxAnswerTextChars?: number;
   includeAnswers?: boolean;
   includeResources?: boolean;
+  includeAssetInventory?: boolean;
+  maxInteractiveAssets?: number;
+  maxMediaAssets?: number;
 }
 
 export interface ExtractedAssignmentResourceLink {
@@ -24,6 +27,49 @@ export interface ExtractedAssignmentPromptSection {
   title?: string;
   text: string;
   truncated?: boolean;
+}
+
+export type AssignmentCompletenessLevel = 'complete' | 'partial' | 'truncated';
+
+export type AssignmentInteractiveAssetKind =
+  | 'iframe'
+  | 'iframe_graph'
+  | 'math_widget'
+  | 'simulation_widget'
+  | 'embed'
+  | 'object'
+  | 'canvas'
+  | 'svg'
+  | 'unknown_widget';
+
+export interface ExtractedAssignmentInteractiveAsset {
+  kind: AssignmentInteractiveAssetKind;
+  tagName: string;
+  sourceUrl?: string;
+  id?: string;
+  classes?: string[];
+  title?: string;
+  ariaLabel?: string;
+  width?: number;
+  height?: number;
+  unsupported?: boolean;
+}
+
+export type AssignmentMediaAssetKind =
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'canvas'
+  | 'svg';
+
+export interface ExtractedAssignmentMediaAsset {
+  kind: AssignmentMediaAssetKind;
+  tagName: string;
+  sourceUrl?: string;
+  altText?: string;
+  title?: string;
+  width?: number;
+  height?: number;
 }
 
 export type AssignmentRenderedMediaClassification = 'text' | 'image';
@@ -42,10 +88,18 @@ export interface ExtractedAssignmentRenderedMediaSummary {
   skippedImageCount: number;
   maxRenderedImages: number;
   maxCaptureUnits: number;
+  maxCapturePerQuestion: number;
   maxPayloadBytes: number;
   captureDpi: number;
   minTextForSafeText: number;
   truncatedCaptureUnits?: boolean;
+}
+
+export interface ExtractedAssignmentOverview {
+  mode: 'text_with_rendered_media_fallback';
+  startNote: string;
+  endNote: string;
+  truncated: boolean;
 }
 
 export interface ExtractedAssignmentQuestion {
@@ -55,8 +109,12 @@ export interface ExtractedAssignmentQuestion {
   promptSections?: ExtractedAssignmentPromptSection[];
   hasMediaCarriers?: boolean;
   mediaClassification?: AssignmentRenderedMediaClassification;
+  interactiveAssets?: ExtractedAssignmentInteractiveAsset[];
+  mediaAssets?: ExtractedAssignmentMediaAsset[];
   renderedMedia?: ExtractedAssignmentRenderedMediaAsset[];
   renderedMediaWarning?: string;
+  extractionWarnings?: string[];
+  completenessLevel?: AssignmentCompletenessLevel;
   promptTruncated?: boolean;
   answer?: string;
   answerTruncated?: boolean;
@@ -75,6 +133,9 @@ export interface ExtractedAssignmentDetails {
   questionCount: number;
   returnedQuestionCount: number;
   truncatedQuestions?: boolean;
+  extractionWarnings?: string[];
+  completenessLevel?: AssignmentCompletenessLevel;
+  extractionOverview?: ExtractedAssignmentOverview;
   renderedMediaSummary?: ExtractedAssignmentRenderedMediaSummary;
   questions: ExtractedAssignmentQuestion[];
 }
@@ -82,6 +143,7 @@ export interface ExtractedAssignmentDetails {
 export interface CaptureAssignmentRenderedMediaOptions {
   maxRenderedImages?: number;
   maxCaptureUnits?: number;
+  maxCapturePerQuestion?: number;
   maxPayloadBytes?: number;
   minTextForSafeText?: number;
   captureDpi?: number;
@@ -90,11 +152,14 @@ export interface CaptureAssignmentRenderedMediaOptions {
 const DEFAULT_MAX_QUESTIONS = 50;
 const DEFAULT_MAX_QUESTION_TEXT_CHARS = 2000;
 const DEFAULT_MAX_ANSWER_TEXT_CHARS = 1200;
+const DEFAULT_MAX_INTERACTIVE_ASSETS = 10;
+const DEFAULT_MAX_MEDIA_ASSETS = 10;
 const PDF_PARITY_MAX_IMAGE_PAGES = 20;
 const PDF_PARITY_MAX_TOTAL_UNITS = 50;
 const PDF_PARITY_DEFAULT_DPI = 100;
 const PDF_PARITY_MIN_TEXT_FOR_SAFE_TEXT = 250;
 const PDF_PARITY_MAX_PAYLOAD_BYTES = 800 * 1024;
+const PDF_PARITY_DEFAULT_CAPTURES_PER_QUESTION = 1;
 
 export async function extractAssignmentDetails(
   page: Page,
@@ -114,6 +179,15 @@ export async function extractAssignmentDetails(
 
   const includeAnswers = options.includeAnswers !== false;
   const includeResources = options.includeResources !== false;
+  const includeAssetInventory = options.includeAssetInventory !== false;
+
+  const maxInteractiveAssets = Number.isFinite(options.maxInteractiveAssets)
+    ? Math.max(1, Math.trunc(options.maxInteractiveAssets as number))
+    : DEFAULT_MAX_INTERACTIVE_ASSETS;
+
+  const maxMediaAssets = Number.isFinite(options.maxMediaAssets)
+    ? Math.max(1, Math.trunc(options.maxMediaAssets as number))
+    : DEFAULT_MAX_MEDIA_ASSETS;
 
   return page.evaluate(
     ({
@@ -122,6 +196,9 @@ export async function extractAssignmentDetails(
       maxAnswerTextChars: maxAnswerTextCharsArg,
       includeAnswers: includeAnswersArg,
       includeResources: includeResourcesArg,
+      includeAssetInventory: includeAssetInventoryArg,
+      maxInteractiveAssets: maxInteractiveAssetsArg,
+      maxMediaAssets: maxMediaAssetsArg,
     }) => {
       const normalizeText = (value: string | null | undefined): string =>
         (value || '').replace(/\s+/g, ' ').trim();
@@ -205,8 +282,15 @@ export async function extractAssignmentDetails(
             continue;
           }
 
+          const partNumber =
+            current[1] || current[0]?.match(/Part\s+(\d+)/i)?.[1] || `${i + 1}`;
+          const totalParts =
+            current[2] ||
+            current[0]?.match(/of\s+(\d+)/i)?.[1] ||
+            `${matches.length}`;
+
           sections.push({
-            title: `Part ${current[1]} of ${current[2]}`,
+            title: `Part ${partNumber} of ${totalParts}`,
             text,
           });
         }
@@ -421,6 +505,251 @@ export async function extractAssignmentDetails(
         return links;
       };
 
+      const normalizeAssetUrl = (value: string | null | undefined): string => {
+        const raw = normalizeText(value);
+        if (!raw) {
+          return '';
+        }
+
+        try {
+          return new URL(raw, window.location.href).toString();
+        } catch {
+          return raw;
+        }
+      };
+
+      const normalizedClassList = (element: Element): string[] => {
+        const className = normalizeText(element.getAttribute('class') || '');
+        if (!className) {
+          return [];
+        }
+
+        return Array.from(new Set(className.split(/\s+/))).slice(0, 8);
+      };
+
+      const measureElementSize = (
+        element: HTMLElement
+      ): { width?: number; height?: number } => {
+        const rect = element.getBoundingClientRect();
+        const width =
+          rect.width > 0
+            ? Math.round(rect.width)
+            : Number.parseInt(element.getAttribute('width') || '', 10);
+        const height =
+          rect.height > 0
+            ? Math.round(rect.height)
+            : Number.parseInt(element.getAttribute('height') || '', 10);
+
+        return {
+          ...(Number.isFinite(width) && width > 0 ? { width } : {}),
+          ...(Number.isFinite(height) && height > 0 ? { height } : {}),
+        };
+      };
+
+      const classifyInteractiveAsset = (
+        element: HTMLElement
+      ): { kind: AssignmentInteractiveAssetKind; unsupported: boolean } => {
+        const tag = element.tagName.toLowerCase();
+        const fingerprint = normalizeText(
+          [
+            element.id,
+            element.getAttribute('class') || '',
+            element.getAttribute('data-widget') || '',
+            element.getAttribute('data-component') || '',
+            element.getAttribute('title') || '',
+            element.getAttribute('aria-label') || '',
+            element.getAttribute('src') || '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+        ).toLowerCase();
+
+        if (
+          fingerprint.includes('iframegraph') ||
+          fingerprint.includes('graphing')
+        ) {
+          return { kind: 'iframe_graph', unsupported: false };
+        }
+
+        if (
+          fingerprint.includes('mathjax') ||
+          fingerprint.includes('mathquill') ||
+          fingerprint.includes('equation')
+        ) {
+          return { kind: 'math_widget', unsupported: false };
+        }
+
+        if (
+          fingerprint.includes('simulation') ||
+          fingerprint.includes('sim-widget') ||
+          fingerprint.includes('interactive')
+        ) {
+          return { kind: 'simulation_widget', unsupported: false };
+        }
+
+        if (tag === 'iframe') {
+          return { kind: 'iframe', unsupported: false };
+        }
+
+        if (tag === 'embed') {
+          return { kind: 'embed', unsupported: true };
+        }
+
+        if (tag === 'object') {
+          return { kind: 'object', unsupported: true };
+        }
+
+        if (tag === 'canvas') {
+          return { kind: 'canvas', unsupported: false };
+        }
+
+        if (tag === 'svg') {
+          return { kind: 'svg', unsupported: false };
+        }
+
+        return { kind: 'unknown_widget', unsupported: true };
+      };
+
+      const collectInteractiveAssets = (
+        questionElement: Element
+      ): {
+        assets: ExtractedAssignmentInteractiveAsset[];
+        warnings: string[];
+      } => {
+        const selectors =
+          'iframe, embed, object, canvas, svg, [data-widget], [class*="widget"], [class*="math"], [id*="math"], [class*="iframeGraph"], [id*="iframeGraph"], [class*="simulation"]';
+        const elements = Array.from(
+          questionElement.querySelectorAll<HTMLElement>(selectors)
+        );
+
+        const assets: ExtractedAssignmentInteractiveAsset[] = [];
+        const warnings: string[] = [];
+        const dedupe = new Set<string>();
+
+        for (const element of elements) {
+          if (assets.length >= maxInteractiveAssetsArg) {
+            warnings.push(
+              `Interactive asset inventory truncated at ${maxInteractiveAssetsArg} item(s).`
+            );
+            break;
+          }
+
+          const { kind, unsupported } = classifyInteractiveAsset(element);
+          if (kind === 'unknown_widget' && !element.id && !element.className) {
+            continue;
+          }
+
+          const sourceUrl = normalizeAssetUrl(
+            element.getAttribute('src') ||
+              element.getAttribute('data-src') ||
+              element.getAttribute('data-url') ||
+              element.getAttribute('href') ||
+              ''
+          );
+
+          const classes = normalizedClassList(element);
+          const key = [
+            kind,
+            normalizeText(element.id),
+            sourceUrl,
+            classes.join('.'),
+          ].join('@@');
+
+          if (dedupe.has(key)) {
+            continue;
+          }
+          dedupe.add(key);
+
+          const size = measureElementSize(element);
+          assets.push({
+            kind,
+            tagName: element.tagName.toLowerCase(),
+            ...(sourceUrl ? { sourceUrl } : {}),
+            ...(element.id ? { id: element.id } : {}),
+            ...(classes.length > 0 ? { classes } : {}),
+            ...(element.getAttribute('title')
+              ? { title: normalizeText(element.getAttribute('title')) }
+              : {}),
+            ...(element.getAttribute('aria-label')
+              ? {
+                  ariaLabel: normalizeText(element.getAttribute('aria-label')),
+                }
+              : {}),
+            ...size,
+            ...(unsupported ? { unsupported: true } : {}),
+          });
+
+          if (unsupported) {
+            warnings.push(
+              `Unsupported interactive asset detected (${kind}); text fallback retained.`
+            );
+          }
+        }
+
+        return { assets, warnings };
+      };
+
+      const collectMediaAssets = (
+        questionElement: Element
+      ): ExtractedAssignmentMediaAsset[] => {
+        const elements = Array.from(
+          questionElement.querySelectorAll<HTMLElement>(
+            'img, video, audio, canvas, svg'
+          )
+        );
+
+        const assets: ExtractedAssignmentMediaAsset[] = [];
+        const dedupe = new Set<string>();
+
+        for (const element of elements) {
+          if (assets.length >= maxMediaAssetsArg) {
+            break;
+          }
+
+          const tagName = element.tagName.toLowerCase();
+          const kind: AssignmentMediaAssetKind =
+            tagName === 'img'
+              ? 'image'
+              : tagName === 'video'
+                ? 'video'
+                : tagName === 'audio'
+                  ? 'audio'
+                  : tagName === 'canvas'
+                    ? 'canvas'
+                    : 'svg';
+
+          const sourceUrl = normalizeAssetUrl(
+            element.getAttribute('src') ||
+              element.getAttribute('data-src') ||
+              element.getAttribute('data-url') ||
+              element.getAttribute('href') ||
+              ''
+          );
+
+          const key = [kind, sourceUrl, normalizeText(element.id)].join('@@');
+          if (dedupe.has(key)) {
+            continue;
+          }
+          dedupe.add(key);
+
+          const size = measureElementSize(element);
+          assets.push({
+            kind,
+            tagName,
+            ...(sourceUrl ? { sourceUrl } : {}),
+            ...(tagName === 'img' && element.getAttribute('alt')
+              ? { altText: normalizeText(element.getAttribute('alt')) }
+              : {}),
+            ...(element.getAttribute('title')
+              ? { title: normalizeText(element.getAttribute('title')) }
+              : {}),
+            ...size,
+          });
+        }
+
+        return assets;
+      };
+
       const assignmentName = normalizeText(
         document
           .querySelector<HTMLElement>(
@@ -525,11 +854,56 @@ export async function extractAssignmentDetails(
             ? collectResourceLinks(questionElement, questionId)
             : [];
 
+          const assetInventory = includeAssetInventoryArg
+            ? collectInteractiveAssets(questionElement)
+            : { assets: [], warnings: [] };
+          const mediaAssets = includeAssetInventoryArg
+            ? collectMediaAssets(questionElement)
+            : [];
+
+          const extractionWarnings: string[] = [];
+          if (prompt.truncated) {
+            extractionWarnings.push(
+              `Prompt text truncated to ${maxQuestionTextCharsArg} chars.`
+            );
+          }
+
+          if (includeAnswersArg && answer.truncated) {
+            extractionWarnings.push(
+              `Answer text truncated to ${maxAnswerTextCharsArg} chars.`
+            );
+          }
+
+          if (promptSections.some((section) => section.truncated)) {
+            extractionWarnings.push(
+              `Prompt sections truncated to ${maxQuestionTextCharsArg} chars total.`
+            );
+          }
+
+          extractionWarnings.push(...assetInventory.warnings);
+
+          const completenessLevel: AssignmentCompletenessLevel =
+            prompt.truncated ||
+            (includeAnswersArg && answer.truncated) ||
+            promptSections.some((section) => section.truncated)
+              ? 'truncated'
+              : extractionWarnings.length > 0
+                ? 'partial'
+                : 'complete';
+
           return {
             questionNumber,
             ...(questionId ? { questionId } : {}),
             prompt: prompt.text,
             ...(promptSections.length > 0 ? { promptSections } : {}),
+            ...(includeAssetInventoryArg && assetInventory.assets.length > 0
+              ? { interactiveAssets: assetInventory.assets }
+              : {}),
+            ...(includeAssetInventoryArg && mediaAssets.length > 0
+              ? { mediaAssets }
+              : {}),
+            ...(extractionWarnings.length > 0 ? { extractionWarnings } : {}),
+            completenessLevel,
             ...(prompt.truncated ? { promptTruncated: true } : {}),
             ...(includeAnswersArg && answer.text
               ? { answer: answer.text }
@@ -547,15 +921,60 @@ export async function extractAssignmentDetails(
         }
       );
 
+      const extractionWarnings: string[] = [];
+      const truncatedQuestions = questionElements.length > questions.length;
+      if (truncatedQuestions) {
+        extractionWarnings.push(
+          `Question list truncated: returned ${questions.length} of ${questionElements.length}.`
+        );
+      }
+
+      const truncatedQuestionCount = questions.filter(
+        (question) => question.completenessLevel === 'truncated'
+      ).length;
+      if (truncatedQuestionCount > 0) {
+        extractionWarnings.push(
+          `${truncatedQuestionCount} question(s) include truncated text sections.`
+        );
+      }
+
+      const partialQuestionCount = questions.filter(
+        (question) => question.completenessLevel === 'partial'
+      ).length;
+      if (partialQuestionCount > 0) {
+        extractionWarnings.push(
+          `${partialQuestionCount} question(s) include extraction warnings.`
+        );
+      }
+
+      const completenessLevel: AssignmentCompletenessLevel =
+        truncatedQuestions || truncatedQuestionCount > 0
+          ? 'truncated'
+          : partialQuestionCount > 0
+            ? 'partial'
+            : 'complete';
+
+      const extractionOverview: ExtractedAssignmentOverview = {
+        mode: 'text_with_rendered_media_fallback',
+        startNote:
+          'Text extraction completed. Image-classified prompts can include rendered media fallback when enabled.',
+        endNote:
+          completenessLevel === 'truncated'
+            ? 'Output includes truncation from configured limits. Increase maxQuestions or text limits for fuller output.'
+            : 'Output completed within configured extraction limits.',
+        truncated: completenessLevel === 'truncated',
+      };
+
       return {
         ...(pageTitle ? { pageTitle } : {}),
         ...(heading ? { heading } : {}),
         ...(assignmentName ? { assignmentName } : {}),
         questionCount: questionElements.length,
         returnedQuestionCount: questions.length,
-        ...(questionElements.length > questions.length
-          ? { truncatedQuestions: true }
-          : {}),
+        ...(truncatedQuestions ? { truncatedQuestions: true } : {}),
+        ...(extractionWarnings.length > 0 ? { extractionWarnings } : {}),
+        completenessLevel,
+        extractionOverview,
         questions,
       };
     },
@@ -565,6 +984,9 @@ export async function extractAssignmentDetails(
       maxAnswerTextChars,
       includeAnswers,
       includeResources,
+      includeAssetInventory,
+      maxInteractiveAssets,
+      maxMediaAssets,
     }
   );
 }
@@ -606,6 +1028,10 @@ export async function captureAssignmentRenderedMedia(
         )
       )
     : PDF_PARITY_MAX_TOTAL_UNITS;
+
+  const maxCapturePerQuestion = Number.isFinite(options.maxCapturePerQuestion)
+    ? Math.max(1, Math.trunc(options.maxCapturePerQuestion as number))
+    : PDF_PARITY_DEFAULT_CAPTURES_PER_QUESTION;
 
   const maxPayloadBytes = Number.isFinite(options.maxPayloadBytes)
     ? Math.max(10_000, Math.trunc(options.maxPayloadBytes as number))
@@ -724,6 +1150,20 @@ export async function captureAssignmentRenderedMedia(
   let skippedImageCount = 0;
   let currentPayloadSize = 0;
 
+  const appendQuestionWarning = (
+    question: ExtractedAssignmentQuestion,
+    warning: string
+  ) => {
+    const existing = question.extractionWarnings || [];
+    if (!existing.includes(warning)) {
+      question.extractionWarnings = [...existing, warning];
+    }
+
+    if (question.completenessLevel !== 'truncated') {
+      question.completenessLevel = 'partial';
+    }
+  };
+
   for (const candidate of candidates as RenderCaptureCandidate[]) {
     const question =
       (candidate.questionId
@@ -745,6 +1185,16 @@ export async function captureAssignmentRenderedMedia(
       skippedImageCount += 1;
       question.renderedMediaWarning =
         'Image-classified question region could not be captured because container id was missing. Text fallback retained.';
+      appendQuestionWarning(question, question.renderedMediaWarning);
+      continue;
+    }
+
+    const existingCaptures = question.renderedMedia?.length || 0;
+    if (existingCaptures >= maxCapturePerQuestion) {
+      skippedImageCount += 1;
+      question.renderedMediaWarning =
+        'Per-question capture limit reached. Text fallback retained.';
+      appendQuestionWarning(question, question.renderedMediaWarning);
       continue;
     }
 
@@ -757,6 +1207,7 @@ export async function captureAssignmentRenderedMedia(
         renderedImageCount >= maxRenderedImages
           ? 'Image capture limit reached. Text fallback retained.'
           : 'Image payload limit reached. Text fallback retained.';
+      appendQuestionWarning(question, question.renderedMediaWarning);
       continue;
     }
 
@@ -774,6 +1225,7 @@ export async function captureAssignmentRenderedMedia(
       skippedImageCount += 1;
       question.renderedMediaWarning =
         'Question region screenshot failed. Text fallback retained.';
+      appendQuestionWarning(question, question.renderedMediaWarning);
       continue;
     }
 
@@ -784,6 +1236,7 @@ export async function captureAssignmentRenderedMedia(
       skippedImageCount += 1;
       question.renderedMediaWarning =
         'Image payload limit reached. Text fallback retained.';
+      appendQuestionWarning(question, question.renderedMediaWarning);
       continue;
     }
 
@@ -807,6 +1260,7 @@ export async function captureAssignmentRenderedMedia(
     skippedImageCount,
     maxRenderedImages,
     maxCaptureUnits,
+    maxCapturePerQuestion,
     maxPayloadBytes,
     captureDpi,
     minTextForSafeText,
@@ -814,6 +1268,39 @@ export async function captureAssignmentRenderedMedia(
       ? { truncatedCaptureUnits: true }
       : {}),
   };
+
+  const detailWarnings = new Set<string>(details.extractionWarnings || []);
+  if (summary.truncatedCaptureUnits) {
+    detailWarnings.add(
+      `Rendered media candidate scan truncated at ${maxCaptureUnits} question(s).`
+    );
+  }
+
+  if (skippedImageCount > 0) {
+    detailWarnings.add(
+      `${skippedImageCount} image-classified question(s) used text fallback due to rendered-media limits or capture failures.`
+    );
+  }
+
+  if (detailWarnings.size > 0) {
+    details.extractionWarnings = Array.from(detailWarnings);
+  }
+
+  if (details.completenessLevel !== 'truncated' && skippedImageCount > 0) {
+    details.completenessLevel = 'partial';
+  }
+
+  if (details.extractionOverview) {
+    details.extractionOverview = {
+      ...details.extractionOverview,
+      endNote:
+        details.completenessLevel === 'truncated'
+          ? details.extractionOverview.endNote
+          : skippedImageCount > 0
+            ? 'Rendered media capture applied with fallback on some questions. Text extraction remains complete for all returned questions.'
+            : details.extractionOverview.endNote,
+    };
+  }
 
   details.renderedMediaSummary = summary;
   return summary;

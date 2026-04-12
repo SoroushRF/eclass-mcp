@@ -253,6 +253,55 @@ export const CengageAssignmentPromptSectionSchema = z.object({
   truncated: z.boolean().optional(),
 });
 
+export const CengageAssignmentCompletenessLevelSchema = z.enum([
+  'complete',
+  'partial',
+  'truncated',
+]);
+
+export const CengageAssignmentInteractiveAssetKindSchema = z.enum([
+  'iframe',
+  'iframe_graph',
+  'math_widget',
+  'simulation_widget',
+  'embed',
+  'object',
+  'canvas',
+  'svg',
+  'unknown_widget',
+]);
+
+export const CengageAssignmentInteractiveAssetSchema = z.object({
+  kind: CengageAssignmentInteractiveAssetKindSchema,
+  tagName: z.string(),
+  sourceUrl: z.string().optional(),
+  id: z.string().optional(),
+  classes: z.array(z.string()).optional(),
+  title: z.string().optional(),
+  ariaLabel: z.string().optional(),
+  width: z.number().int().min(0).optional(),
+  height: z.number().int().min(0).optional(),
+  unsupported: z.boolean().optional(),
+});
+
+export const CengageAssignmentMediaAssetKindSchema = z.enum([
+  'image',
+  'video',
+  'audio',
+  'canvas',
+  'svg',
+]);
+
+export const CengageAssignmentMediaAssetSchema = z.object({
+  kind: CengageAssignmentMediaAssetKindSchema,
+  tagName: z.string(),
+  sourceUrl: z.string().optional(),
+  altText: z.string().optional(),
+  title: z.string().optional(),
+  width: z.number().int().min(0).optional(),
+  height: z.number().int().min(0).optional(),
+});
+
 export const CengageAssignmentMediaClassificationSchema = z.enum([
   'text',
   'image',
@@ -272,10 +321,18 @@ export const CengageAssignmentRenderedMediaSummarySchema = z.object({
   skippedImageCount: z.number().int().min(0),
   maxRenderedImages: z.number().int().min(1),
   maxCaptureUnits: z.number().int().min(1),
+  maxCapturePerQuestion: z.number().int().min(1),
   maxPayloadBytes: z.number().int().min(1),
   captureDpi: z.number().int().min(72),
   minTextForSafeText: z.number().int().min(1),
   truncatedCaptureUnits: z.boolean().optional(),
+});
+
+export const CengageAssignmentExtractionOverviewSchema = z.object({
+  mode: z.literal('text_with_rendered_media_fallback'),
+  startNote: z.string(),
+  endNote: z.string(),
+  truncated: z.boolean(),
 });
 
 export const CengageAssignmentQuestionSchema = z.object({
@@ -285,8 +342,14 @@ export const CengageAssignmentQuestionSchema = z.object({
   promptSections: z.array(CengageAssignmentPromptSectionSchema).optional(),
   hasMediaCarriers: z.boolean().optional(),
   mediaClassification: CengageAssignmentMediaClassificationSchema.optional(),
+  interactiveAssets: z
+    .array(CengageAssignmentInteractiveAssetSchema)
+    .optional(),
+  mediaAssets: z.array(CengageAssignmentMediaAssetSchema).optional(),
   renderedMedia: z.array(CengageAssignmentRenderedMediaAssetSchema).optional(),
   renderedMediaWarning: z.string().optional(),
+  extractionWarnings: z.array(z.string()).optional(),
+  completenessLevel: CengageAssignmentCompletenessLevelSchema.optional(),
   promptTruncated: z.boolean().optional(),
   answer: z.string().optional(),
   answerTruncated: z.boolean().optional(),
@@ -304,6 +367,9 @@ export const CengageAssignmentDetailsSchema = z.object({
   questionCount: z.number().int().min(0),
   returnedQuestionCount: z.number().int().min(0),
   truncatedQuestions: z.boolean().optional(),
+  extractionWarnings: z.array(z.string()).optional(),
+  completenessLevel: CengageAssignmentCompletenessLevelSchema.optional(),
+  extractionOverview: CengageAssignmentExtractionOverviewSchema.optional(),
   renderedMediaSummary: CengageAssignmentRenderedMediaSummarySchema.optional(),
   questions: z.array(CengageAssignmentQuestionSchema),
 });
@@ -366,6 +432,12 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
     .describe(
       'If true (default), include per-question resource links (Read It, etc.).'
     ),
+  includeAssetInventory: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true (default), include additive per-question interactiveAssets/mediaAssets inventory metadata.'
+    ),
   includeRenderedMedia: z
     .boolean()
     .optional()
@@ -386,6 +458,33 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
     .max(50)
     .optional()
     .describe('Max capture-eligible question regions processed (default 50).'),
+  maxCapturePerQuestion: z
+    .number()
+    .int()
+    .min(1)
+    .max(5)
+    .optional()
+    .describe(
+      'Max rendered captures per question region (default 1, additive safety knob).'
+    ),
+  maxInteractiveAssets: z
+    .number()
+    .int()
+    .min(1)
+    .max(25)
+    .optional()
+    .describe(
+      'Max interactiveAssets inventory records captured per question (default 10).'
+    ),
+  maxMediaAssets: z
+    .number()
+    .int()
+    .min(1)
+    .max(25)
+    .optional()
+    .describe(
+      'Max mediaAssets inventory records captured per question (default 10).'
+    ),
   maxMediaPayloadBytes: z
     .number()
     .int()

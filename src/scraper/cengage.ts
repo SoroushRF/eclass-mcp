@@ -84,6 +84,7 @@ export interface GetWebAssignAssignmentDetailsOptions extends ExtractAssignmentD
   includeRenderedMedia?: boolean;
   maxRenderedImages?: number;
   maxCaptureUnits?: number;
+  maxCapturePerQuestion?: number;
   maxMediaPayloadBytes?: number;
   minTextForSafeText?: number;
   captureDpi?: number;
@@ -939,12 +940,16 @@ export class CengageScraper {
         maxAnswerTextChars: options.maxAnswerTextChars,
         includeAnswers: options.includeAnswers,
         includeResources: options.includeResources,
+        includeAssetInventory: options.includeAssetInventory,
+        maxInteractiveAssets: options.maxInteractiveAssets,
+        maxMediaAssets: options.maxMediaAssets,
       });
 
       if (options.includeRenderedMedia !== false) {
         await captureAssignmentRenderedMedia(page, details, {
           maxRenderedImages: options.maxRenderedImages,
           maxCaptureUnits: options.maxCaptureUnits,
+          maxCapturePerQuestion: options.maxCapturePerQuestion,
           maxPayloadBytes: options.maxMediaPayloadBytes,
           minTextForSafeText: options.minTextForSafeText,
           captureDpi: options.captureDpi,
