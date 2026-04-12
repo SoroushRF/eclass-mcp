@@ -170,7 +170,13 @@ export async function searchProfessorsTool(args: any) {
   const { name, campus } = args;
 
   if (!name) {
-    throw new McpError(ErrorCode.InvalidParams, 'Professor name is required');
+    return asValidatedMcpText(
+      'search_professors',
+      EclassToolErrorResponseSchema,
+      toErrorPayload('VALIDATION_FAILED', 'Professor name is required', {
+        details: { field: 'name' },
+      })
+    );
   }
 
   try {
@@ -261,7 +267,13 @@ export async function getProfessorDetailsTool(args: any) {
   const { teacherId } = args;
 
   if (!teacherId) {
-    throw new McpError(ErrorCode.InvalidParams, 'teacherId is required');
+    return asValidatedMcpText(
+      'get_professor_details',
+      EclassToolErrorResponseSchema,
+      toErrorPayload('VALIDATION_FAILED', 'teacherId is required', {
+        details: { field: 'teacherId' },
+      })
+    );
   }
 
   try {

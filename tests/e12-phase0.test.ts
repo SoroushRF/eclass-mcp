@@ -5,6 +5,8 @@ import {
   upstreamErrorFromHttpStatus,
   upstreamErrorFromUnknown,
 } from '../src/scraper/eclass';
+import { ValidationError } from '../src/errors/validation-error';
+import { getDeadlines, getItemDetails } from '../src/tools/deadlines';
 import { SessionExpiredError } from '../src/scraper/session';
 import { MACHINE_CODES, isMachineCode } from '../src/errors/codes';
 import {
@@ -68,6 +70,34 @@ describe('E12 Phase 3 — UpstreamError', () => {
       details: { httpStatus: err.httpStatus },
     });
     expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(true);
+  });
+});
+
+describe('E12 Phase 4 — VALIDATION_FAILED', () => {
+  it('ValidationError exposes code VALIDATION_FAILED', () => {
+    const err = new ValidationError('bad', { field: 'url' });
+    expect(err.code).toBe('VALIDATION_FAILED');
+    const payload = toErrorPayload('VALIDATION_FAILED', err.message, {
+      details: err.details,
+    });
+    expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(true);
+  });
+
+  it('getDeadlines (scope=range) returns structured error without from/to', async () => {
+    const result = await getDeadlines({ scope: 'range' });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.status).toBe('error');
+    expect(parsed.code).toBe('VALIDATION_FAILED');
+    expect(parsed.message).toMatch(/from and to/i);
+    expect(Array.isArray(parsed.details?.missing)).toBe(true);
+  });
+
+  it('getItemDetails returns structured error when url is missing', async () => {
+    const result = await getItemDetails({} as { url: string });
+    const parsed = JSON.parse(result.content[0].text);
+    expect(parsed.status).toBe('error');
+    expect(parsed.code).toBe('VALIDATION_FAILED');
+    expect(parsed.details?.field).toBe('url');
   });
 });
 

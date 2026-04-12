@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-04-10
+**Last updated:** 2026-04-12
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -252,8 +252,8 @@ Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retr
 | [x] **E08** | Test framework (Vitest/Jest) + coverage script                                                                                                                                                                                                                                                                                        | B    |
 | [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers                                                                                                                                                                                                                                                                                  | B    |
 | [x] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants)                                                                                                                                                                                                                                                                    | B    |
-| [x] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**) — see `src/tools/eclass-contracts.ts`, `mcp-validated-response.ts`, [`docs/e11-tool-output-inventory.md`](./e11-tool-output-inventory.md)                                                                                                                                                                                                              | B    |
-| [ ] **E12** | Structured error types + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, ?) (**required** for write tools via **E20**)                                                                                                                                                                                                     | B    |
+| [x] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**) — see `src/tools/eclass-contracts.ts`, `mcp-validated-response.ts`, [`docs/e11-tool-output-inventory.md`](./e11-tool-output-inventory.md)                                                                    | B    |
+| [x] **E12** | Structured errors + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, upstream codes, `VALIDATION_FAILED`) — [`docs/e12-structured-errors.md`](./e12-structured-errors.md); modules under `src/errors/`, `src/scraper/scrape-errors.ts`, tool mappings — (**required** for write tools via **E20**)                          | B    |
 | [ ] **E13** | Session at-rest hardening + secure wipe on logout                                                                                                                                                                                                                                                                                     | C    |
 | [ ] **E14** | Structured logging + correlation ID + redaction                                                                                                                                                                                                                                                                                       | C    |
 | [ ] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode                                                                                                                                                                                                                                                                   | C    |
@@ -434,7 +434,7 @@ jobs:
 - **E09:** First unit tests: `cache/store` expiry math, `session` stale logic, parser helpers with small buffers.
 - **E10:** Check in **sanitized HTML fixtures** under `tests/fixtures/`; tests run cheerio/jsdom or direct helper functions ? **no** live eClass in CI.
 - **E11:** Zod schemas for tool return payloads (`src/tools/eclass-contracts.ts`); runtime uses `safeParse` + warn + passthrough by default; set `ECLASS_MCP_STRICT_TOOL_OUTPUT=1` for fail-fast `.parse()` when debugging. Contract smoke tests in `tests/e11-contracts.test.ts`. Inventory: [`e11-tool-output-inventory.md`](./e11-tool-output-inventory.md).
-- **E12:** Central `AppError` hierarchy with `code` field; map `SessionExpiredError` to `SESSION_EXPIRED`; tools return consistent JSON error shape.
+- **E12:** Machine codes (`MachineCode` in `src/errors/codes.ts`), `toErrorPayload` / `sessionExpiredPayload`, typed errors (`SessionExpiredError`, `ScrapeLayoutError`, `UpstreamError`, `ValidationError`), tools return JSON with `status` + `code` + optional `details`. Full reference: [`e12-structured-errors.md`](./e12-structured-errors.md).
 
 #### 2.9.5 E13?E15 ? Security and operations
 
@@ -708,31 +708,31 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 ### 3.1 MCP tools currently registered (23)
 
-| Tool                      | Purpose                                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `list_courses`            | Enrolled courses                                                                                       |
-| `get_course_content`      | Sections, files, links, activities for one course                                                      |
-| `get_section_text`        | Paragraph text, links, and tabbed content for a section URL                                            |
-| `get_file_text`           | PDF / DOCX / PPTX extraction (hybrid text + rendered pages where applicable)                           |
-| `get_upcoming_deadlines`  | Assignments due within N days (default 14)                                                             |
-| `get_deadlines`           | Deadlines by scope: `upcoming` \| `month` \| `range`                                                   |
-| `get_item_details`        | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining)                          |
-| `get_grades`              | Grade report                                                                                           |
-| `get_announcements`       | Recent announcements                                                                                   |
-| `get_exam_schedule`       | Personal exam schedule (SIS)                                                                           |
-| `get_class_timetable`     | Personal class timetable (SIS)                                                                         |
-| `search_professors`       | RateMyProfessors profile search                                                                        |
-| `get_professor_details`   | RateMyProfessors deep ratings, comments, and student tags                                              |
-| `discover_cengage_links`  | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs                |
-| `list_cengage_courses`    | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback)    |
-| `get_cengage_assignments` | Retrieve Cengage/WebAssign assignment lists from dashboard-first flow with explicit-link compatibility |
+| Tool                             | Purpose                                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_courses`                   | Enrolled courses                                                                                                                     |
+| `get_course_content`             | Sections, files, links, activities for one course                                                                                    |
+| `get_section_text`               | Paragraph text, links, and tabbed content for a section URL                                                                          |
+| `get_file_text`                  | PDF / DOCX / PPTX extraction (hybrid text + rendered pages where applicable)                                                         |
+| `get_upcoming_deadlines`         | Assignments due within N days (default 14)                                                                                           |
+| `get_deadlines`                  | Deadlines by scope: `upcoming` \| `month` \| `range`                                                                                 |
+| `get_item_details`               | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining)                                                        |
+| `get_grades`                     | Grade report                                                                                                                         |
+| `get_announcements`              | Recent announcements                                                                                                                 |
+| `get_exam_schedule`              | Personal exam schedule (SIS)                                                                                                         |
+| `get_class_timetable`            | Personal class timetable (SIS)                                                                                                       |
+| `search_professors`              | RateMyProfessors profile search                                                                                                      |
+| `get_professor_details`          | RateMyProfessors deep ratings, comments, and student tags                                                                            |
+| `discover_cengage_links`         | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs                                              |
+| `list_cengage_courses`           | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback)                                  |
+| `get_cengage_assignments`        | Retrieve Cengage/WebAssign assignment lists from dashboard-first flow with explicit-link compatibility                               |
 | `get_cengage_assignment_details` | Retrieve question-level Cengage/WebAssign assignment details, structured prompt sections, and additive rendered-media/asset metadata |
-| `clear_cache`             | Clear **non-pinned** cache by scope; pinned entries unchanged                                          |
-| `cache_pin`               | Pin file / section / course content cache entry (quota-limited)                                        |
-| `cache_unpin`             | Remove pin from registry (does not delete cache file)                                                  |
-| `cache_list_pins`         | List pins + quota usage                                                                                |
-| `cache_refresh_pin`       | Re-fetch and refresh a pinned cache entry                                                              |
-| `cache_delete_pinned`     | Explicitly delete pinned cache files + registry rows                                                   |
+| `clear_cache`                    | Clear **non-pinned** cache by scope; pinned entries unchanged                                                                        |
+| `cache_pin`                      | Pin file / section / course content cache entry (quota-limited)                                                                      |
+| `cache_unpin`                    | Remove pin from registry (does not delete cache file)                                                                                |
+| `cache_list_pins`                | List pins + quota usage                                                                                                              |
+| `cache_refresh_pin`              | Re-fetch and refresh a pinned cache entry                                                                                            |
+| `cache_delete_pinned`            | Explicitly delete pinned cache files + registry rows                                                                                 |
 
 **Cache metadata ([T25](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
 
@@ -1003,17 +1003,18 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 
 ## Appendix A ? Documentation map
 
-| Topic                                    | Path                                                       |
-| ---------------------------------------- | ---------------------------------------------------------- |
-| **This master plan**                     | `docs/PROJECT_MASTER.md`                                   |
-| Engine versioning policy                 | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (23 tools)       | `docs/tools/README.md`                                     |
-| T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md`                                 |
-| E2E run log (create when running T11)    | `docs/e2e-run-log.md`                                      |
-| Deadlines tool ? roadmap & testing       | `docs/tools/deadlines/roadmap.md`                          |
-| Deadlines ? history                      | `docs/tools/deadlines/history.md`                          |
-| File / PDF ? history & roadmap           | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
-| User-facing README                       | `README.md`                                                |
+| Topic                                     | Path                                                       |
+| ----------------------------------------- | ---------------------------------------------------------- |
+| **This master plan**                      | `docs/PROJECT_MASTER.md`                                   |
+| Engine versioning policy                  | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
+| Tool-by-tool docs index (23 tools)        | `docs/tools/README.md`                                     |
+| T11 / T20 ? Claude Desktop E2E procedure  | `docs/t11-e2e-handbook.md`                                 |
+| E2E run log (create when running T11)     | `docs/e2e-run-log.md`                                      |
+| Deadlines tool ? roadmap & testing        | `docs/tools/deadlines/roadmap.md`                          |
+| Deadlines ? history                       | `docs/tools/deadlines/history.md`                          |
+| File / PDF ? history & roadmap            | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
+| **E12 structured errors (machine codes)** | `docs/e12-structured-errors.md`                            |
+| User-facing README                        | `README.md`                                                |
 
 ---
 

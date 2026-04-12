@@ -1,9 +1,11 @@
 import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
-import { sessionExpiredPayload } from '../errors/tool-error';
+import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
+import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { DeadlineItem, ItemDetails } from '../types/deadlines';
 import {
+  EclassToolErrorResponseSchema,
   EclassToolJsonPayloadSchema,
   ItemDetailsMetaSchema,
 } from './eclass-contracts';
@@ -39,7 +41,9 @@ function isSameMonthYear(date: Date, month: number, year: number): boolean {
 
 function parseBoundaryDate(raw: string, isEndBoundary: boolean): Date {
   const d = new Date(raw);
-  if (isNaN(d.getTime())) throw new Error('Invalid date boundary');
+  if (isNaN(d.getTime())) {
+    throw new ValidationError('Invalid date boundary', { value: raw });
+  }
 
   // If user passed YYYY-MM-DD, normalize to whole-day boundaries.
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
@@ -249,12 +253,21 @@ export async function getDeadlines(params: {
       }
     } else if (scope === 'range') {
       if (!from || !to) {
-        throw new Error('scope=range requires both from and to');
+        const missing: string[] = [];
+        if (!from) missing.push('from');
+        if (!to) missing.push('to');
+        throw new ValidationError('scope=range requires both from and to', {
+          scope: 'range',
+          missing,
+        });
       }
       const fromDate = parseBoundaryDate(from, false);
       const toDate = parseBoundaryDate(to, true);
       if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-        throw new Error('Invalid from/to date. Use ISO or YYYY-MM-DD.');
+        throw new ValidationError(
+          'Invalid from/to date. Use ISO or YYYY-MM-DD.',
+          { from, to }
+        );
       }
       const extra = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
       const key = deadlineCacheKey('range', courseId, extra);
@@ -329,6 +342,15 @@ export async function getDeadlines(params: {
         })
       );
     }
+    if (e instanceof ValidationError) {
+      return asValidatedMcpText(
+        'get_deadlines',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('VALIDATION_FAILED', e.message, {
+          ...(e.details ? { details: e.details } : {}),
+        })
+      );
+    }
     throw e;
   }
 }
@@ -347,7 +369,9 @@ export async function getItemDetails(params: {
 }) {
   try {
     const url = params?.url;
-    if (!url) throw new Error('url is required');
+    if (!url) {
+      throw new ValidationError('url is required', { field: 'url' });
+    }
 
     const includeImages = params?.includeImages ?? false;
     const includeCsv = params?.includeCsv ?? false;
@@ -632,6 +656,15 @@ export async function getItemDetails(params: {
         sessionExpiredPayload(e.message, {
           afterAuth: true,
           authUrl: getAuthUrl('eclass'),
+        })
+      );
+    }
+    if (e instanceof ValidationError) {
+      return asValidatedMcpText(
+        'get_item_details',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('VALIDATION_FAILED', e.message, {
+          ...(e.details ? { details: e.details } : {}),
         })
       );
     }
