@@ -652,6 +652,8 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 - Discovery expanded beyond LTI-only paths, including section/activity surfaces, announcement bodies, item descriptions, and extracted file text.
 - Cengage auth/session handling and navigation were hardened for dashboard and direct-course entry links, including auth-expired recovery behavior.
+- Operational default is now dashboard-first: sign in once, list courses without `entryUrl`, then fetch assignments via course selectors.
+- Discovery and explicit launch links are retained as bootstrap/fallback compatibility paths, not the primary execution path.
 - Three Cengage MCP tools are registered and validated: `discover_cengage_links`, `list_cengage_courses`, and `get_cengage_assignments`.
 - Validation now includes fixture/snapshot coverage and explicit E2E scenario coverage documented in the handbook/run-log.
 
@@ -721,9 +723,9 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 | `get_class_timetable` | Personal class timetable (SIS) |
 | `search_professors` | RateMyProfessors profile search |
 | `get_professor_details` | RateMyProfessors deep ratings, comments, and student tags |
-| `discover_cengage_links` | Detect and classify Cengage/WebAssign candidates from text with source hints |
-| `list_cengage_courses` | Enumerate Cengage/WebAssign courses from entry links |
-| `get_cengage_assignments` | Retrieve Cengage/WebAssign assignment lists with normalized due/status fields |
+| `discover_cengage_links` | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs |
+| `list_cengage_courses` | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback) |
+| `get_cengage_assignments` | Retrieve Cengage/WebAssign assignment lists from dashboard-first flow with explicit-link compatibility |
 | `clear_cache` | Clear **non-pinned** cache by scope; pinned entries unchanged |
 | `cache_pin` | Pin file / section / course content cache entry (quota-limited) |
 | `cache_unpin` | Remove pin from registry (does not delete cache file) |

@@ -2,6 +2,15 @@
 
 Use this as a bootstrap/fallback tool, not the default first step. Prefer dashboard-first calls (`list_cengage_courses` / `get_cengage_assignments`) when a saved Cengage session is available.
 
+## When to Use This Tool
+- Dashboard-first inventory/assignment calls return `no_data` and you need candidate launch links to continue.
+- You need to mine Cengage/WebAssign links from pasted text or extracted content (announcements, files, item details, section text).
+- Enrollment/registration wrappers (for example `getenrolled.com`) are the only course evidence currently available.
+
+## When Not to Use This Tool
+- You already have a valid Cengage session and just need courses or assignments; call `list_cengage_courses` / `get_cengage_assignments` first.
+- You are selecting among known dashboard courses; use `courseId`, `courseKey`, or `courseQuery` instead of link discovery.
+
 ## Features
 - Scans arbitrary text for Cengage/WebAssign URL candidates.
 - Detects direct registration-style entry links such as `getenrolled.com` course-key URLs.
@@ -13,6 +22,10 @@ Use this as a bootstrap/fallback tool, not the default first step. Prefer dashbo
 - Discovery quality depends on URLs being present in raw text.
 - Heuristics cannot infer hidden links from paraphrased prose.
 - Some edge hosts may classify as `other` until new patterns are added.
+
+## Enrollment-Link Guidance
+- Enrollment wrappers are useful as explicit fallback inputs, but should not be treated as stable dashboard inventory.
+- After discovering a candidate launch link, hand off quickly to dashboard/session flow (`list_cengage_courses` or `get_cengage_assignments`) for deterministic selection.
 
 ## Tests
 - `tests/cengage-url.test.ts`
