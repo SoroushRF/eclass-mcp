@@ -1,6 +1,6 @@
 # Scripts (minimal)
 
-Only **setup** and a few **smoke tests** stay in the repo. One-off debug probes were removed to keep GitHub lean; recreate locally if needed (see `docs/PROJECT_MASTER.md` T26 / tool roadmaps).
+Only **setup** and a few **smoke tests** stay in the active scripts root. One-off probes are archived under `scripts/archive/` to keep the main workflow lean.
 
 | File | Purpose |
 |------|---------|
@@ -23,3 +23,20 @@ npx ts-node -P scripts/tsconfig.json scripts/inspect-cengage-dashboard.ts
 ```
 
 Large dumps go under `scripts/output/` (gitignored).
+
+## Archived probes
+
+The following one-off probes were moved to `scripts/archive/` and are not part of the normal workflow:
+
+- `dump-raw-text.ts`
+- `extract-assignments.ts`
+- `find-dates.ts`
+- `parse-cengage.ts`
+- `parse-webassign.ts`
+- `inspect-cengage.ts`
+- `inspect-cengage-auth.ts`
+- `inspect-rmp.ts`
+- `inspect-sis.ts`
+- `inspect-webassign.ts`
+- `test-rmp-fetch.ts`
+- `test-sis-scraper.ts`

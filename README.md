@@ -289,7 +289,7 @@ rm -rf dist && npm.cmd run build
 | Cengage implementation and migration plan | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md) |
 | Deadlines tool — full roadmap & architecture | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md) |
 | Deadlines — implementation history | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md) |
-| Deadlines — known issues & investigation log | [`docs/tools/deadlines/failed-prompts-investigation-plan.md`](docs/tools/deadlines/failed-prompts-investigation-plan.md) |
+| Deadlines — known issues & investigation log (archived) | [`docs/archive/tools/deadlines/failed-prompts-investigation-plan.md`](docs/archive/tools/deadlines/failed-prompts-investigation-plan.md) |
 | Deadlines — vision instruction screenshots (no OCR) | [`docs/tools/deadlines/vision-image-reading.md`](docs/tools/deadlines/vision-image-reading.md) |
 | PDF pipeline — engineering deep-dive | [`docs/tools/get_file_text/history.md`](docs/tools/get_file_text/history.md) |
 | PDF pipeline — future roadmap (smart image detection) | [`docs/tools/get_file_text/roadmap.md`](docs/tools/get_file_text/roadmap.md) |
@@ -338,8 +338,8 @@ npx ts-node scripts/test-pdf-parser.ts ./path/to/file.pdf
 # Debug a specific file URL
 npx ts-node scripts/debug-file-url.ts "https://eclass.yorku.ca/mod/resource/view.php?id=XXXXX"
 
-# Test SIS (Exam/Timetable) scraping
-npx ts-node scripts/test-sis-scraper.ts
+# Test SIS (Exam/Timetable) scraping (archived probe)
+npx ts-node scripts/archive/test-sis-scraper.ts
 ```
 
 All scraping tests require a valid session (`npm run setup` + authenticate via `/auth` first).

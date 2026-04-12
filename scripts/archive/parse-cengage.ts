@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import jsdom, { JSDOM } from 'jsdom';
 
-const htmlPath = path.resolve(__dirname, '../.eclass-mcp/cengage-dashboard.html');
+const htmlPath = path.resolve(__dirname, '../../.eclass-mcp/cengage-dashboard.html');
 const html = fs.readFileSync(htmlPath, 'utf-8');
 
 const dom = new JSDOM(html);
@@ -25,5 +25,10 @@ if (mainContent) {
   traverseLinks(document.body);
 }
 
-fs.writeFileSync(path.resolve(__dirname, '../cengage-links-dump.txt'), out.join('\n'));
-console.log('Dumped links to cengage-links-dump.txt');
+const outputDir = path.resolve(__dirname, '../output');
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+const outPath = path.join(outputDir, 'cengage-links-dump.txt');
+fs.writeFileSync(outPath, out.join('\n'));
+console.log(`Dumped links to ${outPath}`);

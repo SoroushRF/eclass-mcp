@@ -13,7 +13,7 @@
 
 ## Tests
 - Prompt: "Search RateMyProfessors for professor <name>."
-- Script: `npx ts-node scripts/test-rmp-fetch.ts` (if available locally).
+- Script: `npx ts-node scripts/archive/test-rmp-fetch.ts` (archived probe, optional).
 
 ## Edge Cases
 - No matches for uncommon spellings.

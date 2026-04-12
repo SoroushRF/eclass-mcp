@@ -14,7 +14,7 @@
 ## Tests
 - Prompt: "Get full details for this assignment/quiz URL <url>."
 - Script: `npx ts-node scripts/test-item-details.ts`.
-- Related issue tracking: `docs/tools/deadlines/failed-prompts-investigation-plan.md`.
+- Related issue tracking (archived): `docs/archive/tools/deadlines/failed-prompts-investigation-plan.md`.
 
 ## Edge Cases
 - Non-assignment/non-quiz URLs.

@@ -17,7 +17,7 @@
   - "What deadlines are in March 2026?"
   - "Assignments due between 2026-03-01 and 2026-03-31."
 - Script: `npx ts-node scripts/test-month-view.ts`.
-- Investigation log: `docs/tools/deadlines/failed-prompts-investigation-plan.md`.
+- Investigation log (archived): `docs/archive/tools/deadlines/failed-prompts-investigation-plan.md`.
 
 ## Edge Cases
 - `scope=range` with invalid dates.

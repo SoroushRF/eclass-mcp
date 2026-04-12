@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const htmlPath = path.resolve(__dirname, '../.eclass-mcp/webassign-dashboard.html');
+const htmlPath = path.resolve(__dirname, '../../.eclass-mcp/webassign-dashboard.html');
 const html = fs.readFileSync(htmlPath, 'utf-8');
 
 const regex = /(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d+/gi;
@@ -14,5 +14,10 @@ while ((match = regex.exec(html)) !== null) {
     matches.push(`Match: ${match[0]}\nContext: ${html.slice(start, end)}\n---`);
 }
 
-fs.writeFileSync(path.resolve(__dirname, '../webassign-matches.txt'), matches.join('\n'));
-console.log(`Found ${matches.length} matches`);
+const outputDir = path.resolve(__dirname, '../output');
+if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+}
+const outPath = path.join(outputDir, 'webassign-matches.txt');
+fs.writeFileSync(outPath, matches.join('\n'));
+console.log(`Found ${matches.length} matches and wrote to ${outPath}`);

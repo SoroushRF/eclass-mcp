@@ -11,7 +11,7 @@
 
 ## Tests
 - Prompt: "What are my upcoming exams?"
-- Script: `npx ts-node scripts/test-sis-scraper.ts` (if available locally).
+- Script: `npx ts-node scripts/archive/test-sis-scraper.ts` (archived probe, optional).
 - E2E rows in `docs/e2e-run-log.md`.
 
 ## Edge Cases

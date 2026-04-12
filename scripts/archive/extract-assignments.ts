@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { JSDOM } from 'jsdom';
 
-const htmlPath = path.resolve(__dirname, '../.eclass-mcp/webassign-dashboard.html');
+const htmlPath = path.resolve(__dirname, '../../.eclass-mcp/webassign-dashboard.html');
 const html = fs.readFileSync(htmlPath, 'utf-8');
 
 const dom = new JSDOM(html);
@@ -29,4 +29,10 @@ items.forEach((item) => {
 });
 
 console.log(JSON.stringify(assignments, null, 2));
-fs.writeFileSync(path.resolve(__dirname, '../webassign-final-list.json'), JSON.stringify(assignments, null, 2));
+const outputDir = path.resolve(__dirname, '../output');
+if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+}
+const outPath = path.join(outputDir, 'webassign-final-list.json');
+fs.writeFileSync(outPath, JSON.stringify(assignments, null, 2));
+console.log(`Wrote assignment list to ${outPath}`);

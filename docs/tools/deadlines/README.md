@@ -16,5 +16,5 @@ For per-tool concise docs, also see:
 
 - `roadmap.md` — implementation and remaining tasks.
 - `history.md` — shipped milestone history.
-- `failed-prompts-investigation-plan.md` — investigation procedure for failed prompt cases.
+- `docs/archive/tools/deadlines/failed-prompts-investigation-plan.md` — archived investigation procedure for failed prompt cases.
 - `vision-image-reading.md` — image/vision handling notes for instruction content.

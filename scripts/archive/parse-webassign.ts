@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { JSDOM } from 'jsdom';
 
-const htmlPath = path.resolve(__dirname, '../.eclass-mcp/webassign-dashboard.html');
+const htmlPath = path.resolve(__dirname, '../../.eclass-mcp/webassign-dashboard.html');
 const html = fs.readFileSync(htmlPath, 'utf-8');
 
 const dom = new JSDOM(html);
@@ -32,5 +32,10 @@ assignmentDivs.forEach((div, i) => {
     }
 });
 
-fs.writeFileSync(path.resolve(__dirname, '../webassign-text-dump.txt'), out.join('\n'));
-console.log('Dumped text to webassign-text-dump.txt');
+const outputDir = path.resolve(__dirname, '../output');
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+const outPath = path.join(outputDir, 'webassign-text-dump.txt');
+fs.writeFileSync(outPath, out.join('\n'));
+console.log(`Dumped text to ${outPath}`);

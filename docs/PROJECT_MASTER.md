@@ -853,7 +853,7 @@ The original spec targeted **6 tools**; the repo now ships **22**. Optional foll
 
 ### 8.1 Deadlines & details
 
-**Docs:** [`docs/tools/deadlines/history.md`](tools/deadlines/history.md), [`roadmap.md`](tools/deadlines/roadmap.md), optional [`failed-prompts-investigation-plan.md`](tools/deadlines/failed-prompts-investigation-plan.md), [`vision-image-reading.md`](tools/deadlines/vision-image-reading.md).
+**Docs:** [`docs/tools/deadlines/history.md`](tools/deadlines/history.md), [`roadmap.md`](tools/deadlines/roadmap.md), optional archived [`failed-prompts-investigation-plan.md`](archive/tools/deadlines/failed-prompts-investigation-plan.md), [`vision-image-reading.md`](tools/deadlines/vision-image-reading.md).
 
 **Milestones completed (summary):**
 
