@@ -1,10 +1,10 @@
 import type { Browser, Page } from 'playwright';
-import { CengageAuthRequiredError } from './cengage-errors';
+import { CengageAuthRequiredError } from '../cengage-errors';
 import {
   CENGAGE_SESSION_STALE_HOURS,
   getCengageSessionValidity,
-} from './cengage-session';
-import type { CengageEntryLinkType } from './cengage-url';
+} from '../cengage-session';
+import type { CengageEntryLinkType } from '../cengage-url';
 
 export function getValidSessionStatePathOrThrow(
   entryUrl: string,

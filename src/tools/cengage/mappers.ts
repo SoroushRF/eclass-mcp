@@ -1,9 +1,9 @@
-import type { CengageDashboardCourse } from '../scraper/cengage-courses';
-import { CengageAuthRequiredError } from '../scraper/cengage-errors';
+import type { CengageDashboardCourse } from '../../scraper/cengage-courses';
+import { CengageAuthRequiredError } from '../../scraper/cengage-errors';
 import type {
   GetCengageAssignmentsInput,
   ListCengageCoursesInput,
-} from './cengage-contracts';
+} from '../cengage-contracts';
 
 export function normalizeAssignmentStatus(
   rawStatus: string

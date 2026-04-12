@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { attachCacheMeta, getCacheKey } from '../cache/store';
+import { attachCacheMeta, getCacheKey } from '../../cache/store';
 
 export interface CengageCacheMeta {
   hit: boolean;

@@ -7,7 +7,7 @@ import {
   ASSIGNMENT_SCORE_SELECTORS,
   ASSIGNMENT_STATUS_SELECTORS,
   type CengageAssignmentRowCandidate,
-} from './cengage-assignment-parser';
+} from '../cengage-assignment-parser';
 
 export async function extractAssignmentRowCandidates(
   page: Page

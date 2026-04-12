@@ -2,12 +2,12 @@ import type {
   DiscoverCengageLinksResponse,
   GetCengageAssignmentsResponse,
   ListCengageCoursesResponse,
-} from './cengage-contracts';
+} from '../cengage-contracts';
 import {
   DiscoverCengageLinksResponseSchema,
   GetCengageAssignmentsResponseSchema,
   ListCengageCoursesResponseSchema,
-} from './cengage-contracts';
+} from '../cengage-contracts';
 
 export function asAssignmentsToolResponse(payload: GetCengageAssignmentsResponse) {
   const validated = GetCengageAssignmentsResponseSchema.parse(payload);

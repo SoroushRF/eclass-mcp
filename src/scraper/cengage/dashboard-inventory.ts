@@ -4,7 +4,7 @@ import {
   extractDashboardCoursesFromCardCandidates,
   type CengageDashboardCardCandidate,
   type CengageDashboardCourse,
-} from './cengage-courses';
+} from '../cengage-courses';
 
 export async function extractDashboardCourseInventory(
   page: Page

@@ -2,11 +2,11 @@ import {
   normalizeAndClassifyCengageEntry,
   type CengageEntryClassification,
   type CengageEntryLinkType,
-} from '../scraper/cengage-url';
+} from '../../scraper/cengage-url';
 import type {
   DiscoverCengageLinksInput,
   DiscoverCengageLinksResponse,
-} from './cengage-contracts';
+} from '../cengage-contracts';
 
 const URL_REGEX_GLOBAL = /https?:\/\/[^\s<>'"\])]+/gi;
 

@@ -22,12 +22,12 @@ import {
   toCacheHitMeta,
   toCacheMissMeta,
   withCacheMeta,
-} from './cengage-cache';
+} from './cengage/cache';
 import {
   discoverCengageLinksFromFileBlocks,
   discoverCengageLinksFromText,
   type DiscoverCengageLinksFromFileBlocksInput,
-} from './cengage-link-discovery';
+} from './cengage/link-discovery';
 import {
   mapAuthReason,
   mapCourseSummary,
@@ -36,13 +36,14 @@ import {
   resolveListingEntryUrl,
   summarizeCourseCandidates,
   toRetryInputRecord,
-} from './cengage-mappers';
+} from './cengage/mappers';
 import {
   asAssignmentsToolResponse,
   asDiscoverToolResponse,
   asListCoursesToolResponse,
-} from './cengage-responses';
+} from './cengage/responses';
 
+// Keep tool entry points centralized while pure helpers live under src/tools/cengage/.
 const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;

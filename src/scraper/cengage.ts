@@ -9,18 +9,19 @@ import {
   type CengageDashboardCourse,
 } from './cengage-courses';
 import { parseWebAssignAssignments } from './cengage-assignment-parser';
-import { extractAssignmentRowCandidates } from './cengage-assignments';
-import { extractDashboardCourseInventory } from './cengage-dashboard-inventory';
+import { extractAssignmentRowCandidates } from './cengage/assignments';
+import { extractDashboardCourseInventory } from './cengage/dashboard-inventory';
 import {
   getValidSessionStatePathOrThrow,
   withAuthenticatedPage,
-} from './cengage-navigation';
+} from './cengage/navigation';
 import { detectCengagePageState } from './cengage-state';
 import {
   normalizeAndClassifyCengageEntry,
   type CengageEntryLinkType,
 } from './cengage-url';
 
+// Canonical homes are attempted in order when bootstrapping from a saved session.
 const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
   'https://www.cengage.ca/dashboard/home',
   'https://www.cengage.com/dashboard/home',
@@ -190,27 +191,27 @@ export class CengageScraper {
       linkType,
       getBrowser: () => this.getBrowser(),
       callback: async (page) => {
-      try {
-        await page.goto(entryUrl, {
-          waitUntil: 'load',
-          timeout: 45000,
-        });
-      } catch (error) {
-        throw new CengageNavigationError(
-          'Failed to open the provided Cengage/WebAssign URL.',
-          {
-            entryUrl,
-            linkType,
-            cause: error instanceof Error ? error.message : 'Unknown error',
-          }
-        );
-      }
+        try {
+          await page.goto(entryUrl, {
+            waitUntil: 'load',
+            timeout: 45000,
+          });
+        } catch (error) {
+          throw new CengageNavigationError(
+            'Failed to open the provided Cengage/WebAssign URL.',
+            {
+              entryUrl,
+              linkType,
+              cause: error instanceof Error ? error.message : 'Unknown error',
+            }
+          );
+        }
 
-      return this.discoverCoursesFromCurrentPage(page, {
-        entryUrl,
-        linkType,
-        allowSyntheticFallback: true,
-      });
+        return this.discoverCoursesFromCurrentPage(page, {
+          entryUrl,
+          linkType,
+          allowSyntheticFallback: true,
+        });
       },
     });
   }
