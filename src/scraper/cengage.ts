@@ -5,26 +5,16 @@ import {
   CengageParseError,
 } from './cengage-errors';
 import {
-  extractDashboardCourses,
-  extractDashboardCoursesFromCardCandidates,
   inferCourseFromCurrentPage,
-  type CengageDashboardCardCandidate,
   type CengageDashboardCourse,
 } from './cengage-courses';
+import { parseWebAssignAssignments } from './cengage-assignment-parser';
+import { extractAssignmentRowCandidates } from './cengage-assignments';
+import { extractDashboardCourseInventory } from './cengage-dashboard-inventory';
 import {
-  CENGAGE_SESSION_STALE_HOURS,
-  getCengageSessionValidity,
-} from './cengage-session';
-import {
-  ASSIGNMENT_CONTAINER_SELECTORS,
-  ASSIGNMENT_DUE_DATE_SELECTORS,
-  ASSIGNMENT_NAME_SELECTORS,
-  ASSIGNMENT_ROW_SELECTORS,
-  ASSIGNMENT_SCORE_SELECTORS,
-  ASSIGNMENT_STATUS_SELECTORS,
-  parseWebAssignAssignments,
-  type CengageAssignmentRowCandidate,
-} from './cengage-assignment-parser';
+  getValidSessionStatePathOrThrow,
+  withAuthenticatedPage,
+} from './cengage-navigation';
 import { detectCengagePageState } from './cengage-state';
 import {
   normalizeAndClassifyCengageEntry,
@@ -70,345 +60,6 @@ export class CengageScraper {
     return this.browser;
   }
 
-  private async extractDashboardCourseInventory(
-    page: Page
-  ): Promise<CengageDashboardCourse[]> {
-    const cardCandidates: CengageDashboardCardCandidate[] = await page.evaluate(
-      () => {
-        const normalizeText = (value: string | null | undefined): string =>
-          (value || '').replace(/\s+/g, ' ').trim();
-
-        const launchSelectorPriority = [
-          'a.home-page-launch-course-link[href]',
-          'a[data-test="home-page-launch-course-link"][href]',
-          'a[data-test*="home-page-launch-course-link"][href]',
-          'a[class*="home-page-launch-course-link"][href]',
-        ];
-
-        const fallbackLaunchPattern =
-          /webassign|coursekey|mindtap|nglms|dashboard\/course|\/course\//i;
-
-        const cards = Array.from(
-          document.querySelectorAll<HTMLElement>(
-            '[id^="home-page-entitlement-card-"], [data-test*="home-page-entitlement-card"], [class*="home-page-entitlement-card"]'
-          )
-        );
-
-        const seen = new Set<HTMLElement>();
-        const uniqueCards = cards.filter((card) => {
-          if (seen.has(card)) {
-            return false;
-          }
-
-          seen.add(card);
-          return true;
-        });
-
-        const results: CengageDashboardCardCandidate[] = [];
-
-        for (const card of uniqueCards) {
-          let launchAnchor: HTMLAnchorElement | null = null;
-
-          for (const selector of launchSelectorPriority) {
-            const matched = card.querySelector<HTMLAnchorElement>(selector);
-            if (matched) {
-              launchAnchor = matched;
-              break;
-            }
-          }
-
-          if (!launchAnchor) {
-            launchAnchor =
-              Array.from(
-                card.querySelectorAll<HTMLAnchorElement>('a[href]')
-              ).find((anchor) => {
-                const href = anchor.getAttribute('href') || anchor.href || '';
-                const text = normalizeText(anchor.textContent);
-                const title = normalizeText(anchor.getAttribute('title'));
-                const ariaLabel = normalizeText(
-                  anchor.getAttribute('aria-label')
-                );
-                const haystack = `${href} ${text} ${title} ${ariaLabel}`;
-                return fallbackLaunchPattern.test(haystack);
-              }) || null;
-          }
-
-          if (!launchAnchor) {
-            continue;
-          }
-
-          const launchHref =
-            launchAnchor.getAttribute('href') || launchAnchor.href || '';
-          if (!normalizeText(launchHref)) {
-            continue;
-          }
-
-          const titleElement = card.querySelector<HTMLElement>(
-            '[data-test="home-page-title"], [data-test*="home-page-title"], .home-page-title, [class*="home-page-title"], h2, h3, [role="heading"]'
-          );
-
-          results.push({
-            cardId:
-              normalizeText(card.id) ||
-              normalizeText(card.getAttribute('data-test')),
-            cardTitle:
-              normalizeText(titleElement?.textContent) ||
-              normalizeText(card.getAttribute('data-course-title')),
-            launchHref,
-            launchText: normalizeText(launchAnchor.textContent),
-            launchTitleAttr: normalizeText(launchAnchor.getAttribute('title')),
-            launchAriaLabel: normalizeText(
-              launchAnchor.getAttribute('aria-label')
-            ),
-            dataCourseId:
-              normalizeText(
-                launchAnchor.getAttribute('data-course-id') ||
-                  launchAnchor.getAttribute('data-courseid')
-              ) ||
-              normalizeText(card.getAttribute('data-course-id')) ||
-              normalizeText(card.getAttribute('data-courseid')),
-            dataCourseKey:
-              normalizeText(
-                launchAnchor.getAttribute('data-course-key') ||
-                  launchAnchor.getAttribute('data-coursekey')
-              ) ||
-              normalizeText(card.getAttribute('data-course-key')) ||
-              normalizeText(card.getAttribute('data-coursekey')),
-          });
-        }
-
-        return results;
-      }
-    );
-
-    const cardCourses = extractDashboardCoursesFromCardCandidates(
-      cardCandidates,
-      page.url()
-    );
-    if (cardCourses.length > 0) {
-      return cardCourses;
-    }
-
-    const candidates = await page.evaluate(() => {
-      return Array.from(
-        document.querySelectorAll<HTMLAnchorElement>('a[href]')
-      ).map((anchor) => {
-        const href = anchor.getAttribute('href') || anchor.href || '';
-        const text = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
-
-        return {
-          href,
-          text,
-          titleAttr: (anchor.getAttribute('title') || '').trim(),
-          ariaLabel: (anchor.getAttribute('aria-label') || '').trim(),
-          dataCourseId: (
-            anchor.getAttribute('data-course-id') ||
-            anchor.getAttribute('data-courseid') ||
-            ''
-          ).trim(),
-          dataCourseKey: (
-            anchor.getAttribute('data-course-key') ||
-            anchor.getAttribute('data-coursekey') ||
-            ''
-          ).trim(),
-        };
-      });
-    });
-
-    return extractDashboardCourses(candidates, page.url());
-  }
-
-  private async extractAssignmentRowCandidates(
-    page: Page
-  ): Promise<CengageAssignmentRowCandidate[]> {
-    return page.evaluate(
-      ({
-        containerSelectors,
-        rowSelectors,
-        nameSelectors,
-        dueDateSelectors,
-        scoreSelectors,
-        statusSelectors,
-      }) => {
-        const normalizeText = (value: string | null | undefined): string =>
-          (value || '').replace(/\s+/g, ' ').trim();
-
-        const isVisible = (element: Element): boolean => {
-          const htmlElement = element as HTMLElement;
-          const style = window.getComputedStyle(htmlElement);
-          if (style.display === 'none' || style.visibility === 'hidden') {
-            return false;
-          }
-
-          const rect = htmlElement.getBoundingClientRect();
-          return rect.width > 0 && rect.height > 0;
-        };
-
-        const uniqueElements = (elements: Element[]): Element[] => {
-          const seen = new Set<Element>();
-          const unique: Element[] = [];
-
-          for (const element of elements) {
-            if (!seen.has(element)) {
-              seen.add(element);
-              unique.push(element);
-            }
-          }
-
-          return unique;
-        };
-
-        const containers: Element[] = [];
-        for (const selector of containerSelectors) {
-          for (const match of Array.from(document.querySelectorAll(selector))) {
-            if (isVisible(match)) {
-              containers.push(match);
-            }
-          }
-        }
-
-        if (containers.length === 0) {
-          const headings = Array.from(
-            document.querySelectorAll('h1, h2, h3, h4, [role="heading"]')
-          );
-
-          for (const heading of headings) {
-            const headingText = normalizeText(
-              heading.textContent
-            ).toLowerCase();
-            if (!headingText.includes('assignment')) continue;
-
-            const region = heading.closest('section, article, main, div');
-            if (region && isVisible(region)) {
-              containers.push(region);
-            }
-          }
-        }
-
-        const rows: CengageAssignmentRowCandidate[] = [];
-        const uniqueContainers = uniqueElements(containers);
-
-        for (const container of uniqueContainers) {
-          const rowCandidates: Element[] = [];
-
-          for (const selector of rowSelectors) {
-            for (const row of Array.from(
-              container.querySelectorAll(selector)
-            )) {
-              rowCandidates.push(row);
-            }
-          }
-
-          const uniqueRows = uniqueElements(rowCandidates);
-
-          for (const row of uniqueRows) {
-            const rowText = normalizeText(row.textContent);
-            if (!rowText || rowText.length < 12) continue;
-
-            const lowerRowText = rowText.toLowerCase();
-            const hasAssignmentSignals =
-              lowerRowText.includes('due date') ||
-              lowerRowText.includes('assignment') ||
-              lowerRowText.includes('submitted') ||
-              lowerRowText.includes('not submitted') ||
-              lowerRowText.includes('past due') ||
-              lowerRowText.includes('score') ||
-              lowerRowText.includes('points') ||
-              lowerRowText.includes('grade');
-
-            if (!hasAssignmentSignals) continue;
-
-            let name = '';
-            for (const selector of nameSelectors) {
-              const element = row.querySelector(selector);
-              if (!element) continue;
-
-              const value = normalizeText(element.textContent);
-              if (value) {
-                name = value;
-                break;
-              }
-            }
-
-            if (!name) {
-              name = normalizeText(rowText.split(/due\s*date/i)[0]);
-            }
-
-            if (!name || name.toLowerCase() === 'due date') continue;
-
-            let dueDate = '';
-            for (const selector of dueDateSelectors) {
-              const element = row.querySelector(selector);
-              if (!element) continue;
-
-              const value = normalizeText(element.textContent);
-              if (value) {
-                dueDate = value;
-                break;
-              }
-            }
-
-            let score = '';
-            for (const selector of scoreSelectors) {
-              const element = row.querySelector(selector);
-              if (!element) continue;
-
-              const value = normalizeText(element.textContent);
-              if (value) {
-                score = value;
-                break;
-              }
-            }
-
-            let statusHint = '';
-            for (const selector of statusSelectors) {
-              const element = row.querySelector(selector);
-              if (!element) continue;
-
-              const value = normalizeText(element.textContent);
-              if (value) {
-                statusHint = value;
-                break;
-              }
-            }
-
-            const link = row.querySelector<HTMLAnchorElement>('a[href]');
-            const href = normalizeText(
-              (link?.getAttribute('href') || link?.href || '').toString()
-            );
-
-            const assignmentId = normalizeText(
-              row.getAttribute('data-assignment-id') ||
-                row.getAttribute('data-id') ||
-                row.id ||
-                ''
-            );
-
-            rows.push({
-              id: assignmentId || undefined,
-              href: href || undefined,
-              name,
-              dueDate: dueDate || undefined,
-              score: score || undefined,
-              statusHint: statusHint || undefined,
-              rowText,
-            });
-          }
-        }
-
-        return rows;
-      },
-      {
-        containerSelectors: [...ASSIGNMENT_CONTAINER_SELECTORS],
-        rowSelectors: [...ASSIGNMENT_ROW_SELECTORS],
-        nameSelectors: [...ASSIGNMENT_NAME_SELECTORS],
-        dueDateSelectors: [...ASSIGNMENT_DUE_DATE_SELECTORS],
-        scoreSelectors: [...ASSIGNMENT_SCORE_SELECTORS],
-        statusSelectors: [...ASSIGNMENT_STATUS_SELECTORS],
-      }
-    );
-  }
-
   private async discoverCoursesFromCurrentPage(
     page: Page,
     context: {
@@ -429,7 +80,7 @@ export class CengageScraper {
       );
     }
 
-    const courses = await this.extractDashboardCourseInventory(page);
+    const courses = await extractDashboardCourseInventory(page);
     if (courses.length > 0) {
       return courses;
     }
@@ -515,62 +166,16 @@ export class CengageScraper {
     );
   }
 
-  private getValidSessionStatePathOrThrow(
-    entryUrl: string,
-    linkType: CengageEntryLinkType
-  ): string {
-    const sessionValidity = getCengageSessionValidity();
-    if (!sessionValidity.valid) {
-      const message =
-        sessionValidity.reason === 'stale'
-          ? `Cengage session is stale (older than ${CENGAGE_SESSION_STALE_HOURS} hours). Please authenticate again.`
-          : 'Cengage session state is missing or invalid. Please authenticate first.';
-
-      throw new CengageAuthRequiredError(message, {
-        entryUrl,
-        linkType,
-        sessionReason: sessionValidity.reason,
-        sessionSavedAt: sessionValidity.savedAt,
-      });
-    }
-
-    return sessionValidity.statePath;
-  }
-
-  private async withAuthenticatedPage<T>(
-    entryUrl: string,
-    linkType: CengageEntryLinkType,
-    callback: (page: Page) => Promise<T>
-  ): Promise<T> {
-    const storageState = this.getValidSessionStatePathOrThrow(
-      entryUrl,
-      linkType
-    );
-    const browser = await this.getBrowser();
-    const context = await browser.newContext({
-      storageState,
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 800 },
-    });
-
-    const page = await context.newPage();
-    try {
-      return await callback(page);
-    } finally {
-      await context.close();
-    }
-  }
-
   async listDashboardCoursesFromSavedSession(): Promise<
     CengageDashboardCourse[]
   > {
     const entryUrl = CENGAGE_CANONICAL_HOME_URLS[0];
-    return this.withAuthenticatedPage(
+    return withAuthenticatedPage({
       entryUrl,
-      'cengage_dashboard',
-      async (page) => this.discoverCoursesViaCanonicalBootstrap(page)
-    );
+      linkType: 'cengage_dashboard',
+      getBrowser: () => this.getBrowser(),
+      callback: async (page) => this.discoverCoursesViaCanonicalBootstrap(page),
+    });
   }
 
   async listDashboardCoursesFromEntryLink(
@@ -580,7 +185,11 @@ export class CengageScraper {
     const entryUrl = entry.normalizedUrl;
     const linkType = entry.linkType;
 
-    return this.withAuthenticatedPage(entryUrl, linkType, async (page) => {
+    return withAuthenticatedPage({
+      entryUrl,
+      linkType,
+      getBrowser: () => this.getBrowser(),
+      callback: async (page) => {
       try {
         await page.goto(entryUrl, {
           waitUntil: 'load',
@@ -602,6 +211,7 @@ export class CengageScraper {
         linkType,
         allowSyntheticFallback: true,
       });
+      },
     });
   }
 
@@ -609,24 +219,14 @@ export class CengageScraper {
     const entry = normalizeAndClassifyCengageEntry(ssoUrl);
     const entryUrl = entry.normalizedUrl;
 
-    const sessionValidity = getCengageSessionValidity();
-    if (!sessionValidity.valid) {
-      const message =
-        sessionValidity.reason === 'stale'
-          ? `Cengage session is stale (older than ${CENGAGE_SESSION_STALE_HOURS} hours). Please authenticate again.`
-          : 'Cengage session state is missing or invalid. Please authenticate first.';
-
-      throw new CengageAuthRequiredError(message, {
-        entryUrl,
-        linkType: entry.linkType,
-        sessionReason: sessionValidity.reason,
-        sessionSavedAt: sessionValidity.savedAt,
-      });
-    }
+    const storageState = getValidSessionStatePathOrThrow(
+      entryUrl,
+      entry.linkType
+    );
 
     const browser = await this.getBrowser();
     const context = await browser.newContext({
-      storageState: sessionValidity.statePath,
+      storageState,
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
       viewport: { width: 1280, height: 800 },
@@ -684,8 +284,7 @@ export class CengageScraper {
         }
 
         if (currentState.state === 'dashboard') {
-          const dashboardCourses =
-            await this.extractDashboardCourseInventory(page);
+          const dashboardCourses = await extractDashboardCourseInventory(page);
 
           throw new CengageNavigationError(
             dashboardCourses.length > 0
@@ -748,7 +347,7 @@ export class CengageScraper {
         }
       }
 
-      const rowCandidates = await this.extractAssignmentRowCandidates(page);
+      const rowCandidates = await extractAssignmentRowCandidates(page);
       if (!Array.isArray(rowCandidates)) {
         throw new CengageParseError(
           'Unexpected assignment extraction payload type.',
