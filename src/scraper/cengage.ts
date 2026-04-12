@@ -13,6 +13,7 @@ import {
   type CengageAssignmentRowCandidate,
 } from './cengage-assignment-parser';
 import {
+  captureAssignmentRenderedMedia,
   extractAssignmentDetails,
   type ExtractAssignmentDetailsOptions,
   type ExtractedAssignmentDetails,
@@ -80,6 +81,12 @@ export interface GetWebAssignAssignmentDetailsOptions extends ExtractAssignmentD
   assignmentUrl?: string;
   assignmentId?: string;
   assignmentQuery?: string;
+  includeRenderedMedia?: boolean;
+  maxRenderedImages?: number;
+  maxCaptureUnits?: number;
+  maxMediaPayloadBytes?: number;
+  minTextForSafeText?: number;
+  captureDpi?: number;
 }
 
 export interface WebAssignAssignmentSelection {
@@ -933,6 +940,16 @@ export class CengageScraper {
         includeAnswers: options.includeAnswers,
         includeResources: options.includeResources,
       });
+
+      if (options.includeRenderedMedia !== false) {
+        await captureAssignmentRenderedMedia(page, details, {
+          maxRenderedImages: options.maxRenderedImages,
+          maxCaptureUnits: options.maxCaptureUnits,
+          maxPayloadBytes: options.maxMediaPayloadBytes,
+          minTextForSafeText: options.minTextForSafeText,
+          captureDpi: options.captureDpi,
+        });
+      }
 
       return {
         selectedAssignment: mapAssignmentSelection(selectedAssignment),

@@ -26,11 +26,37 @@ export interface ExtractedAssignmentPromptSection {
   truncated?: boolean;
 }
 
+export type AssignmentRenderedMediaClassification = 'text' | 'image';
+
+export interface ExtractedAssignmentRenderedMediaAsset {
+  kind: 'question_region_png';
+  mimeType: 'image/png';
+  data: string;
+  byteSize: number;
+  captureDpi: number;
+}
+
+export interface ExtractedAssignmentRenderedMediaSummary {
+  processedQuestionCount: number;
+  renderedImageCount: number;
+  skippedImageCount: number;
+  maxRenderedImages: number;
+  maxCaptureUnits: number;
+  maxPayloadBytes: number;
+  captureDpi: number;
+  minTextForSafeText: number;
+  truncatedCaptureUnits?: boolean;
+}
+
 export interface ExtractedAssignmentQuestion {
   questionNumber: number;
   questionId?: string;
   prompt: string;
   promptSections?: ExtractedAssignmentPromptSection[];
+  hasMediaCarriers?: boolean;
+  mediaClassification?: AssignmentRenderedMediaClassification;
+  renderedMedia?: ExtractedAssignmentRenderedMediaAsset[];
+  renderedMediaWarning?: string;
   promptTruncated?: boolean;
   answer?: string;
   answerTruncated?: boolean;
@@ -49,12 +75,26 @@ export interface ExtractedAssignmentDetails {
   questionCount: number;
   returnedQuestionCount: number;
   truncatedQuestions?: boolean;
+  renderedMediaSummary?: ExtractedAssignmentRenderedMediaSummary;
   questions: ExtractedAssignmentQuestion[];
+}
+
+export interface CaptureAssignmentRenderedMediaOptions {
+  maxRenderedImages?: number;
+  maxCaptureUnits?: number;
+  maxPayloadBytes?: number;
+  minTextForSafeText?: number;
+  captureDpi?: number;
 }
 
 const DEFAULT_MAX_QUESTIONS = 50;
 const DEFAULT_MAX_QUESTION_TEXT_CHARS = 2000;
 const DEFAULT_MAX_ANSWER_TEXT_CHARS = 1200;
+const PDF_PARITY_MAX_IMAGE_PAGES = 20;
+const PDF_PARITY_MAX_TOTAL_UNITS = 50;
+const PDF_PARITY_DEFAULT_DPI = 100;
+const PDF_PARITY_MIN_TEXT_FOR_SAFE_TEXT = 250;
+const PDF_PARITY_MAX_PAYLOAD_BYTES = 800 * 1024;
 
 export async function extractAssignmentDetails(
   page: Page,
@@ -525,4 +565,245 @@ export async function extractAssignmentDetails(
       includeResources,
     }
   );
+}
+
+function escapeCssIdentifier(value: string): string {
+  return value.replace(/([ !"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+}
+
+interface RenderCaptureCandidate {
+  questionNumber: number;
+  questionId?: string;
+  containerId?: string;
+  promptLength: number;
+  hasMediaCarriers: boolean;
+  classification: AssignmentRenderedMediaClassification;
+}
+
+export async function captureAssignmentRenderedMedia(
+  page: Page,
+  details: ExtractedAssignmentDetails,
+  options: CaptureAssignmentRenderedMediaOptions = {}
+): Promise<ExtractedAssignmentRenderedMediaSummary> {
+  const maxRenderedImages = Number.isFinite(options.maxRenderedImages)
+    ? Math.max(
+        1,
+        Math.min(
+          PDF_PARITY_MAX_IMAGE_PAGES,
+          Math.trunc(options.maxRenderedImages as number)
+        )
+      )
+    : PDF_PARITY_MAX_IMAGE_PAGES;
+
+  const maxCaptureUnits = Number.isFinite(options.maxCaptureUnits)
+    ? Math.max(
+        1,
+        Math.min(
+          PDF_PARITY_MAX_TOTAL_UNITS,
+          Math.trunc(options.maxCaptureUnits as number)
+        )
+      )
+    : PDF_PARITY_MAX_TOTAL_UNITS;
+
+  const maxPayloadBytes = Number.isFinite(options.maxPayloadBytes)
+    ? Math.max(10_000, Math.trunc(options.maxPayloadBytes as number))
+    : PDF_PARITY_MAX_PAYLOAD_BYTES;
+
+  const minTextForSafeText = Number.isFinite(options.minTextForSafeText)
+    ? Math.max(1, Math.trunc(options.minTextForSafeText as number))
+    : PDF_PARITY_MIN_TEXT_FOR_SAFE_TEXT;
+
+  const captureDpi = Number.isFinite(options.captureDpi)
+    ? Math.max(72, Math.trunc(options.captureDpi as number))
+    : PDF_PARITY_DEFAULT_DPI;
+
+  const candidates = await page.evaluate(
+    ({ maxCaptureUnits: maxCaptureUnitsArg, minTextForSafeText: minTextArg }) => {
+      const normalizeText = (value: string | null | undefined): string =>
+        (value || '').replace(/\s+/g, ' ').trim();
+
+      const toPositiveInt = (value: string | null | undefined): number => {
+        const parsed = Number.parseInt(
+          normalizeText(value).replace(/\D+/g, ''),
+          10
+        );
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+      };
+
+      const questionElements = Array.from(
+        document.querySelectorAll<HTMLElement>('div.waQBox[id^="question"]')
+      ).slice(0, maxCaptureUnitsArg);
+
+      return questionElements.map((questionElement, index) => {
+        const questionHeader = questionElement.querySelector('.js-question-header');
+        let questionDisplay: Record<string, unknown> | null = null;
+
+        const rawDisplay = normalizeText(
+          questionHeader?.getAttribute('data-question-display') || ''
+        );
+        if (rawDisplay) {
+          try {
+            questionDisplay = JSON.parse(rawDisplay) as Record<string, unknown>;
+          } catch {
+            questionDisplay = null;
+          }
+        }
+
+        const viewPosition = toPositiveInt(
+          questionElement.getAttribute('data-view-position')
+        );
+        const questionNumberFromHeader = toPositiveInt(
+          questionElement.querySelector<HTMLElement>('[data-test^="questionNum"]')
+            ?.textContent
+        );
+
+        const questionNumber =
+          viewPosition || questionNumberFromHeader || index + 1;
+
+        const questionIdFromDisplay = normalizeText(
+          String(questionDisplay?.questionID || '')
+        );
+        const questionIdMatch = questionElement.id.match(/^question([a-z0-9._-]+)_/i);
+        const questionIdFromContainer = normalizeText(questionIdMatch?.[1]);
+        const questionId =
+          questionIdFromDisplay || questionIdFromContainer || undefined;
+
+        const promptNode =
+          questionElement.querySelector('.studentQuestionContent .wa1par') ||
+          questionElement.querySelector('.studentQuestionBox .wa1par') ||
+          questionElement.querySelector('.standard.qContent .wa1par') ||
+          questionElement.querySelector('.studentQuestionContent');
+
+        const promptRaw = normalizeText(promptNode?.textContent || '');
+
+        const hasMediaCarriers =
+          questionElement.querySelector(
+            'img, canvas, svg, iframe, video, audio, object, embed'
+          ) !== null;
+
+        const classification: AssignmentRenderedMediaClassification =
+          hasMediaCarriers && promptRaw.length < minTextArg ? 'image' : 'text';
+
+        return {
+          questionNumber,
+          ...(questionId ? { questionId } : {}),
+          ...(questionElement.id ? { containerId: questionElement.id } : {}),
+          promptLength: promptRaw.length,
+          hasMediaCarriers,
+          classification,
+        };
+      });
+    },
+    {
+      maxCaptureUnits,
+      minTextForSafeText,
+    }
+  );
+
+  const questionById = new Map<string, ExtractedAssignmentQuestion>();
+  const questionByNumber = new Map<number, ExtractedAssignmentQuestion>();
+
+  for (const question of details.questions) {
+    if (question.questionId) {
+      questionById.set(question.questionId, question);
+    }
+    questionByNumber.set(question.questionNumber, question);
+  }
+
+  let renderedImageCount = 0;
+  let skippedImageCount = 0;
+  let currentPayloadSize = 0;
+
+  for (const candidate of candidates as RenderCaptureCandidate[]) {
+    const question =
+      (candidate.questionId ? questionById.get(candidate.questionId) : undefined) ||
+      questionByNumber.get(candidate.questionNumber);
+
+    if (!question) {
+      continue;
+    }
+
+    question.hasMediaCarriers = candidate.hasMediaCarriers;
+    question.mediaClassification = candidate.classification;
+
+    if (candidate.classification !== 'image') {
+      continue;
+    }
+
+    if (!candidate.containerId) {
+      skippedImageCount += 1;
+      question.renderedMediaWarning =
+        'Image-classified question region could not be captured because container id was missing. Text fallback retained.';
+      continue;
+    }
+
+    if (
+      renderedImageCount >= maxRenderedImages ||
+      currentPayloadSize >= maxPayloadBytes
+    ) {
+      skippedImageCount += 1;
+      question.renderedMediaWarning =
+        renderedImageCount >= maxRenderedImages
+          ? 'Image capture limit reached. Text fallback retained.'
+          : 'Image payload limit reached. Text fallback retained.';
+      continue;
+    }
+
+    const selector = `#${escapeCssIdentifier(candidate.containerId)}`;
+    const locator = page.locator(selector).first();
+
+    let imageBuffer: Buffer;
+    try {
+      imageBuffer = await locator.screenshot({
+        type: 'png',
+        scale: 'css',
+        animations: 'disabled',
+      });
+    } catch {
+      skippedImageCount += 1;
+      question.renderedMediaWarning =
+        'Question region screenshot failed. Text fallback retained.';
+      continue;
+    }
+
+    const base64 = imageBuffer.toString('base64');
+    const estimatedPayloadSize = base64.length + 100;
+
+    if (currentPayloadSize + estimatedPayloadSize > maxPayloadBytes) {
+      skippedImageCount += 1;
+      question.renderedMediaWarning =
+        'Image payload limit reached. Text fallback retained.';
+      continue;
+    }
+
+    question.renderedMedia = [
+      {
+        kind: 'question_region_png',
+        mimeType: 'image/png',
+        data: base64,
+        byteSize: imageBuffer.length,
+        captureDpi,
+      },
+    ];
+
+    renderedImageCount += 1;
+    currentPayloadSize += estimatedPayloadSize;
+  }
+
+  const summary: ExtractedAssignmentRenderedMediaSummary = {
+    processedQuestionCount: candidates.length,
+    renderedImageCount,
+    skippedImageCount,
+    maxRenderedImages,
+    maxCaptureUnits,
+    maxPayloadBytes,
+    captureDpi,
+    minTextForSafeText,
+    ...(details.questions.length > candidates.length
+      ? { truncatedCaptureUnits: true }
+      : {}),
+  };
+
+  details.renderedMediaSummary = summary;
+  return summary;
 }

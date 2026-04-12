@@ -385,6 +385,12 @@ export async function getCengageAssignmentDetails(
     assignmentQuery: args.assignmentQuery || null,
     includeAnswers: args.includeAnswers ?? true,
     includeResources: args.includeResources ?? true,
+    includeRenderedMedia: args.includeRenderedMedia ?? true,
+    maxRenderedImages: args.maxRenderedImages || null,
+    maxCaptureUnits: args.maxCaptureUnits || null,
+    maxMediaPayloadBytes: args.maxMediaPayloadBytes || null,
+    minTextForSafeText: args.minTextForSafeText || null,
+    captureDpi: args.captureDpi || null,
     maxQuestions: args.maxQuestions || null,
     maxQuestionTextChars: args.maxQuestionTextChars || null,
     maxAnswerTextChars: args.maxAnswerTextChars || null,
@@ -463,6 +469,12 @@ export async function getCengageAssignmentDetails(
         maxAnswerTextChars: args.maxAnswerTextChars,
         includeAnswers: args.includeAnswers,
         includeResources: args.includeResources,
+        includeRenderedMedia: args.includeRenderedMedia,
+        maxRenderedImages: args.maxRenderedImages,
+        maxCaptureUnits: args.maxCaptureUnits,
+        maxMediaPayloadBytes: args.maxMediaPayloadBytes,
+        minTextForSafeText: args.minTextForSafeText,
+        captureDpi: args.captureDpi,
       }
     );
 
@@ -478,6 +490,7 @@ export async function getCengageAssignmentDetails(
         questionCount: detailResult.details.questionCount,
         returnedQuestionCount: detailResult.details.returnedQuestionCount,
         truncatedQuestions: detailResult.details.truncatedQuestions,
+        renderedMediaSummary: detailResult.details.renderedMediaSummary,
         questions: detailResult.details.questions,
       },
       ...(detailResult.selectionMessage
@@ -521,6 +534,12 @@ export async function getCengageAssignmentDetails(
             maxAnswerTextChars: args.maxAnswerTextChars,
             includeAnswers: args.includeAnswers,
             includeResources: args.includeResources,
+            includeRenderedMedia: args.includeRenderedMedia,
+            maxRenderedImages: args.maxRenderedImages,
+            maxCaptureUnits: args.maxCaptureUnits,
+            maxMediaPayloadBytes: args.maxMediaPayloadBytes,
+            minTextForSafeText: args.minTextForSafeText,
+            captureDpi: args.captureDpi,
           }),
         },
       });

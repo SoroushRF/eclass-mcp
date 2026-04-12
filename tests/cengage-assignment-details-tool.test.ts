@@ -63,6 +63,16 @@ describe('get cengage assignment details tool', () => {
         heading: 'Assignment 1, Due Date: Friday Jan 23 (11:59PM) (Quiz)',
         questionCount: 2,
         returnedQuestionCount: 2,
+        renderedMediaSummary: {
+          processedQuestionCount: 2,
+          renderedImageCount: 1,
+          skippedImageCount: 0,
+          maxRenderedImages: 20,
+          maxCaptureUnits: 50,
+          maxPayloadBytes: 800 * 1024,
+          captureDpi: 100,
+          minTextForSafeText: 250,
+        },
         questions: [
           {
             questionNumber: 1,
@@ -76,6 +86,17 @@ describe('get cengage assignment details tool', () => {
               {
                 title: 'Part 2 of 2',
                 text: "Find g''(pi/6).",
+              },
+            ],
+            hasMediaCarriers: true,
+            mediaClassification: 'image',
+            renderedMedia: [
+              {
+                kind: 'question_region_png',
+                mimeType: 'image/png',
+                data: 'aW1hZ2UtZGF0YQ==',
+                byteSize: 10,
+                captureDpi: 100,
               },
             ],
             pointsEarned: 1,
@@ -113,6 +134,9 @@ describe('get cengage assignment details tool', () => {
     expect(payload.details.questions).toHaveLength(2);
     expect(payload.details.questions[0].result).toBe('correct');
     expect(payload.details.questions[0].promptSections).toHaveLength(2);
+    expect(payload.details.questions[0].mediaClassification).toBe('image');
+    expect(payload.details.questions[0].renderedMedia).toHaveLength(1);
+    expect(payload.details.renderedMediaSummary.renderedImageCount).toBe(1);
     expect(payload.details.questions[0].promptSections[0].title).toBe(
       'Part 1 of 2'
     );

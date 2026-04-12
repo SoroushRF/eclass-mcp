@@ -253,11 +253,42 @@ export const CengageAssignmentPromptSectionSchema = z.object({
   truncated: z.boolean().optional(),
 });
 
+export const CengageAssignmentMediaClassificationSchema = z.enum([
+  'text',
+  'image',
+]);
+
+export const CengageAssignmentRenderedMediaAssetSchema = z.object({
+  kind: z.literal('question_region_png'),
+  mimeType: z.literal('image/png'),
+  data: z.string(),
+  byteSize: z.number().int().min(0),
+  captureDpi: z.number().int().min(72),
+});
+
+export const CengageAssignmentRenderedMediaSummarySchema = z.object({
+  processedQuestionCount: z.number().int().min(0),
+  renderedImageCount: z.number().int().min(0),
+  skippedImageCount: z.number().int().min(0),
+  maxRenderedImages: z.number().int().min(1),
+  maxCaptureUnits: z.number().int().min(1),
+  maxPayloadBytes: z.number().int().min(1),
+  captureDpi: z.number().int().min(72),
+  minTextForSafeText: z.number().int().min(1),
+  truncatedCaptureUnits: z.boolean().optional(),
+});
+
 export const CengageAssignmentQuestionSchema = z.object({
   questionNumber: z.number().int().min(1),
   questionId: z.string().optional(),
   prompt: z.string(),
   promptSections: z.array(CengageAssignmentPromptSectionSchema).optional(),
+  hasMediaCarriers: z.boolean().optional(),
+  mediaClassification: CengageAssignmentMediaClassificationSchema.optional(),
+  renderedMedia: z
+    .array(CengageAssignmentRenderedMediaAssetSchema)
+    .optional(),
+  renderedMediaWarning: z.string().optional(),
   promptTruncated: z.boolean().optional(),
   answer: z.string().optional(),
   answerTruncated: z.boolean().optional(),
@@ -275,6 +306,7 @@ export const CengageAssignmentDetailsSchema = z.object({
   questionCount: z.number().int().min(0),
   returnedQuestionCount: z.number().int().min(0),
   truncatedQuestions: z.boolean().optional(),
+  renderedMediaSummary: CengageAssignmentRenderedMediaSummarySchema.optional(),
   questions: z.array(CengageAssignmentQuestionSchema),
 });
 
@@ -336,6 +368,49 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
     .describe(
       'If true (default), include per-question resource links (Read It, etc.).'
     ),
+  includeRenderedMedia: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true (default), run PDF-parity rendered-media capture on image-classified question regions with strict caps and text fallback.'
+    ),
+  maxRenderedImages: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .describe('Max rendered question-region images (default 20).'),
+  maxCaptureUnits: z
+    .number()
+    .int()
+    .min(1)
+    .max(50)
+    .optional()
+    .describe('Max capture-eligible question regions processed (default 50).'),
+  maxMediaPayloadBytes: z
+    .number()
+    .int()
+    .min(10000)
+    .max(800 * 1024)
+    .optional()
+    .describe('Max encoded media payload budget for rendered captures (default 800KB).'),
+  minTextForSafeText: z
+    .number()
+    .int()
+    .min(1)
+    .max(5000)
+    .optional()
+    .describe(
+      'Prompt text-length threshold used by parity classifier; if media exists and text is below this threshold, question is image-classified (default 250).'
+    ),
+  captureDpi: z
+    .number()
+    .int()
+    .min(72)
+    .max(200)
+    .optional()
+    .describe('Capture DPI metadata target for rendered question-region images (default 100).'),
   maxQuestions: z
     .number()
     .int()
