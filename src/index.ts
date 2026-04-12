@@ -41,6 +41,15 @@ import {
   GetCengageAssignmentsInputSchema,
   ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
+import { applySoftOutputValidation } from './tools/output-validation';
+
+async function withSoftOutputValidation<T extends { content: unknown }>(
+  toolName: string,
+  fn: () => Promise<T>
+): Promise<T> {
+  const result = await fn();
+  return applySoftOutputValidation(toolName, result);
+}
 
 // Create the MCP server
 const server = new McpServer({
@@ -54,21 +63,28 @@ server.tool(
   'list_courses',
   'Lists all courses the student is enrolled in on eClass.',
   {},
-  (async () => await listCourses()) as any
+  (async () =>
+    await withSoftOutputValidation('list_courses', () => listCourses())) as any
 );
 
 server.tool(
   'get_course_content',
   'Gets full content of a specific course.',
   { courseId: z.string().describe('The course ID') },
-  (async ({ courseId }: any) => await getCourseContent(courseId)) as any
+  (async ({ courseId }: any) =>
+    await withSoftOutputValidation('get_course_content', () =>
+      getCourseContent(courseId)
+    )) as any
 );
 
 server.tool(
   'get_section_text',
   'Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.',
   { url: z.string().describe('The exact URL to the course section') },
-  (async ({ url }: any) => await getSectionText(url)) as any
+  (async ({ url }: any) =>
+    await withSoftOutputValidation('get_section_text', () =>
+      getSectionText(url)
+    )) as any
 );
 
 server.tool(
@@ -110,7 +126,9 @@ server.tool(
     courseId: z.string().optional().describe('Filter by course ID'),
   },
   (async ({ daysAhead, courseId }: any) =>
-    await getUpcomingDeadlines(daysAhead, courseId)) as any
+    await withSoftOutputValidation('get_upcoming_deadlines', () =>
+      getUpcomingDeadlines(daysAhead, courseId)
+    )) as any
 );
 
 server.tool(
@@ -226,14 +244,20 @@ server.tool(
       .optional()
       .describe('Max number of CSV attachments to inline (default 3)'),
   },
-  (async (args: any) => await getItemDetails(args)) as any
+  (async (args: any) =>
+    await withSoftOutputValidation('get_item_details', () =>
+      getItemDetails(args)
+    )) as any
 );
 
 server.tool(
   'get_grades',
   "Returns the student's grades.",
   { courseId: z.string().optional().describe('Filter by course ID') },
-  (async ({ courseId }: any) => await getGrades(courseId)) as any
+  (async ({ courseId }: any) =>
+    await withSoftOutputValidation('get_grades', () =>
+      getGrades(courseId)
+    )) as any
 );
 
 server.tool(
@@ -244,7 +268,9 @@ server.tool(
     limit: z.number().optional().describe('Max number (default 10)'),
   },
   (async ({ courseId, limit }: any) =>
-    await getAnnouncements(courseId, limit)) as any
+    await withSoftOutputValidation('get_announcements', () =>
+      getAnnouncements(courseId, limit)
+    )) as any
 );
 
 server.tool(

@@ -433,7 +433,7 @@ jobs:
 - **E08:** Add Vitest (or Jest); `npm test`; CI invocation with `--run` for non-interactive.
 - **E09:** First unit tests: `cache/store` expiry math, `session` stale logic, parser helpers with small buffers.
 - **E10:** Check in **sanitized HTML fixtures** under `tests/fixtures/`; tests run cheerio/jsdom or direct helper functions ? **no** live eClass in CI.
-- **E11:** Define zod schemas for tool return payloads; validate in dev or behind flag before responding.
+- **E11:** Define zod schemas for tool return payloads; validate in dev or behind flag before responding. **Partial (opt-in):** `ECLASS_MCP_SOFT_OUTPUT_VALIDATION=1` enables non-throwing soft JSON checks for selected eClass tools in `src/tools/output-validation.ts` (full envelopes/schemas still TBD).
 - **E12:** Central `AppError` hierarchy with `code` field; map `SessionExpiredError` to `SESSION_EXPIRED`; tools return consistent JSON error shape.
 
 #### 2.9.5 E13?E15 ? Security and operations
