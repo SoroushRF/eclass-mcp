@@ -3,6 +3,9 @@ import path from 'path';
 import dotenv from 'dotenv';
 
 export class SessionExpiredError extends Error {
+  /** E12 machine code for session expiry (eClass / SIS paths). */
+  readonly code = 'SESSION_EXPIRED' as const;
+
   constructor(
     message: string = 'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth'
   ) {

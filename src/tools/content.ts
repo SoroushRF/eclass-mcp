@@ -6,6 +6,7 @@ import {
 } from '../scraper/eclass';
 import { sanitizeHttpUrlQueryParams } from '../scraper/eclass/helpers';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
@@ -49,11 +50,14 @@ export async function getCourseContent(courseId: string) {
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return asValidatedMcpText('get_course_content', EclassToolJsonPayloadSchema, {
-        status: 'auth_required' as const,
-        message: e.message,
-        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-      });
+      return asValidatedMcpText(
+        'get_course_content',
+        EclassToolJsonPayloadSchema,
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
+      );
     }
     throw e;
   }
@@ -102,11 +106,14 @@ export async function getSectionText(url: string) {
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return asValidatedMcpText('get_section_text', EclassToolJsonPayloadSchema, {
-        status: 'auth_required' as const,
-        message: e.message,
-        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-      });
+      return asValidatedMcpText(
+        'get_section_text',
+        EclassToolJsonPayloadSchema,
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
+      );
     }
     throw e;
   }

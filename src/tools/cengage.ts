@@ -238,6 +238,7 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
 
       return asListCoursesToolResponse({
         status: 'auth_required',
+        code: 'SESSION_EXPIRED',
         entryUrl,
         courses: [],
         message:
@@ -523,6 +524,7 @@ export async function getCengageAssignmentDetails(
 
       return asAssignmentDetailsToolResponse({
         status: 'auth_required',
+        code: 'SESSION_EXPIRED',
         entryUrl,
         message:
           `Cengage authentication required. Opened auth at ${authUrl}. ` +
@@ -871,6 +873,7 @@ export async function getCengageAssignments(
 
       return asAssignmentsToolResponse({
         status: 'auth_required',
+        code: 'SESSION_EXPIRED',
         entryUrl,
         assignments: [],
         message:

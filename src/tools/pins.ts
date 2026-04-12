@@ -239,6 +239,7 @@ export async function cacheRefreshPin(args: { pinId: string }) {
       return pinToolJson('cache_refresh_pin', {
         ok: false,
         reason: 'session_expired',
+        code: 'SESSION_EXPIRED',
         message: e.message,
       });
     }

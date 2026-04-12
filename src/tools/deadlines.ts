@@ -1,5 +1,6 @@
 import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { sessionExpiredPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { DeadlineItem, ItemDetails } from '../types/deadlines';
 import {
@@ -94,11 +95,10 @@ export async function getUpcomingDeadlines(
       return asValidatedMcpText(
         'get_upcoming_deadlines',
         EclassToolJsonPayloadSchema,
-        {
-          status: 'auth_required' as const,
-          message: e.message,
-          retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-        }
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
       );
     }
     throw e;
@@ -316,11 +316,14 @@ export async function getDeadlines(params: {
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return asValidatedMcpText('get_deadlines', EclassToolJsonPayloadSchema, {
-        status: 'auth_required' as const,
-        message: e.message,
-        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-      });
+      return asValidatedMcpText(
+        'get_deadlines',
+        EclassToolJsonPayloadSchema,
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
+      );
     }
     throw e;
   }
@@ -622,11 +625,10 @@ export async function getItemDetails(params: {
       return asValidatedMcpText(
         'get_item_details',
         EclassToolJsonPayloadSchema,
-        {
-          status: 'auth_required' as const,
-          message: e.message,
-          retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-        }
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
       );
     }
     throw e;

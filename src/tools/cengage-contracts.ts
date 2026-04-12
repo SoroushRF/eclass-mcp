@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import { MACHINE_CODES } from '../errors/codes';
+
+const CengageOptionalMachineCode = z.enum(
+  MACHINE_CODES as unknown as [string, ...string[]]
+).optional();
 
 export const CengageToolStatusSchema = z.enum([
   'ok',
@@ -92,6 +97,7 @@ export const DiscoverCengageLinksInputSchema = z.object({
 
 export const DiscoverCengageLinksResponseSchema = z.object({
   status: CengageToolStatusSchema,
+  code: CengageOptionalMachineCode,
   links: z.array(CengageDiscoveredLinkSchema),
   message: z.string().optional(),
   retry: CengageRetryGuidanceSchema.optional(),
@@ -123,6 +129,7 @@ export const ListCengageCoursesInputSchema = z.object({
 
 export const ListCengageCoursesResponseSchema = z.object({
   status: CengageToolStatusSchema,
+  code: CengageOptionalMachineCode,
   entryUrl: z.string().optional(),
   courses: z.array(CengageCourseSummarySchema),
   message: z.string().optional(),
@@ -224,6 +231,7 @@ export const CengageAssignmentsAggregationSchema = z.object({
 
 export const GetCengageAssignmentsResponseSchema = z.object({
   status: CengageToolStatusSchema,
+  code: CengageOptionalMachineCode,
   entryUrl: z.string().optional(),
   selectedCourse: CengageCourseSummarySchema.optional(),
   allCourses: z.array(CengageAggregatedCourseSummarySchema).optional(),
@@ -537,6 +545,7 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
 
 export const GetCengageAssignmentDetailsResponseSchema = z.object({
   status: CengageToolStatusSchema,
+  code: CengageOptionalMachineCode,
   entryUrl: z.string().optional(),
   selectedCourse: CengageCourseSummarySchema.optional(),
   selectedAssignment: CengageAssignmentSelectionSchema.optional(),

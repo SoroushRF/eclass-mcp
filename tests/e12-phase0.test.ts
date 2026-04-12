@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
+import { SessionExpiredError } from '../src/scraper/session';
 import { MACHINE_CODES, isMachineCode } from '../src/errors/codes';
 import { sessionExpiredPayload, toErrorPayload } from '../src/errors/tool-error';
+import { ListCengageCoursesResponseSchema } from '../src/tools/cengage-contracts';
 import {
   EclassAuthRequiredSchema,
   MachineCodeSchema,
   PinToolJsonPayloadSchema,
   SisExamScheduleResponseSchema,
 } from '../src/tools/eclass-contracts';
+
+describe('E12 Phase 1 — SessionExpiredError', () => {
+  it('exposes code SESSION_EXPIRED on the class', () => {
+    const err = new SessionExpiredError('test');
+    expect(err.code).toBe('SESSION_EXPIRED');
+  });
+});
 
 describe('E12 Phase 0 — machine codes', () => {
   it('MACHINE_CODES is stable and isMachineCode works', () => {
@@ -52,6 +61,39 @@ describe('E12 Phase 0 — schemas accept optional code', () => {
         status: 'error',
         message: 'x',
         code: 'UPSTREAM_ERROR',
+      }).success
+    ).toBe(true);
+  });
+
+  it('Sis auth_required with SESSION_EXPIRED validates', () => {
+    expect(
+      SisExamScheduleResponseSchema.safeParse({
+        status: 'auth_required',
+        code: 'SESSION_EXPIRED',
+        message: 'expired',
+      }).success
+    ).toBe(true);
+  });
+
+  it('Cengage list courses auth payload with code validates', () => {
+    expect(
+      ListCengageCoursesResponseSchema.safeParse({
+        status: 'auth_required',
+        code: 'SESSION_EXPIRED',
+        entryUrl: undefined,
+        courses: [],
+        message: 'auth',
+      }).success
+    ).toBe(true);
+  });
+
+  it('Pin session_expired shape with code validates', () => {
+    expect(
+      PinToolJsonPayloadSchema.safeParse({
+        ok: false,
+        reason: 'session_expired',
+        code: 'SESSION_EXPIRED',
+        message: 'x',
       }).success
     ).toBe(true);
   });

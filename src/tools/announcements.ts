@@ -1,5 +1,6 @@
 import { scraper, SessionExpiredError, Announcement } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { sessionExpiredPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
@@ -49,11 +50,10 @@ export async function getAnnouncements(courseId?: string, limit: number = 10) {
       return asValidatedMcpText(
         'get_announcements',
         EclassToolJsonPayloadSchema,
-        {
-          status: 'auth_required' as const,
-          message: e.message,
-          retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-        }
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
       );
     }
     throw e;

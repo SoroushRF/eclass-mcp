@@ -1,5 +1,6 @@
 import { scraper, SessionExpiredError, Grade } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { sessionExpiredPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
@@ -33,11 +34,14 @@ export async function getGrades(courseId?: string) {
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return asValidatedMcpText('get_grades', EclassToolJsonPayloadSchema, {
-        status: 'auth_required' as const,
-        message: e.message,
-        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-      });
+      return asValidatedMcpText(
+        'get_grades',
+        EclassToolJsonPayloadSchema,
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
+      );
     }
     throw e;
   }

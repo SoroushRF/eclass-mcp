@@ -1,5 +1,6 @@
 import { scraper, SessionExpiredError } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { sessionExpiredPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import { EclassAuthRequiredSchema, GetFileTextMcpResultSchema } from './eclass-contracts';
 import { asValidatedMcpResult, asValidatedMcpText } from './mcp-validated-response';
@@ -92,11 +93,14 @@ export async function getFileText(
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return asValidatedMcpText('get_file_text', EclassAuthRequiredSchema, {
-        status: 'auth_required' as const,
-        message: e.message,
-        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
-      });
+      return asValidatedMcpText(
+        'get_file_text',
+        EclassAuthRequiredSchema,
+        sessionExpiredPayload(e.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
+      );
     }
     throw e;
   }

@@ -26,6 +26,7 @@ export async function getExamSchedule() {
       openAuthWindow();
       return asValidatedMcpText('get_exam_schedule', SisExamScheduleResponseSchema, {
         status: 'auth_required',
+        code: 'SESSION_EXPIRED',
         message:
           'Your York session has expired. A login window has been opened. Please log in and try again.',
       });
@@ -60,6 +61,7 @@ export async function getClassTimetable() {
       openAuthWindow();
       return asValidatedMcpText('get_class_timetable', SisTimetableResponseSchema, {
         status: 'auth_required',
+        code: 'SESSION_EXPIRED',
         message:
           'Your York session has expired. A login window has been opened. Please log in and try again.',
       });

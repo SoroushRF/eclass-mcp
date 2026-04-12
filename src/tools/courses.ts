@@ -1,6 +1,7 @@
 import { scraper, SessionExpiredError, Course } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 
@@ -49,14 +50,10 @@ export async function listCourses() {
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      const payload = {
-        status: 'auth_required' as const,
-        message: e.message,
-        retry: {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        },
-      };
+      const payload = sessionExpiredPayload(e.message, {
+        afterAuth: true,
+        authUrl: getAuthUrl('eclass'),
+      });
       return asValidatedMcpText('list_courses', EclassToolJsonPayloadSchema, payload);
     }
     throw e;
