@@ -2,7 +2,10 @@ import fs from 'fs';
 import path from 'path';
 import jsdom, { JSDOM } from 'jsdom';
 
-const htmlPath = path.resolve(__dirname, '../../.eclass-mcp/cengage-dashboard.html');
+const htmlPath = path.resolve(
+  __dirname,
+  '../../.eclass-mcp/cengage-dashboard.html'
+);
 const html = fs.readFileSync(htmlPath, 'utf-8');
 
 const dom = new JSDOM(html);

@@ -41,9 +41,9 @@ function parseArgs(argv: string[]) {
 }
 
 async function settlePage(page: Page) {
-  await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(
-    () => null
-  );
+  await page
+    .waitForLoadState('domcontentloaded', { timeout: 15000 })
+    .catch(() => null);
   await page.waitForTimeout(5000);
 }
 

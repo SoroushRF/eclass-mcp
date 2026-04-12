@@ -3,7 +3,9 @@ import { isSessionValid } from '../src/scraper/session';
 
 async function main() {
   if (!isSessionValid()) {
-    console.error('ERROR: No session file found or it is stale. Please visit http://localhost:3000/auth first.');
+    console.error(
+      'ERROR: No session file found or it is stale. Please visit http://localhost:3000/auth first.'
+    );
     process.exit(1);
   }
 
@@ -12,7 +14,9 @@ async function main() {
   const year = now.getFullYear();
 
   try {
-    console.log(`📅 Fetching month deadlines for ${year}-${String(month).padStart(2, '0')}...`);
+    console.log(
+      `📅 Fetching month deadlines for ${year}-${String(month).padStart(2, '0')}...`
+    );
     const items = await scraper.getMonthDeadlines(month, year);
     console.log(`✅ Found ${items.length} calendar items.`);
     items.slice(0, 10).forEach((it, idx) => {
@@ -30,4 +34,3 @@ main().catch((e) => {
   console.error('❌ ERROR:', e);
   process.exit(1);
 });
-

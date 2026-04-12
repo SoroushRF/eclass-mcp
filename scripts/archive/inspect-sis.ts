@@ -13,7 +13,7 @@ async function inspectSIS() {
     process.exit(1);
   }
 
-  const browser = await chromium.launch({ 
+  const browser = await chromium.launch({
     headless: true,
     args: [
       '--disable-blink-features=AutomationControlled',
@@ -23,7 +23,8 @@ async function inspectSIS() {
     ],
   });
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     viewport: { width: 1920, height: 1080 },
     locale: 'en-US',
   });
@@ -42,8 +43,14 @@ async function inspectSIS() {
   }
 
   const pages = [
-    { name: 'timetable', url: 'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/cds' },
-    { name: 'exams', url: 'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/ede' }
+    {
+      name: 'timetable',
+      url: 'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/cds',
+    },
+    {
+      name: 'exams',
+      url: 'https://w2prod.sis.yorku.ca/Apps/WebObjects/cdm.woa/wa/DirectAction/ede',
+    },
   ];
 
   for (const p of pages) {
@@ -51,16 +58,18 @@ async function inspectSIS() {
     const page = await context.newPage();
     try {
       await page.goto(p.url, { waitUntil: 'networkidle', timeout: 30000 });
-      
+
       const title = await page.title();
       const finalUrl = page.url();
       const html = await page.content();
-      
+
       console.log(`[${p.name}] Title: ${title}`);
       console.log(`[${p.name}] Final URL: ${finalUrl}`);
 
       // Basic structure probe
-      const tableCount = await page.evaluate(() => document.querySelectorAll('table').length);
+      const tableCount = await page.evaluate(
+        () => document.querySelectorAll('table').length
+      );
       console.log(`[${p.name}] Table count: ${tableCount}`);
 
       // Save HTML
@@ -73,9 +82,10 @@ async function inspectSIS() {
         const sessionLink = await page.evaluate(() => {
           const links = Array.from(document.querySelectorAll('a'));
           // Look for FALL/WINTER 2025-2026 UNDERGRADUATE STUDENTS or similar
-          const target = links.find(a => 
-            a.textContent?.includes('UNDERGRADUATE STUDENTS') && 
-            a.textContent?.includes('2025-2026')
+          const target = links.find(
+            (a) =>
+              a.textContent?.includes('UNDERGRADUATE STUDENTS') &&
+              a.textContent?.includes('2025-2026')
           );
           return target ? target.href : null;
         });
@@ -91,7 +101,6 @@ async function inspectSIS() {
           console.warn('[timetable] No UNDERGRADUATE session link found.');
         }
       }
-
     } catch (error: any) {
       console.error(`Error inspecting ${p.name}:`, error.message);
     } finally {

@@ -8,15 +8,25 @@
 
 import fs from 'fs';
 import path from 'path';
-import { analyzePages, parsePdfSmart, ContentBlock } from '../src/parser/pdf-analyzer';
+import {
+  analyzePages,
+  parsePdfSmart,
+  ContentBlock,
+} from '../src/parser/pdf-analyzer';
 
 async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 1) {
-    console.error('Usage: npx ts-node scripts/test-pdf-parser.ts <pdf-path> [startPage] [endPage]');
-    console.error('Example: npx ts-node scripts/test-pdf-parser.ts ./sample.pdf');
-    console.error('Example: npx ts-node scripts/test-pdf-parser.ts ./sample.pdf 5 10');
+    console.error(
+      'Usage: npx ts-node scripts/test-pdf-parser.ts <pdf-path> [startPage] [endPage]'
+    );
+    console.error(
+      'Example: npx ts-node scripts/test-pdf-parser.ts ./sample.pdf'
+    );
+    console.error(
+      'Example: npx ts-node scripts/test-pdf-parser.ts ./sample.pdf 5 10'
+    );
     process.exit(1);
   }
 
@@ -42,8 +52,8 @@ async function main() {
   const analysis = await analyzePages(buffer);
   const analysisTime = Date.now() - analysisStart;
 
-  const textPages = analysis.filter(p => p.classification === 'text');
-  const imagePages = analysis.filter(p => p.classification === 'image');
+  const textPages = analysis.filter((p) => p.classification === 'text');
+  const imagePages = analysis.filter((p) => p.classification === 'image');
 
   console.log(`Total pages:    ${analysis.length}`);
   console.log(`Text pages:     ${textPages.length}`);
@@ -56,13 +66,16 @@ async function main() {
   for (const page of analysis) {
     const icon = page.classification === 'image' ? '🖼️' : '📝';
     const imgFlag = page.hasImages ? ' [has images]' : '';
-    console.log(`  ${icon} Page ${String(page.pageNum).padStart(3)}: ${page.classification.padEnd(5)} | ${page.textLength} chars${imgFlag}`);
+    console.log(
+      `  ${icon} Page ${String(page.pageNum).padStart(3)}: ${page.classification.padEnd(5)} | ${page.textLength} chars${imgFlag}`
+    );
   }
 
   // ── Phase 2: Smart extraction pipeline ───────────────────────
-  const rangeLabel = startPage || endPage
-    ? ` (pages ${startPage ?? 1}–${endPage ?? 'end'})`
-    : '';
+  const rangeLabel =
+    startPage || endPage
+      ? ` (pages ${startPage ?? 1}–${endPage ?? 'end'})`
+      : '';
   console.log(`\n⚙️  Phase 2: Smart Extraction Pipeline${rangeLabel}`);
   console.log('─'.repeat(40));
 
@@ -70,8 +83,8 @@ async function main() {
   const blocks = await parsePdfSmart(buffer, startPage, endPage);
   const extractTime = Date.now() - extractStart;
 
-  const textBlocks = blocks.filter(b => b.type === 'text');
-  const imageBlocks = blocks.filter(b => b.type === 'image');
+  const textBlocks = blocks.filter((b) => b.type === 'text');
+  const imageBlocks = blocks.filter((b) => b.type === 'image');
 
   console.log(`\nExtraction complete in ${extractTime}ms`);
   console.log(`Total blocks:   ${blocks.length}`);
@@ -85,23 +98,35 @@ async function main() {
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
     if (block.type === 'text') {
-      const preview = (block.text || '').substring(0, 200).replace(/\n/g, '\\n');
+      const preview = (block.text || '')
+        .substring(0, 200)
+        .replace(/\n/g, '\\n');
       const totalLen = (block.text || '').length;
-      console.log(`  [${i}] TEXT (${totalLen} chars): ${preview}${totalLen > 200 ? '...' : ''}`);
+      console.log(
+        `  [${i}] TEXT (${totalLen} chars): ${preview}${totalLen > 200 ? '...' : ''}`
+      );
     } else if (block.type === 'image') {
-      const sizeKB = ((block.data || '').length * 0.75 / 1024).toFixed(1); // base64 → bytes
+      const sizeKB = (((block.data || '').length * 0.75) / 1024).toFixed(1); // base64 → bytes
       console.log(`  [${i}] IMAGE (${sizeKB} KB PNG)`);
     }
   }
 
   // ── Phase 4: Save rendered images to debug dir ─────────────
   if (imageBlocks.length > 0) {
-    const debugDir = path.join(__dirname, '..', '.eclass-mcp', 'debug', 'pdf-test');
+    const debugDir = path.join(
+      __dirname,
+      '..',
+      '.eclass-mcp',
+      'debug',
+      'pdf-test'
+    );
     if (!fs.existsSync(debugDir)) {
       fs.mkdirSync(debugDir, { recursive: true });
     }
 
-    console.log(`\n💾 Phase 4: Saving ${imageBlocks.length} rendered images to ${debugDir}`);
+    console.log(
+      `\n💾 Phase 4: Saving ${imageBlocks.length} rendered images to ${debugDir}`
+    );
     console.log('─'.repeat(40));
 
     let imgIndex = 0;
@@ -127,15 +152,27 @@ async function main() {
   console.log(`Text blocks:      ${textBlocks.length}`);
   console.log(`Image blocks:     ${imageBlocks.length}`);
 
-  const totalTextChars = textBlocks.reduce((sum, b) => sum + (b.text?.length || 0), 0);
-  const totalImageKB = imageBlocks.reduce((sum, b) => sum + (b.data?.length || 0) * 0.75 / 1024, 0);
-  console.log(`Total text:       ${totalTextChars} chars (~${Math.round(totalTextChars / 4)} tokens)`);
-  console.log(`Total images:     ${totalImageKB.toFixed(1)} KB (~${imageBlocks.length * 1600} tokens)`);
-  console.log(`Est. total cost:  ~${Math.round(totalTextChars / 4) + imageBlocks.length * 1600} tokens`);
+  const totalTextChars = textBlocks.reduce(
+    (sum, b) => sum + (b.text?.length || 0),
+    0
+  );
+  const totalImageKB = imageBlocks.reduce(
+    (sum, b) => sum + ((b.data?.length || 0) * 0.75) / 1024,
+    0
+  );
+  console.log(
+    `Total text:       ${totalTextChars} chars (~${Math.round(totalTextChars / 4)} tokens)`
+  );
+  console.log(
+    `Total images:     ${totalImageKB.toFixed(1)} KB (~${imageBlocks.length * 1600} tokens)`
+  );
+  console.log(
+    `Est. total cost:  ~${Math.round(totalTextChars / 4) + imageBlocks.length * 1600} tokens`
+  );
   console.log('');
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('\n❌ Test failed:', err.message);
   console.error(err.stack);
   process.exit(1);

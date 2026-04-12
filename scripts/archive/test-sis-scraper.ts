@@ -2,7 +2,7 @@ import { SISScraper } from '../src/scraper/sis';
 
 async function testSISScraper() {
   const scraper = new SISScraper();
-  
+
   console.log('--- Testing Exam Schedule Scraper ---');
   try {
     const exams = await scraper.scrapeExams();

@@ -9,9 +9,23 @@ const DIST_PATH = path.join(PROJECT_ROOT, 'dist', 'index.js');
 const NODE_PATH = process.execPath;
 
 // Confirmed Microsoft Store path (Prioritized)
-const STORE_PATH = path.join(os.homedir(), 'AppData', 'Local', 'Packages', 'Claude_pzs8sxrjxfjjc', 'LocalCache', 'Roaming', 'Claude', 'claude_desktop_config.json');
+const STORE_PATH = path.join(
+  os.homedir(),
+  'AppData',
+  'Local',
+  'Packages',
+  'Claude_pzs8sxrjxfjjc',
+  'LocalCache',
+  'Roaming',
+  'Claude',
+  'claude_desktop_config.json'
+);
 // Standard path
-const STD_PATH = path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json');
+const STD_PATH = path.join(
+  process.env.APPDATA || '',
+  'Claude',
+  'claude_desktop_config.json'
+);
 
 let configPath = STD_PATH;
 if (fs.existsSync(STORE_PATH) || fs.existsSync(path.dirname(STORE_PATH))) {
@@ -40,7 +54,7 @@ if (fs.existsSync(configPath)) {
 
 config.mcpServers.eclass = {
   command: NODE_PATH,
-  args: [DIST_PATH]
+  args: [DIST_PATH],
 };
 
 try {

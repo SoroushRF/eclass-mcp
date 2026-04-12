@@ -54,15 +54,15 @@ Claude receives:  { content: [{ type: "text", text: "..." }] }
 
 ### Key Files
 
-| File | Role |
-|------|------|
-| `src/index.ts` | MCP server entry point. Registers the `get_file_text` tool. |
-| `src/tools/files.ts` | **Orchestrator.** Checks cache, calls `downloadFile`, routes to parser by mime/extension, returns MCP content blocks. |
+| File                    | Role                                                                                                                                            |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/index.ts`          | MCP server entry point. Registers the `get_file_text` tool.                                                                                     |
+| `src/tools/files.ts`    | **Orchestrator.** Checks cache, calls `downloadFile`, routes to parser by mime/extension, returns MCP content blocks.                           |
 | `src/scraper/eclass.ts` | **Network.** `downloadFile()` fetches the raw file buffer via authenticated HTTP. Handles Moodle view.php wrapper pages and AWS WAF challenges. |
-| `src/parser/pdf.ts` | **PDF parser.** Uses `pdf-parse` to extract the text layer. |
-| `src/parser/docx.ts` | **DOCX parser.** Uses `mammoth` to extract raw text from Word docs. |
-| `src/parser/pptx.ts` | **PPTX parser.** Uses `adm-zip` to read slide XML and strip tags. |
-| `src/cache/store.ts` | **Cache.** File-based JSON cache with configurable TTL. Parsed file text is cached for 7 days. |
+| `src/parser/pdf.ts`     | **PDF parser.** Uses `pdf-parse` to extract the text layer.                                                                                     |
+| `src/parser/docx.ts`    | **DOCX parser.** Uses `mammoth` to extract raw text from Word docs.                                                                             |
+| `src/parser/pptx.ts`    | **PPTX parser.** Uses `adm-zip` to read slide XML and strip tags.                                                                               |
+| `src/cache/store.ts`    | **Cache.** File-based JSON cache with configurable TTL. Parsed file text is cached for 7 days.                                                  |
 
 ### What Gets Returned to Claude
 
@@ -89,17 +89,18 @@ This is unused today — and is the key to solving the image content problem.
 The `pdf-parse` library reads only the **text layer** of a PDF. A PDF is internally composed
 of multiple content streams per page, containing different types of drawing operations:
 
-| Content Type | PDF Internal Representation | Extracted by pdf-parse? |
-|---|---|---|
-| Typed text (LaTeX, Word-generated) | Text drawing operators (`Tj`, `TJ`) | ✅ Yes |
-| Embedded images (photos, scans, diagrams) | Image XObjects (JPEG/PNG binary data) | ❌ No |
-| Text *inside* an image (e.g., scanned worksheet) | Part of the image binary — just pixels | ❌ No |
-| Vector graphics (drawn shapes, arrows) | Path drawing operators | ❌ No |
-| Mathematical notation (if image-based) | Image XObject | ❌ No |
+| Content Type                                     | PDF Internal Representation            | Extracted by pdf-parse? |
+| ------------------------------------------------ | -------------------------------------- | ----------------------- |
+| Typed text (LaTeX, Word-generated)               | Text drawing operators (`Tj`, `TJ`)    | ✅ Yes                  |
+| Embedded images (photos, scans, diagrams)        | Image XObjects (JPEG/PNG binary data)  | ❌ No                   |
+| Text _inside_ an image (e.g., scanned worksheet) | Part of the image binary — just pixels | ❌ No                   |
+| Vector graphics (drawn shapes, arrows)           | Path drawing operators                 | ❌ No                   |
+| Mathematical notation (if image-based)           | Image XObject                          | ❌ No                   |
 
 ### Real-World Impact
 
 A typical calculus lecture PDF (e.g., MATH 1014) contains:
+
 - **Typed content**: section headers, definitions, theorem statements → extracted fine
 - **Embedded images**: practice problems photographed from textbooks, hand-drawn diagrams,
   graphing calculator screenshots → **completely invisible to Claude**
@@ -143,11 +144,11 @@ For each page, we classify it using both signals:
                 └───────────┴───────────┘
 ```
 
-| Classification | Action | Cost |
-|---|---|---|
-| **TEXT** — Text-heavy, no images | Extract text via `getTextContent()` | ~50 tokens/page |
-| **IMAGE** — Has embedded images (with or without text) | Render page as PNG at 150 DPI | ~1,600 tokens/page |
-| **TEXT**** — Very little text, no images | Extract text (likely a blank/separator page) | ~10 tokens/page |
+| Classification                                         | Action                                       | Cost               |
+| ------------------------------------------------------ | -------------------------------------------- | ------------------ |
+| **TEXT** — Text-heavy, no images                       | Extract text via `getTextContent()`          | ~50 tokens/page    |
+| **IMAGE** — Has embedded images (with or without text) | Render page as PNG at 150 DPI                | ~1,600 tokens/page |
+| **TEXT\*\*** — Very little text, no images             | Extract text (likely a blank/separator page) | ~10 tokens/page    |
 
 ### Why This Is Optimal
 
@@ -165,6 +166,7 @@ Status note: the baseline T22 pipeline described below is now implemented in the
 The remaining roadmap items are future refinements beyond the shipped baseline.
 
 > **Rules for implementation:**
+>
 > 1. Complete ONE task at a time.
 > 2. After each task: verify with `npx tsc --noEmit`, then `npm run build`.
 > 3. Test using `npx ts-node scripts/test-scraper.ts` or a targeted debug script.
@@ -177,6 +179,7 @@ The remaining roadmap items are future refinements beyond the shipped baseline.
 **Goal:** Replace `pdf-parse` with `pdfjs-dist` as the PDF processing engine.
 
 **Why `pdfjs-dist`?**
+
 - `pdf-parse` only does text extraction — no page-level analysis, no rendering
 - `pdfjs-dist` is Mozilla's PDF.js, the same engine Firefox uses to view PDFs
 - It supports per-page text extraction, operator list inspection, AND page rendering
@@ -184,6 +187,7 @@ The remaining roadmap items are future refinements beyond the shipped baseline.
 - Actively maintained, handles complex PDFs well
 
 **Steps:**
+
 1. Install the package:
    ```bash
    npm install pdfjs-dist
@@ -195,6 +199,7 @@ The remaining roadmap items are future refinements beyond the shipped baseline.
 4. Do **not** delete `pdf.ts` yet — we'll swap it in Task 5 after everything is tested.
 
 **Notes:**
+
 - `pdfjs-dist` uses ES modules internally. If there are import issues with CommonJS,
   use `await import('pdfjs-dist')` dynamic import or check for a `/legacy/` build path
   that's CJS-compatible.
@@ -209,17 +214,20 @@ The remaining roadmap items are future refinements beyond the shipped baseline.
 **File:** `src/parser/pdf-analyzer.ts`
 
 **Steps:**
+
 1. Create a function:
+
    ```typescript
    interface PageAnalysis {
-     pageNum: number;      // 1-indexed
-     textLength: number;   // character count from getTextContent()
-     hasImages: boolean;    // true if paintImageXObject found in operator list
+     pageNum: number; // 1-indexed
+     textLength: number; // character count from getTextContent()
+     hasImages: boolean; // true if paintImageXObject found in operator list
      classification: 'text' | 'image';
    }
 
-   async function analyzePages(buffer: Buffer): Promise<PageAnalysis[]>
+   async function analyzePages(buffer: Buffer): Promise<PageAnalysis[]>;
    ```
+
 2. Load the PDF using `pdfjs-dist`:
    ```typescript
    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(buffer) });
@@ -234,18 +242,22 @@ The remaining roadmap items are future refinements beyond the shipped baseline.
    - Classify the page using the decision matrix from Section 3
 
 **Threshold Constants:**
+
 ```typescript
-const MIN_TEXT_CHARS = 50;  // Below this, page is "text-sparse"
+const MIN_TEXT_CHARS = 50; // Below this, page is "text-sparse"
 ```
 
 A page is classified as `'image'` if:
+
 - `hasImages === true` (regardless of text length), **OR**
 - `textLength < MIN_TEXT_CHARS` and `hasImages === true`
 
 A page is classified as `'text'` if:
+
 - `hasImages === false` (regardless of text length)
 
 **Notes:**
+
 - The operator list scan is very fast — it's just reading an array of numbers.
   No rendering happens here.
 - Some PDFs use images for decorative elements (backgrounds, logos). These will trigger
@@ -265,9 +277,13 @@ A page is classified as `'text'` if:
 **File:** `src/parser/pdf-analyzer.ts`
 
 **Steps:**
+
 1. Create a function:
    ```typescript
-   async function extractPageText(pdf: PDFDocumentProxy, pageNum: number): Promise<string>
+   async function extractPageText(
+     pdf: PDFDocumentProxy,
+     pageNum: number
+   ): Promise<string>;
    ```
 2. Use `page.getTextContent()` to get text items.
 3. Reconstruct readable text from the items:
@@ -277,10 +293,14 @@ A page is classified as `'text'` if:
    - Join groups with newlines.
 4. Apply the same whitespace normalization as the current `pdf.ts`:
    ```typescript
-   text = text.replace(/\s+$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+   text = text
+     .replace(/\s+$/gm, '')
+     .replace(/\n{3,}/g, '\n\n')
+     .trim();
    ```
 
 **Notes:**
+
 - This replaces `pdf-parse`'s `getText()` with a more controlled extraction.
 - The positional reconstruction (grouping by Y, sorting by X) is important for
   multi-column layouts and math content that has subscripts/superscripts.
@@ -296,21 +316,28 @@ A page is classified as `'text'` if:
 **File:** `src/parser/pdf-analyzer.ts`
 
 **Steps:**
+
 1. Install a canvas implementation for Node.js:
+
    ```bash
    npm install canvas
    ```
+
    (`canvas` provides `CanvasRenderingContext2D` for `pdfjs-dist` to draw into.)
 
 2. Create a function:
    ```typescript
-   async function renderPageAsImage(pdf: PDFDocumentProxy, pageNum: number, dpi: number = 150): Promise<Buffer>
+   async function renderPageAsImage(
+     pdf: PDFDocumentProxy,
+     pageNum: number,
+     dpi: number = 150
+   ): Promise<Buffer>;
    ```
 3. Implementation:
    - Get the page: `const page = await pdf.getPage(pageNum);`
    - Calculate viewport at target DPI:
      ```typescript
-     const scale = dpi / 72;  // PDF internal unit is 72 DPI
+     const scale = dpi / 72; // PDF internal unit is 72 DPI
      const viewport = page.getViewport({ scale });
      ```
    - Create a canvas:
@@ -334,6 +361,7 @@ A page is classified as `'text'` if:
    - 72 DPI is too blurry for equations; 300 DPI is overkill for most content
 
 **Notes:**
+
 - The `canvas` npm package requires native build tools (Python + C++ compiler).
   On Windows, this means Visual Studio Build Tools must be installed.
   If this is a problem, an alternative is `@napi-rs/canvas` which ships prebuilt binaries.
@@ -352,17 +380,20 @@ pipeline that returns a mix of text and image content blocks.
 **File:** `src/tools/files.ts`
 
 **Steps:**
+
 1. Create a new top-level function in `pdf-analyzer.ts`:
+
    ```typescript
    interface ContentBlock {
      type: 'text' | 'image';
-     text?: string;          // present when type === 'text'
-     data?: string;          // base64 PNG, present when type === 'image'
-     mimeType?: string;      // 'image/png', present when type === 'image'
+     text?: string; // present when type === 'text'
+     data?: string; // base64 PNG, present when type === 'image'
+     mimeType?: string; // 'image/png', present when type === 'image'
    }
 
-   export async function parsePdfSmart(buffer: Buffer): Promise<ContentBlock[]>
+   export async function parsePdfSmart(buffer: Buffer): Promise<ContentBlock[]>;
    ```
+
 2. This function combines Tasks 2–4:
    - Analyze all pages → get classifications
    - For `'text'` pages → extract text, create `{ type: 'text', text: ... }`
@@ -370,6 +401,7 @@ pipeline that returns a mix of text and image content blocks.
    - Return all blocks in page order
 
 3. Update `files.ts`:
+
    ```typescript
    // Before:
    import { parsePdf } from '../parser/pdf';
@@ -390,6 +422,7 @@ pipeline that returns a mix of text and image content blocks.
    ```
 
 **Notes:**
+
 - The MCP SDK's `content` array supports mixed content types — you can return both text
   and image blocks in the same response. Claude processes them in order.
 - The old `parsePdf` function (`pdf.ts`) can be kept as a fallback or removed entirely.
@@ -404,9 +437,11 @@ mixed text+image content blocks.
 **File:** `src/cache/store.ts`, `src/tools/files.ts`
 
 **Steps:**
+
 1. The cache already supports generic types (`CacheStore.get<T>`, `CacheStore.set<T>`),
    so we can store `ContentBlock[]` directly.
 2. Update `files.ts` cache logic:
+
    ```typescript
    // Before:
    const cached = cache.get<string>(cacheKey);
@@ -416,7 +451,9 @@ mixed text+image content blocks.
    const cached = cache.get<ContentBlock[]>(cacheKey);
    if (cached) return { content: cached };
    ```
+
 3. Update the cache write:
+
    ```typescript
    // Before:
    cache.set(cacheKey, text, TTL.FILES);
@@ -426,6 +463,7 @@ mixed text+image content blocks.
    ```
 
 **Notes:**
+
 - Image blocks stored as base64 strings in JSON cache files will be large (~500KB per page).
   A 30-page PDF with 10 image pages = ~5MB cache file. This is fine for local disk.
 - Consider compressing images before caching (lower quality PNG or JPEG conversion) to
@@ -445,10 +483,11 @@ to request specific page ranges for targeted access.
 **Steps:**
 
 #### 7a. Update guardrail constants
+
 ```typescript
-const MAX_IMAGE_PAGES = 20;    // Max pages rendered as images (raised from 15)
-const MAX_TOTAL_PAGES = 50;    // Max pages processed in a single call
-const DEFAULT_DPI = 150;       // Resolution for image rendering
+const MAX_IMAGE_PAGES = 20; // Max pages rendered as images (raised from 15)
+const MAX_TOTAL_PAGES = 50; // Max pages processed in a single call
+const DEFAULT_DPI = 150; // Resolution for image rendering
 ```
 
 - Image limit raised to 20 — a scanned 20-page problem set is common.
@@ -456,6 +495,7 @@ const DEFAULT_DPI = 150;       // Resolution for image rendering
 - Total page limit stays at 50 to protect context window budget.
 
 #### 7b. Add a Document Overview block
+
 Every PDF response — regardless of size — starts with a structured overview block
 prepended as the **first content block**:
 
@@ -494,15 +534,17 @@ function buildOverviewBlock(
 This gives Claude everything it needs to tell the user what it saw and how to get more.
 
 #### 7c. Add bookend warning for truncated content
+
 When content is truncated, add a **bottom warning** as the last content block:
 
 ```typescript
 if (isTruncated) {
   blocks.push({
     type: 'text',
-    text: `⚠️ REMINDER: You only received pages ${startPage}–${endPage} of this ` +
-          `${totalPages}-page document. You MUST inform the user about this limitation ` +
-          `and offer to fetch the remaining pages.`
+    text:
+      `⚠️ REMINDER: You only received pages ${startPage}–${endPage} of this ` +
+      `${totalPages}-page document. You MUST inform the user about this limitation ` +
+      `and offer to fetch the remaining pages.`,
   });
 }
 ```
@@ -511,21 +553,26 @@ The top overview + bottom reminder bookend the content, maximizing the chance Cl
 communicates the limitation.
 
 #### 7d. Add page range support to `get_file_text`
+
 Add optional `startPage` and `endPage` parameters to the MCP tool so Claude can request
 specific sections of a large PDF:
 
 **`src/index.ts`** — update tool registration:
+
 ```typescript
 server.tool(
-  "get_file_text",
-  "Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. " +
-  "For large PDFs, returns a partial result with instructions to fetch remaining pages " +
-  "using startPage/endPage parameters.",
+  'get_file_text',
+  'Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. ' +
+    'For large PDFs, returns a partial result with instructions to fetch remaining pages ' +
+    'using startPage/endPage parameters.',
   {
-    courseId: z.string().describe("The course ID"),
-    fileUrl: z.string().describe("The file URL"),
-    startPage: z.number().optional().describe("Start page (1-indexed, PDF only)"),
-    endPage: z.number().optional().describe("End page (1-indexed, PDF only)")
+    courseId: z.string().describe('The course ID'),
+    fileUrl: z.string().describe('The file URL'),
+    startPage: z
+      .number()
+      .optional()
+      .describe('Start page (1-indexed, PDF only)'),
+    endPage: z.number().optional().describe('End page (1-indexed, PDF only)'),
   },
   async ({ courseId, fileUrl, startPage, endPage }) =>
     await getFileText(courseId, fileUrl, startPage, endPage)
@@ -533,6 +580,7 @@ server.tool(
 ```
 
 **`src/tools/files.ts`** — pass range through:
+
 ```typescript
 export async function getFileText(
   courseId: string,
@@ -549,6 +597,7 @@ export async function getFileText(
 ```
 
 **`src/parser/pdf-analyzer.ts`** — accept range in main function:
+
 ```typescript
 export async function parsePdfSmart(
   buffer: Buffer,
@@ -557,20 +606,33 @@ export async function parsePdfSmart(
 ): Promise<ContentBlock[]> {
   // ... load PDF ...
   const firstPage = startPage ?? 1;
-  const lastPage = Math.min(endPage ?? totalPages, firstPage + MAX_TOTAL_PAGES - 1, totalPages);
+  const lastPage = Math.min(
+    endPage ?? totalPages,
+    firstPage + MAX_TOTAL_PAGES - 1,
+    totalPages
+  );
   // Process only pages firstPage..lastPage
 }
 ```
 
 #### 7e. Progress logging
+
 Log detailed progress to stderr for debugging:
+
 ```typescript
-console.error(`[PDF] ${totalPages} pages total, processing ${firstPage}–${lastPage}`);
-console.error(`[PDF] Classification: ${textPageCount} text, ${imagePageCount} image`);
-console.error(`[PDF] Rendered ${renderedImageCount}/${imagePageCount} image pages`);
+console.error(
+  `[PDF] ${totalPages} pages total, processing ${firstPage}–${lastPage}`
+);
+console.error(
+  `[PDF] Classification: ${textPageCount} text, ${imagePageCount} image`
+);
+console.error(
+  `[PDF] Rendered ${renderedImageCount}/${imagePageCount} image pages`
+);
 ```
 
 **Notes:**
+
 - The overview block costs ~100–200 tokens — negligible compared to content.
 - Page range support means a 200-page course pack can be fully accessed across multiple
   targeted calls, without ever hitting the 50-page limit.
@@ -603,6 +665,7 @@ console.error(`[PDF] Rendered ${renderedImageCount}/${imagePageCount} image page
      `@napi-rs/canvas` requires no native build tools — works out of the box.
 
 3. **Test results (EECS1028 Course Outline W26.pdf — 4 pages, ~86 KB):**
+
    ```
    Page-by-page breakdown:
      🖼️ Page   1: image | 3281 chars [has images]
@@ -616,6 +679,7 @@ console.error(`[PDF] Rendered ${renderedImageCount}/${imagePageCount} image page
    Image blocks:     4 (553 KB, 878 KB, 1017 KB, 974 KB PNGs)
    Est. total cost:  ~6,441 tokens
    ```
+
    - All 4 pages correctly classified as `image` (all have embedded images/logos).
    - Rendered PNGs are **crystal clear** — text, tables, colors, university logos.
    - Page range feature tested: requesting pages 2–3 returns only 2 images + overview + bookend warning.
@@ -633,22 +697,24 @@ console.error(`[PDF] Rendered ${renderedImageCount}/${imagePageCount} image page
    - [x] Overview block is prepended to every response ✅
    - [x] Bookend warning appended when content is truncated ✅
 
-
 ---
 
 ## 5. Caching Strategy
 
 ### Current
-| What's cached | Format | TTL | Location |
-|---|---|---|---|
+
+| What's cached  | Format   | TTL    | Location                            |
+| -------------- | -------- | ------ | ----------------------------------- |
 | Extracted text | `string` | 7 days | `.eclass-mcp/cache/file_<md5>.json` |
 
 ### After Implementation
-| What's cached | Format | TTL | Location |
-|---|---|---|---|
+
+| What's cached                         | Format           | TTL    | Location                            |
+| ------------------------------------- | ---------------- | ------ | ----------------------------------- |
 | Content blocks (text + base64 images) | `ContentBlock[]` | 7 days | `.eclass-mcp/cache/file_<md5>.json` |
 
 ### Cache Invalidation
+
 - Manual: delete the file from `.eclass-mcp/cache/`
 - Automatic: TTL expiry (7 days)
 - Full reset: `cache.clear()` removes all cached data
@@ -659,23 +725,23 @@ console.error(`[PDF] Rendered ${renderedImageCount}/${imagePageCount} image page
 
 ### Token Cost Comparison (30-page mixed lecture PDF)
 
-| Method | Text pages (25) | Image pages (5) | Total tokens |
-|---|---|---|---|
-| **Current** (text-only) | ~3,750 | 0 (invisible) | ~3,750 |
-| **New** (hybrid) | ~3,750 | ~8,000 | ~11,750 |
-| **All-image** (naive) | ~40,000 | ~8,000 | ~48,000 |
+| Method                  | Text pages (25) | Image pages (5) | Total tokens |
+| ----------------------- | --------------- | --------------- | ------------ |
+| **Current** (text-only) | ~3,750          | 0 (invisible)   | ~3,750       |
+| **New** (hybrid)        | ~3,750          | ~8,000          | ~11,750      |
+| **All-image** (naive)   | ~40,000         | ~8,000          | ~48,000      |
 
 The hybrid approach uses **3.1× more** tokens than text-only, but captures **100%** of content.
 The naive all-image approach would use **12.8×** more — the hybrid saves 75% of that overhead.
 
 ### Processing Time Budget
 
-| Step | Time |
-|---|---|
-| Download file | 1–3s |
-| Analyze all pages (metadata) | 0.5–1s |
-| Extract text (25 text pages) | 0.2s |
-| Render images (5 image pages) | 2.5–10s |
-| **Total** | **4–14s** |
+| Step                          | Time      |
+| ----------------------------- | --------- |
+| Download file                 | 1–3s      |
+| Analyze all pages (metadata)  | 0.5–1s    |
+| Extract text (25 text pages)  | 0.2s      |
+| Render images (5 image pages) | 2.5–10s   |
+| **Total**                     | **4–14s** |
 
 This is acceptable for an on-demand tool call. Cached responses return in <100ms.

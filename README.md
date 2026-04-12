@@ -15,12 +15,12 @@
 
 ## 🤔 What this is / What this is not
 
-| ✅ This IS | ❌ This is NOT |
-|---|---|
-| A local MCP server that lets Claude read your eClass data | A public API or cloud service |
-| A scraping layer using your own authenticated session | A way to bypass any security or act on behalf of other users |
-| A tool for students to get faster, AI-assisted access to their own coursework | A replacement for the eClass website |
-| Entirely local — your session and data never leave your machine | Affiliated with or endorsed by York University |
+| ✅ This IS                                                                    | ❌ This is NOT                                               |
+| ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| A local MCP server that lets Claude read your eClass data                     | A public API or cloud service                                |
+| A scraping layer using your own authenticated session                         | A way to bypass any security or act on behalf of other users |
+| A tool for students to get faster, AI-assisted access to their own coursework | A replacement for the eClass website                         |
+| Entirely local — your session and data never leave your machine               | Affiliated with or endorsed by York University               |
 
 ---
 
@@ -66,30 +66,30 @@ flowchart LR
 
 ## 🛠️ MCP Tools — Quick Reference
 
-| Tool | Purpose | Key Parameters |
-|------|---------|---------------|
-| `list_courses` | List enrolled courses | — |
-| `get_course_content` | Sections, files, assignments for one course | `courseId` |
-| `get_section_text` | Section page text, links, and tabbed content | `url` |
-| `get_upcoming_deadlines` | Assignments due in the next N days | `daysAhead?`, `courseId?` |
-| `get_deadlines` | Deadlines by scope: upcoming / month / range | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?` |
-| `get_item_details` | Full instructions + status + grade for one assignment or quiz URL | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?` |
-| `get_file_text` | Extract text (and rendered images) from PDF, DOCX, or PPTX | `courseId`, `fileUrl`, `startPage?`, `endPage?` |
-| `get_grades` | Grade report (all courses or one) | `courseId?` |
-| `get_announcements` | Recent course announcements | `courseId?`, `limit?` |
-| `get_exam_schedule` | List your upcoming personal exam schedule from York SIS | — |
-| `get_class_timetable` | List your personal class timetable (lectures/labs) from York SIS | — |
-| `search_professors` | Finds professor profiles on RateMyProfessors | `name`, `campus?` |
-| `get_professor_details` | Fetches detailed ratings, difficulty, and comments for a professor | `teacherId` |
-| `discover_cengage_links` | Detect and classify Cengage/WebAssign links from pasted text or extracted content | `text`, `source?`, `courseId?`, `sectionUrl?`, `sourceFile?` |
-| `list_cengage_courses` | List Cengage/WebAssign courses from saved-session dashboard flow (optional link fallback) | `entryUrl?`, `discoveredLink?`, `courseQuery?` |
-| `get_cengage_assignments` | Fetch Cengage/WebAssign assignments from saved-session dashboard flow with bounded aggregation support | `courseId?`, `courseKey?`, `courseQuery?`, `allCourses?`, `maxCourses?`, `maxAssignmentsPerCourse?`, `entryUrl?`, `ssoUrl?` (legacy) |
-| `clear_cache` | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed | `scope?` |
-| `cache_pin` | Pin a resource already in cache (kept past TTL until unpinned) | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?` |
-| `cache_unpin` | Remove pin metadata without deleting cache files | `pinId` |
-| `cache_list_pins` | List pins and quota usage | `resource_type?` |
-| `cache_refresh_pin` | Re-fetch and refresh cached data for a pin | `pinId` |
-| `cache_delete_pinned` | Delete pinned cache files and registry entries (explicit) | `pinId` or `mode` + `resource_type?` |
+| Tool                      | Purpose                                                                                                | Key Parameters                                                                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_courses`            | List enrolled courses                                                                                  | —                                                                                                                                                                 |
+| `get_course_content`      | Sections, files, assignments for one course                                                            | `courseId`                                                                                                                                                        |
+| `get_section_text`        | Section page text, links, and tabbed content                                                           | `url`                                                                                                                                                             |
+| `get_upcoming_deadlines`  | Assignments due in the next N days                                                                     | `daysAhead?`, `courseId?`                                                                                                                                         |
+| `get_deadlines`           | Deadlines by scope: upcoming / month / range                                                           | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?`                                                                                      |
+| `get_item_details`        | Full instructions + status + grade for one assignment or quiz URL                                      | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?` |
+| `get_file_text`           | Extract text (and rendered images) from PDF, DOCX, or PPTX                                             | `courseId`, `fileUrl`, `startPage?`, `endPage?`                                                                                                                   |
+| `get_grades`              | Grade report (all courses or one)                                                                      | `courseId?`                                                                                                                                                       |
+| `get_announcements`       | Recent course announcements                                                                            | `courseId?`, `limit?`                                                                                                                                             |
+| `get_exam_schedule`       | List your upcoming personal exam schedule from York SIS                                                | —                                                                                                                                                                 |
+| `get_class_timetable`     | List your personal class timetable (lectures/labs) from York SIS                                       | —                                                                                                                                                                 |
+| `search_professors`       | Finds professor profiles on RateMyProfessors                                                           | `name`, `campus?`                                                                                                                                                 |
+| `get_professor_details`   | Fetches detailed ratings, difficulty, and comments for a professor                                     | `teacherId`                                                                                                                                                       |
+| `discover_cengage_links`  | Detect and classify Cengage/WebAssign links from pasted text or extracted content                      | `text`, `source?`, `courseId?`, `sectionUrl?`, `sourceFile?`                                                                                                      |
+| `list_cengage_courses`    | List Cengage/WebAssign courses from saved-session dashboard flow (optional link fallback)              | `entryUrl?`, `discoveredLink?`, `courseQuery?`                                                                                                                    |
+| `get_cengage_assignments` | Fetch Cengage/WebAssign assignments from saved-session dashboard flow with bounded aggregation support | `courseId?`, `courseKey?`, `courseQuery?`, `allCourses?`, `maxCourses?`, `maxAssignmentsPerCourse?`, `entryUrl?`, `ssoUrl?` (legacy)                              |
+| `clear_cache`             | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed     | `scope?`                                                                                                                                                          |
+| `cache_pin`               | Pin a resource already in cache (kept past TTL until unpinned)                                         | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?`                                                                                                       |
+| `cache_unpin`             | Remove pin metadata without deleting cache files                                                       | `pinId`                                                                                                                                                           |
+| `cache_list_pins`         | List pins and quota usage                                                                              | `resource_type?`                                                                                                                                                  |
+| `cache_refresh_pin`       | Re-fetch and refresh cached data for a pin                                                             | `pinId`                                                                                                                                                           |
+| `cache_delete_pinned`     | Delete pinned cache files and registry entries (explicit)                                              | `pinId` or `mode` + `resource_type?`                                                                                                                              |
 
 ### User-pinned cache semantics
 
@@ -121,9 +121,9 @@ For server-level validation (verifying raw JSON before putting it into a host li
 1. Stop any running server instances.
 2. Launch the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
-    ```powershell
-    npx.cmd @modelcontextprotocol/inspector node dist/index.js
-    ```
+   ```powershell
+   npx.cmd @modelcontextprotocol/inspector node dist/index.js
+   ```
 
 3. Open `http://localhost:6274` in your browser.
 4. Test individual tools and inspect JSON payloads.
@@ -131,7 +131,7 @@ For server-level validation (verifying raw JSON before putting it into a host li
 If you are in PowerShell and `npm` / `npx` fail with an execution-policy error, use the `.cmd`
 variants explicitly (`npm.cmd`, `npx.cmd`) or run the command through `cmd /c`.
 
-*For formal E2E test runs, see the **[E2E Handbook](docs/t11-e2e-handbook.md)** and the **[E2E Run Log](docs/e2e-run-log.md)**.*
+_For formal E2E test runs, see the **[E2E Handbook](docs/t11-e2e-handbook.md)** and the **[E2E Run Log](docs/e2e-run-log.md)**._
 
 ---
 
@@ -182,7 +182,7 @@ Right-click the tray icon → **Quit**, then relaunch.
 
 The first time Claude tries to use an eClass tool, you'll see:
 
-> *"eClass session not found. Please visit <http://localhost:3000/auth>"*
+> _"eClass session not found. Please visit <http://localhost:3000/auth>"_
 
 Open that URL. A visible browser window opens — log in with your York credentials (including MFA if required). Once you land on the eClass dashboard, the session is saved automatically and the browser closes.
 
@@ -236,38 +236,38 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 
 ### 🔑 Authentication / Session
 
-| Symptom | Fix |
-|---------|-----|
-| `"eClass session expired"` | Visit `http://localhost:3000/auth` and log in again |
-| Session expires too fast | Session TTL is 60 hours — this is intentional (York sessions expire ~72h) |
-| Login window doesn't open | Navigate to `http://localhost:3000/auth` manually in your browser |
-| Login page loops or redirects | Clear your browser cookies for `eclass.yorku.ca` and try again |
+| Symptom                       | Fix                                                                       |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                       |
+| Session expires too fast      | Session TTL is 60 hours — this is intentional (York sessions expire ~72h) |
+| Login window doesn't open     | Navigate to `http://localhost:3000/auth` manually in your browser         |
+| Login page loops or redirects | Clear your browser cookies for `eclass.yorku.ca` and try again            |
 
 ### 🎭 Playwright Browser
 
-| Symptom | Fix |
-|---------|-----|
+| Symptom                                        | Fix                                                       |
+| ---------------------------------------------- | --------------------------------------------------------- |
 | `browserType.launch: Executable doesn't exist` | Run `npx playwright install chromium` in the project root |
-| `ENOSPC` during install | Free up disk space (Chromium needs ~300 MB) |
-| Scraping hangs or times out | Check your network; eClass may be under load |
+| `ENOSPC` during install                        | Free up disk space (Chromium needs ~300 MB)               |
+| Scraping hangs or times out                    | Check your network; eClass may be under load              |
 
 ### 💾 Cache / Stale Data
 
-| Symptom | Fix |
-|---------|-----|
-| Old course data showing up | Delete `.eclass-mcp/cache/` to force a full refresh |
-| File content outdated | Delete the specific `file_<hash>_v2.json` from `.eclass-mcp/cache/` |
-| Grades not updating | Cache TTL for grades is 12 hours — delete `grades_*.json` to force refresh |
+| Symptom                    | Fix                                                                        |
+| -------------------------- | -------------------------------------------------------------------------- |
+| Old course data showing up | Delete `.eclass-mcp/cache/` to force a full refresh                        |
+| File content outdated      | Delete the specific `file_<hash>_v2.json` from `.eclass-mcp/cache/`        |
+| Grades not updating        | Cache TTL for grades is 12 hours — delete `grades_*.json` to force refresh |
 
 ### 🔗 Cengage / WebAssign Dashboard-First and Fallback Issues
 
-| Symptom | Fix |
-|---------|-----|
-| `status="auth_required"` from Cengage tools | Open the returned `retry.authUrl` (typically `http://localhost:<AUTH_PORT>/auth-cengage`), complete login, retry the same tool call |
-| `status="needs_course_selection"` | Retry with `courseId`, `courseKey`, or `courseQuery`; if unsure, call `list_cengage_courses` first to choose a deterministic candidate |
-| Dashboard-first call returns `status="no_data"` | Re-run `/auth-cengage`, retry `list_cengage_courses` with no `entryUrl`, then use explicit `entryUrl` only if the course still does not appear |
-| `discover_cengage_links` returns `no_data` | Use this only as fallback and provide raw text that still contains full URLs (file/announcement extraction, not paraphrases) |
-| Explicit-link assignment call returns `status="no_data"` | Verify link resolves to an active course/dashboard for your account; then retry with `courseId`/`courseQuery` to force selection |
+| Symptom                                                  | Fix                                                                                                                                            |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `status="auth_required"` from Cengage tools              | Open the returned `retry.authUrl` (typically `http://localhost:<AUTH_PORT>/auth-cengage`), complete login, retry the same tool call            |
+| `status="needs_course_selection"`                        | Retry with `courseId`, `courseKey`, or `courseQuery`; if unsure, call `list_cengage_courses` first to choose a deterministic candidate         |
+| Dashboard-first call returns `status="no_data"`          | Re-run `/auth-cengage`, retry `list_cengage_courses` with no `entryUrl`, then use explicit `entryUrl` only if the course still does not appear |
+| `discover_cengage_links` returns `no_data`               | Use this only as fallback and provide raw text that still contains full URLs (file/announcement extraction, not paraphrases)                   |
+| Explicit-link assignment call returns `status="no_data"` | Verify link resolves to an active course/dashboard for your account; then retry with `courseId`/`courseQuery` to force selection               |
 
 ### 🏗️ Build Errors
 
@@ -283,17 +283,17 @@ rm -rf dist && npm.cmd run build
 
 ## 📚 Docs Map
 
-| Topic | Location |
-|-------|----------|
-| Tool-by-tool docs index (all 22 tools) | [`docs/tools/README.md`](docs/tools/README.md) |
-| Cengage implementation and migration plan | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md) |
-| Deadlines tool — full roadmap & architecture | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md) |
-| Deadlines — implementation history | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md) |
-| Deadlines — known issues & investigation log (archived) | [`docs/archive/tools/deadlines/failed-prompts-investigation-plan.md`](docs/archive/tools/deadlines/failed-prompts-investigation-plan.md) |
-| Deadlines — vision instruction screenshots (no OCR) | [`docs/tools/deadlines/vision-image-reading.md`](docs/tools/deadlines/vision-image-reading.md) |
-| PDF pipeline — engineering deep-dive | [`docs/tools/get_file_text/history.md`](docs/tools/get_file_text/history.md) |
-| PDF pipeline — future roadmap (smart image detection) | [`docs/tools/get_file_text/roadmap.md`](docs/tools/get_file_text/roadmap.md) |
-| **Project master** (plans, merged history, engine beta, 9+ engineering) | [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md) |
+| Topic                                                                   | Location                                                                                                                                 |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Tool-by-tool docs index (all 22 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
+| Cengage implementation and migration plan                               | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md)                                     |
+| Deadlines tool — full roadmap & architecture                            | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md)                                                                     |
+| Deadlines — implementation history                                      | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md)                                                                     |
+| Deadlines — known issues & investigation log (archived)                 | [`docs/archive/tools/deadlines/failed-prompts-investigation-plan.md`](docs/archive/tools/deadlines/failed-prompts-investigation-plan.md) |
+| Deadlines — vision instruction screenshots (no OCR)                     | [`docs/tools/deadlines/vision-image-reading.md`](docs/tools/deadlines/vision-image-reading.md)                                           |
+| PDF pipeline — engineering deep-dive                                    | [`docs/tools/get_file_text/history.md`](docs/tools/get_file_text/history.md)                                                             |
+| PDF pipeline — future roadmap (smart image detection)                   | [`docs/tools/get_file_text/roadmap.md`](docs/tools/get_file_text/roadmap.md)                                                             |
+| **Project master** (plans, merged history, engine beta, 9+ engineering) | [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md)                                                                                       |
 
 ---
 
@@ -311,8 +311,8 @@ rm -rf dist && npm.cmd run build
 - [x] **Grades tool** — full gradebook scraping with feedback (`get_grades`)
 - [x] **Announcements tool** — recent post extraction (`get_announcements`)
 - [x] **Cengage/WebAssign tools** — discovery, course listing, and assignment retrieval with auth-retry + `_cache` parity
-- [ ] **Harden quiz page selectors** — grade extraction missing in some cases *(P3)*
-- [ ] **Richer assignment descriptions** — extract authored content, not just boilerplate *(P4)*
+- [ ] **Harden quiz page selectors** — grade extraction missing in some cases _(P3)_
+- [ ] **Richer assignment descriptions** — extract authored content, not just boilerplate _(P4)_
 - [ ] **Smart image detection** — entropy/vision-based diagram isolation for PDFs
 
 ---

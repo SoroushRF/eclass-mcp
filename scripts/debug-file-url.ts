@@ -36,7 +36,8 @@ async function main() {
     ],
   });
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
     viewport: { width: 1920, height: 1080 },
     locale: 'en-CA',
   });
@@ -57,7 +58,9 @@ async function main() {
   console.log(`Final URL:    ${res.url()}`);
   console.log(`Content-Type: ${rawMime}`);
   console.log(`Body size:    ${rawBody.length} bytes`);
-  console.log(`Content-Disposition: ${rawHeaders['content-disposition'] || '(none)'}`);
+  console.log(
+    `Content-Disposition: ${rawHeaders['content-disposition'] || '(none)'}`
+  );
 
   const rawDumpPath = path.join(debugDir, 'raw_response.html');
   fs.writeFileSync(rawDumpPath, rawBody);
@@ -66,30 +69,47 @@ async function main() {
   // --- Step 2: Rendered page (JS executed) ---
   console.log('\n=== PHASE 2: Playwright Page (JS rendered) ===');
   const page = await context.newPage();
-  const interceptedUrls: { url: string, type: string, size: number }[] = [];
+  const interceptedUrls: { url: string; type: string; size: number }[] = [];
 
   page.on('response', async (resp) => {
     const ct = resp.headers()['content-type'] || '';
-    const isNoise = ct.includes('text/javascript') || ct.includes('text/css') || ct.includes('image/') || ct.includes('font/');
+    const isNoise =
+      ct.includes('text/javascript') ||
+      ct.includes('text/css') ||
+      ct.includes('image/') ||
+      ct.includes('font/');
     if (!isNoise) {
       try {
         const body = await resp.body();
         interceptedUrls.push({ url: resp.url(), type: ct, size: body.length });
-      } catch { /* already consumed */ }
+      } catch {
+        /* already consumed */
+      }
     }
   });
 
   await page.goto(fileUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
   // Detect and wait through AWS WAF challenge auto-reload
-  const isWaf = await page.evaluate(() => typeof (window as any).awsWafCookieDomainList !== 'undefined').catch(() => false);
+  const isWaf = await page
+    .evaluate(
+      () => typeof (window as any).awsWafCookieDomainList !== 'undefined'
+    )
+    .catch(() => false);
   if (isWaf) {
-    console.log('⚠️  WAF challenge page detected. Waiting for auto-reload after token acquisition...');
+    console.log(
+      '⚠️  WAF challenge page detected. Waiting for auto-reload after token acquisition...'
+    );
     try {
-      await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 20000 });
+      await page.waitForNavigation({
+        waitUntil: 'networkidle',
+        timeout: 20000,
+      });
       console.log('✅ WAF reload completed. Final URL:', page.url());
     } catch {
-      console.log('❌ WAF reload timed out — challenge may have been blocked by bot detection.');
+      console.log(
+        '❌ WAF reload timed out — challenge may have been blocked by bot detection.'
+      );
     }
   } else {
     await page.waitForLoadState('networkidle').catch(() => {});
@@ -103,8 +123,10 @@ async function main() {
   console.log(`Final page URL: ${page.url()}`);
 
   console.log('\n--- All non-noise network responses intercepted ---');
-  interceptedUrls.forEach(r => {
-    console.log(`  [${r.size.toString().padStart(8)} bytes] ${r.type.padEnd(50)} ${r.url}`);
+  interceptedUrls.forEach((r) => {
+    console.log(
+      `  [${r.size.toString().padStart(8)} bytes] ${r.type.padEnd(50)} ${r.url}`
+    );
   });
 
   await page.close();

@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-04-10  
+**Last updated:** 2026-04-10
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -43,24 +43,24 @@ This section is the **standing implementation plan**: one serial numbering schem
 
 ### 2.1 Task ID legend
 
-| Range | Origin |
-| --- | --- |
-| **T01-T13** | Original v1 foundation (including next-up SIS Auth) |
-| **T14-T20** | Engine beta extension — SIS, RateMyProfessors, E2E verification |
-| **T27** | Engine post-beta automation — Cron / proactive notifications |
-| **T21-T23** | Optional product polish (parallel track; does not block T14-T20) |
-| **T24** | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown) |
-| **T25** | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool) |
-| **T26** | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools) |
-| **T28** | [x] Cengage Integration Phase 1 complete: foundation + discovery/link metadata hardening — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
-| **T29** | [x] Cengage Integration Phase 2 complete: authentication routing and session handling — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
-| **T30** | [x] Cengage Integration Phases 3-4 complete: scraper core + MCP wiring + cache metadata parity — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
-| **T31** | [x] Cengage Integration Phase 5 complete: verification coverage and E2E run logging — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
-| **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
-| **T36** | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry) |
-| **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) |
-| **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D) |
-| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) |
+| Range       | Origin                                                                                                                                                                                                                                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **T01-T13** | Original v1 foundation (including next-up SIS Auth)                                                                                                                                                                                                                                                      |
+| **T14-T20** | Engine beta extension — SIS, RateMyProfessors, E2E verification                                                                                                                                                                                                                                          |
+| **T27**     | Engine post-beta automation — Cron / proactive notifications                                                                                                                                                                                                                                             |
+| **T21-T23** | Optional product polish (parallel track; does not block T14-T20)                                                                                                                                                                                                                                         |
+| **T24**     | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown)                                                                                                        |
+| **T25**     | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)                                                                                                                               |
+| **T26**     | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools)                                                                                                                                                 |
+| **T28**     | [x] Cengage Integration Phase 1 complete: foundation + discovery/link metadata hardening — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)       |
+| **T29**     | [x] Cengage Integration Phase 2 complete: authentication routing and session handling — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)          |
+| **T30**     | [x] Cengage Integration Phases 3-4 complete: scraper core + MCP wiring + cache metadata parity — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
+| **T31**     | [x] Cengage Integration Phase 5 complete: verification coverage and E2E run logging — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)            |
+| **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                |
+| **T36**     | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                                 |
+| **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                            |
+| **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D)                                                                                                                                                                                                                            |
+| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                   |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -240,31 +240,31 @@ Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retr
 
 ### 2.5 Tracker ? engineering gap to 9+ (E01-E21)
 
-| ID | Item | Epic |
-| --- | --- | --- |
-| [x] **E01** | CI workflow: push + PR, `npm ci`, `npm run build`, `npx tsc --noEmit` | A |
-| [x] **E02** | Add `npm run lint` + `npm run test` to CI when available | A |
-| [x] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check` | A |
-| [x] **E04** | Add `LICENSE` (verify SPDX matches `package.json`) | A |
-| [x] **E05** | Add `SECURITY.md` (reporting contact, scope, safe harbor) | A |
-| [x] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md` | A |
-| [x] **E07** | Branch rename `master` ? `main` (Decision: kept `master`) | A |
-| [x] **E08** | Test framework (Vitest/Jest) + coverage script | B |
-| [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers | B |
-| [ ] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants) | B |
-| [ ] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**) | B |
-| [ ] **E12** | Structured error types + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, ?) (**required** for write tools via **E20**) | B |
-| [ ] **E13** | Session at-rest hardening + secure wipe on logout | C |
-| [ ] **E14** | Structured logging + correlation ID + redaction | C |
-| [ ] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode | C |
-| [ ] **E16** | `npm run doctor` (Node, Playwright, Claude config path, `.env`, permissions) | D |
-| [ ] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config | D |
-| [ ] **E18** | `CHANGELOG.md` + tagging / GitHub Release template | D |
-| [ ] **E19** | Document timeouts, concurrency, rate limits for external calls | D |
-| [ ] **E20** | **Write tools ? pre-ship gates:** **E11** + **E12** complete for every write tool; `SECURITY.md` + README subsection (risks, misuse, no warranty); **opt-in env** (e.g. `ECLASS_MCP_ENABLE_WRITES=1`) ? write tools **not registered** when unset; link to [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31) | C |
-| [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T25** when present) | C |
+| ID          | Item                                                                                                                                                                                                                                                                                                                                  | Epic |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| [x] **E01** | CI workflow: push + PR, `npm ci`, `npm run build`, `npx tsc --noEmit`                                                                                                                                                                                                                                                                 | A    |
+| [x] **E02** | Add `npm run lint` + `npm run test` to CI when available                                                                                                                                                                                                                                                                              | A    |
+| [x] **E03** | ESLint + TypeScript-eslint + Prettier; scripts `lint`, `lint:fix`, `format`, `format:check`                                                                                                                                                                                                                                           | A    |
+| [x] **E04** | Add `LICENSE` (verify SPDX matches `package.json`)                                                                                                                                                                                                                                                                                    | A    |
+| [x] **E05** | Add `SECURITY.md` (reporting contact, scope, safe harbor)                                                                                                                                                                                                                                                                             | A    |
+| [x] **E06** | Add `CONTRIBUTING.md` + optional `CODE_OF_CONDUCT.md`                                                                                                                                                                                                                                                                                 | A    |
+| [x] **E07** | Branch rename `master` ? `main` (Decision: kept `master`)                                                                                                                                                                                                                                                                             | A    |
+| [x] **E08** | Test framework (Vitest/Jest) + coverage script                                                                                                                                                                                                                                                                                        | B    |
+| [x] **E09** | Unit tests: cache TTL, session helpers, pure parsers                                                                                                                                                                                                                                                                                  | B    |
+| [ ] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants)                                                                                                                                                                                                                                                                    | B    |
+| [ ] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**)                                                                                                                                                                                                              | B    |
+| [ ] **E12** | Structured error types + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, ?) (**required** for write tools via **E20**)                                                                                                                                                                                                     | B    |
+| [ ] **E13** | Session at-rest hardening + secure wipe on logout                                                                                                                                                                                                                                                                                     | C    |
+| [ ] **E14** | Structured logging + correlation ID + redaction                                                                                                                                                                                                                                                                                       | C    |
+| [ ] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode                                                                                                                                                                                                                                                                   | C    |
+| [ ] **E16** | `npm run doctor` (Node, Playwright, Claude config path, `.env`, permissions)                                                                                                                                                                                                                                                          | D    |
+| [ ] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config                                                                                                                                                                                                                                                                    | D    |
+| [ ] **E18** | `CHANGELOG.md` + tagging / GitHub Release template                                                                                                                                                                                                                                                                                    | D    |
+| [ ] **E19** | Document timeouts, concurrency, rate limits for external calls                                                                                                                                                                                                                                                                        | D    |
+| [ ] **E20** | **Write tools ? pre-ship gates:** **E11** + **E12** complete for every write tool; `SECURITY.md` + README subsection (risks, misuse, no warranty); **opt-in env** (e.g. `ECLASS_MCP_ENABLE_WRITES=1`) ? write tools **not registered** when unset; link to [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)               | C    |
+| [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T25** when present) | C    |
 
-*(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-tool safety, Epic C.)*
+_(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-tool safety, Epic C.)_
 
 ---
 
@@ -479,21 +479,21 @@ jobs:
 
 #### Suggested layout — (adjust names to taste; match existing method groupings in the file)
 
-| Module | Responsibility |
-|--------|------------------|
-| `eclass/constants.ts` | `ECLASS_URL`, shared timeouts if any |
-| `eclass/types.ts` or re-exports | Types/interfaces currently colocated in `eclass.ts` (or keep importing from a `types` file if already split) |
-| `eclass/browser-session.ts` | `getBrowser`, `getAuthenticatedContext`, `dumpPage`, WAF/init-script concerns |
-| `eclass/helpers.ts` | Pure helpers: `normalizeWhitespace`, `extractCourseCode`, `buildCourseMetadata`, `inferItemType`, `toDeadlineItem`, etc. |
-| `eclass/courses.ts` | `getCourses`, `getCourseContent` |
-| `eclass/deadlines.ts` | `getDeadlines`, `getMonthDeadlines`, assignment-index paths, `getAllAssignmentDeadlines`, ? |
-| `eclass/item-details.ts` | `getItemDetails`, `getAssignmentDetails`, `getQuizDetails` |
-| `eclass/grades.ts` | `getGrades` |
-| `eclass/announcements.ts` | `getAnnouncements` |
-| `eclass/files.ts` | `downloadFile` |
-| `eclass/sections.ts` | `getSectionText` |
-| `eclass/EClassScraper.ts` | Class composing the above (or `index.ts` assembling the class) |
-| `eclass.ts` (at `scraper/`) | **Barrel:** `export { scraper, SessionExpiredError, ? types ? } from './eclass'` so tools unchanged |
+| Module                          | Responsibility                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `eclass/constants.ts`           | `ECLASS_URL`, shared timeouts if any                                                                                     |
+| `eclass/types.ts` or re-exports | Types/interfaces currently colocated in `eclass.ts` (or keep importing from a `types` file if already split)             |
+| `eclass/browser-session.ts`     | `getBrowser`, `getAuthenticatedContext`, `dumpPage`, WAF/init-script concerns                                            |
+| `eclass/helpers.ts`             | Pure helpers: `normalizeWhitespace`, `extractCourseCode`, `buildCourseMetadata`, `inferItemType`, `toDeadlineItem`, etc. |
+| `eclass/courses.ts`             | `getCourses`, `getCourseContent`                                                                                         |
+| `eclass/deadlines.ts`           | `getDeadlines`, `getMonthDeadlines`, assignment-index paths, `getAllAssignmentDeadlines`, ?                              |
+| `eclass/item-details.ts`        | `getItemDetails`, `getAssignmentDetails`, `getQuizDetails`                                                               |
+| `eclass/grades.ts`              | `getGrades`                                                                                                              |
+| `eclass/announcements.ts`       | `getAnnouncements`                                                                                                       |
+| `eclass/files.ts`               | `downloadFile`                                                                                                           |
+| `eclass/sections.ts`            | `getSectionText`                                                                                                         |
+| `eclass/EClassScraper.ts`       | Class composing the above (or `index.ts` assembling the class)                                                           |
+| `eclass.ts` (at `scraper/`)     | **Barrel:** `export { scraper, SessionExpiredError, ? types ? } from './eclass'` so tools unchanged                      |
 
 **Execution steps**
 
@@ -523,16 +523,16 @@ jobs:
 
 #### Target TTLs (minutes) ? replace current `TTL` in `store.ts`
 
-| Tier | Tools / keys | Minutes | Rationale |
-| --- | --- | --- | --- |
-| **Hot** | Deadlines (`get_deadlines`, `get_upcoming_deadlines`), announcements | **30** | Instructor posts and due dates change often. |
-| **Warm** | `get_item_details` | **20** | Submission status / visible grades change after student actions. |
-| **Course shell** | `get_course_content`, `get_section_text` | **180** (3h) | Section lists change occasionally; fresher than old 6h is enough without hammering. |
-| **Enrollment** | `list_courses` | **360** (6h) | Add/drop is rare mid-week; half old 24h default. |
-| **Grades** | `get_grades` | **180** (3h) | Between "live" and old 12h. |
-| **Parsed files** | `get_file_text` | **2880** (48h) | Parsing is expensive; same URL can be replaced ? 48h balances speed vs staleness (was 7d). *Team may keep 7d if bandwidth is the bottleneck ? document choice in PR.* |
+| Tier             | Tools / keys                                                         | Minutes        | Rationale                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Hot**          | Deadlines (`get_deadlines`, `get_upcoming_deadlines`), announcements | **30**         | Instructor posts and due dates change often.                                                                                                                          |
+| **Warm**         | `get_item_details`                                                   | **20**         | Submission status / visible grades change after student actions.                                                                                                      |
+| **Course shell** | `get_course_content`, `get_section_text`                             | **180** (3h)   | Section lists change occasionally; fresher than old 6h is enough without hammering.                                                                                   |
+| **Enrollment**   | `list_courses`                                                       | **360** (6h)   | Add/drop is rare mid-week; half old 24h default.                                                                                                                      |
+| **Grades**       | `get_grades`                                                         | **180** (3h)   | Between "live" and old 12h.                                                                                                                                           |
+| **Parsed files** | `get_file_text`                                                      | **2880** (48h) | Parsing is expensive; same URL can be replaced ? 48h balances speed vs staleness (was 7d). _Team may keep 7d if bandwidth is the bottleneck ? document choice in PR._ |
 
-*Tune after dogfooding; values are defaults, not physics.*
+_Tune after dogfooding; values are defaults, not physics._
 
 #### T25 Sub-tasks
 
@@ -586,22 +586,22 @@ jobs:
 
 Register **small, explicit MCP tools** (exact names TBD in implementation):
 
-| Tool | Role |
-|------|------|
-| `cache_pin` | Mark a resource as pinned; persists registry entry + ensures payload retained per quota rules. |
-| `cache_unpin` | Remove pin; underlying cache entry may revert to normal TTL eviction unless otherwise referenced. |
-| `cache_list_pins` | List pinned keys + labels + sizes + `pinned_at` (for user and model). |
-| `cache_refresh_pin` | Optional but **recommended**: refetch from eClass, update content/hash, keep pin. |
+| Tool                  | Role                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------ |
+| `cache_pin`           | Mark a resource as pinned; persists registry entry + ensures payload retained per quota rules.         |
+| `cache_unpin`         | Remove pin; underlying cache entry may revert to normal TTL eviction unless otherwise referenced.      |
+| `cache_list_pins`     | List pinned keys + labels + sizes + `pinned_at` (for user and model).                                  |
+| `cache_refresh_pin`   | Optional but **recommended**: refetch from eClass, update content/hash, keep pin.                      |
 | `cache_delete_pinned` | Explicitly delete pinned on-disk cache files + registry rows (`pinId`, `mode=all`, or `mode=by_type`). |
 
-*Alternative:* one `manage_cache` tool with a `mode` enum; trade-off is fewer registered tools vs. noisier schemas.
+_Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer registered tools vs. noisier schemas.
 
 #### Pin record (minimum fields)
 
-- **`resource_type`** ? e.g. `file` \| `section` \| *(only types we can key reliably; start narrow)*  
-- **Stable resource key** ? tuple agreed per type (e.g. `courseId` + canonical file URL, not "lecture 3" titles alone)  
-- **`pinned_at`** (ISO8601)  
-- **Optional `note`** ? short user/agent label  
+- **`resource_type`** ? e.g. `file` \| `section` \| _(only types we can key reliably; start narrow)_
+- **Stable resource key** ? tuple agreed per type (e.g. `courseId` + canonical file URL, not "lecture 3" titles alone)
+- **`pinned_at`** (ISO8601)
+- **Optional `note`** ? short user/agent label
 - **Optional integrity hints** ? `etag`, `Last-Modified`, or **content hash** from last successful fetch (helps detect silent URL replacement when refresh is run)
 
 #### Quota and ?storage full???
@@ -708,30 +708,30 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 ### 3.1 MCP tools currently registered (22)
 
-| Tool | Purpose |
-|------|---------|
-| `list_courses` | Enrolled courses |
-| `get_course_content` | Sections, files, links, activities for one course |
-| `get_section_text` | Paragraph text, links, and tabbed content for a section URL |
-| `get_file_text` | PDF / DOCX / PPTX extraction (hybrid text + rendered pages where applicable) |
-| `get_upcoming_deadlines` | Assignments due within N days (default 14) |
-| `get_deadlines` | Deadlines by scope: `upcoming` \| `month` \| `range` |
-| `get_item_details` | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining) |
-| `get_grades` | Grade report |
-| `get_announcements` | Recent announcements |
-| `get_exam_schedule` | Personal exam schedule (SIS) |
-| `get_class_timetable` | Personal class timetable (SIS) |
-| `search_professors` | RateMyProfessors profile search |
-| `get_professor_details` | RateMyProfessors deep ratings, comments, and student tags |
-| `discover_cengage_links` | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs |
-| `list_cengage_courses` | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback) |
+| Tool                      | Purpose                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `list_courses`            | Enrolled courses                                                                                       |
+| `get_course_content`      | Sections, files, links, activities for one course                                                      |
+| `get_section_text`        | Paragraph text, links, and tabbed content for a section URL                                            |
+| `get_file_text`           | PDF / DOCX / PPTX extraction (hybrid text + rendered pages where applicable)                           |
+| `get_upcoming_deadlines`  | Assignments due within N days (default 14)                                                             |
+| `get_deadlines`           | Deadlines by scope: `upcoming` \| `month` \| `range`                                                   |
+| `get_item_details`        | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining)                          |
+| `get_grades`              | Grade report                                                                                           |
+| `get_announcements`       | Recent announcements                                                                                   |
+| `get_exam_schedule`       | Personal exam schedule (SIS)                                                                           |
+| `get_class_timetable`     | Personal class timetable (SIS)                                                                         |
+| `search_professors`       | RateMyProfessors profile search                                                                        |
+| `get_professor_details`   | RateMyProfessors deep ratings, comments, and student tags                                              |
+| `discover_cengage_links`  | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs                |
+| `list_cengage_courses`    | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback)    |
 | `get_cengage_assignments` | Retrieve Cengage/WebAssign assignment lists from dashboard-first flow with explicit-link compatibility |
-| `clear_cache` | Clear **non-pinned** cache by scope; pinned entries unchanged |
-| `cache_pin` | Pin file / section / course content cache entry (quota-limited) |
-| `cache_unpin` | Remove pin from registry (does not delete cache file) |
-| `cache_list_pins` | List pins + quota usage |
-| `cache_refresh_pin` | Re-fetch and refresh a pinned cache entry |
-| `cache_delete_pinned` | Explicitly delete pinned cache files + registry rows |
+| `clear_cache`             | Clear **non-pinned** cache by scope; pinned entries unchanged                                          |
+| `cache_pin`               | Pin file / section / course content cache entry (quota-limited)                                        |
+| `cache_unpin`             | Remove pin from registry (does not delete cache file)                                                  |
+| `cache_list_pins`         | List pins + quota usage                                                                                |
+| `cache_refresh_pin`       | Re-fetch and refresh a pinned cache entry                                                              |
+| `cache_delete_pinned`     | Explicitly delete pinned cache files + registry rows                                                   |
 
 **Cache metadata ([T25](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
 
@@ -764,13 +764,13 @@ Register **small, explicit MCP tools** (exact names TBD in implementation):
 
 Key paths under `src/`:
 
-- `index.ts` ? MCP server, tool registration  
-- `tools/*.ts` ? one module per tool area  
-- `scraper/session.ts` ? load/save cookies, validity  
-- `scraper/eclass.ts` ? main eClass scraper (large; modularize under **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown))  
-- `auth/server.ts` ? local auth HTTP server  
-- `cache/store.ts` ? TTL JSON cache  
-- `parser/*` ? file parsing  
+- `index.ts` ? MCP server, tool registration
+- `tools/*.ts` ? one module per tool area
+- `scraper/session.ts` ? load/save cookies, validity
+- `scraper/eclass.ts` ? main eClass scraper (large; modularize under **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown))
+- `auth/server.ts` ? local auth HTTP server
+- `cache/store.ts` ? TTL JSON cache
+- `parser/*` ? file parsing
 
 ### 4.2 Tool error pattern (canonical)
 
@@ -799,11 +799,11 @@ try {
 
 Consolidated from the original v1 and v2 agent instruction blocks (one copy only):
 
-1. Prefer **one focused task** at a time; report what changed and any errors before assuming the next task.  
-2. Do **not** skip **research/inspect** tasks before writing selectors or external API calls (SIS WebObjects, RMP GraphQL, etc.).  
-3. After substantive TypeScript changes, run **`npx tsc --noEmit`** (and project scripts as applicable).  
-4. Do **not** modify unrelated tools or scrapers unless the task explicitly requires it.  
-5. Respect feature-area docs under `docs/tools/*/` when editing that area.  
+1. Prefer **one focused task** at a time; report what changed and any errors before assuming the next task.
+2. Do **not** skip **research/inspect** tasks before writing selectors or external API calls (SIS WebObjects, RMP GraphQL, etc.).
+3. After substantive TypeScript changes, run **`npx tsc --noEmit`** (and project scripts as applicable).
+4. Do **not** modify unrelated tools or scrapers unless the task explicitly requires it.
+5. Respect feature-area docs under `docs/tools/*/` when editing that area.
 
 Tool-specific "rules for agent" (e.g. deadlines) also appear in [`docs/tools/deadlines/roadmap.md`](tools/deadlines/roadmap.md).
 
@@ -815,12 +815,12 @@ The legacy **CoYork TODO** mixed **accurate deferred work** with **checkboxes th
 
 ### 6.1 CoYork TODO ? active pipelines (preserved intent)
 
-| Area | Status | Notes |
-|------|--------|--------|
-| PDF: pdfjs-style page intelligence, payload tuning | **Completed** | Baseline shipped in `get_file_text`; see [`get_file_text/history.md`](tools/get_file_text/history.md) and [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md) for the completed baseline plus future refinements. |
-| Deadlines: Moodle 4 upcoming + month + range + item details | **Shipped** | See [?8](#8-shipped-feature-history-deadlines--file-pipeline). |
-| Ops: `npx playwright install chromium` on each machine | **Open** | Environment prerequisite, not optional for scraping. |
-| Harden quiz + month/date selectors across themes | **Open** | Quality beyond first ship. |
+| Area                                                        | Status        | Notes                                                                                                                                                                                                                      |
+| ----------------------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PDF: pdfjs-style page intelligence, payload tuning          | **Completed** | Baseline shipped in `get_file_text`; see [`get_file_text/history.md`](tools/get_file_text/history.md) and [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md) for the completed baseline plus future refinements. |
+| Deadlines: Moodle 4 upcoming + month + range + item details | **Shipped**   | See [?8](#8-shipped-feature-history-deadlines--file-pipeline).                                                                                                                                                             |
+| Ops: `npx playwright install chromium` on each machine      | **Open**      | Environment prerequisite, not optional for scraping.                                                                                                                                                                       |
+| Harden quiz + month/date selectors across themes            | **Open**      | Quality beyond first ship.                                                                                                                                                                                                 |
 
 ### 6.2 "Upcoming tools" section ? reinterpretation
 
@@ -828,18 +828,18 @@ The unchecked items **Grades**, **Announcements**, **Course scraper**, **Enhance
 
 Treat them as **post-v1 excellence**, not greenfield:
 
-| TODO line (legacy) | Shipped baseline | Deferred / perfection |
-|--------------------|------------------|------------------------|
-| Grades tool | `get_grades` | Richer feedback columns, edge course layouts, structured normalization |
-| Announcements | `get_announcements` | Richer parsing, forum threads, attachments |
-| Course scraper | `get_course_content`, `get_section_text` | Deeper maps, clubs/complex sections, consistency across themes |
-| Enhanced sessions | Auth + `session.json` | First-class 2FA/session refresh UX, optional encryption (see **E13** in [?2.5](#25-tracker--engineering-gap-to-9-e01-e19)) |
+| TODO line (legacy) | Shipped baseline                         | Deferred / perfection                                                                                                      |
+| ------------------ | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Grades tool        | `get_grades`                             | Richer feedback columns, edge course layouts, structured normalization                                                     |
+| Announcements      | `get_announcements`                      | Richer parsing, forum threads, attachments                                                                                 |
+| Course scraper     | `get_course_content`, `get_section_text` | Deeper maps, clubs/complex sections, consistency across themes                                                             |
+| Enhanced sessions  | Auth + `session.json`                    | First-class 2FA/session refresh UX, optional encryption (see **E13** in [?2.5](#25-tracker--engineering-gap-to-9-e01-e19)) |
 
 ---
 
 ## 7. Original v1 build plan (historical summary)
 
-**Source:** former `eclass-mcp-implementation-plan.md`.  
+**Source:** former `eclass-mcp-implementation-plan.md`.
 
 **Checkbox status** for T01?T13: see [?2.2](#22-tracker--v1-foundation-t01t13).
 
@@ -857,15 +857,15 @@ The original spec targeted **6 tools**; the repo now ships **22**. Optional foll
 
 **Milestones completed (summary):**
 
-- Phase 0: Moove / Moodle 4 selector fixes, `parseEClassDate`, upcoming-only behavior.  
-- Phase 1: `get_deadlines` scopes + month scraping + `get_item_details` + optional `includeDetails` / `maxDetails` + details TTL cache.  
-- Phase 2: Month/range backed by **assignment index** (`mod/assign/index.php`) + date boundaries + enriched rows (`section`, `submission`, `grade`).  
-- Phase 3: Vision instruction images + CSV inlining on `get_item_details`.  
-- Phase 4: `courseName` / `courseCode` on deadline items + cache key bumps.  
+- Phase 0: Moove / Moodle 4 selector fixes, `parseEClassDate`, upcoming-only behavior.
+- Phase 1: `get_deadlines` scopes + month scraping + `get_item_details` + optional `includeDetails` / `maxDetails` + details TTL cache.
+- Phase 2: Month/range backed by **assignment index** (`mod/assign/index.php`) + date boundaries + enriched rows (`section`, `submission`, `grade`).
+- Phase 3: Vision instruction images + CSV inlining on `get_item_details`.
+- Phase 4: `courseName` / `courseCode` on deadline items + cache key bumps.
 
 ### 8.2 File / PDF pipeline
 
-**Docs:** [`docs/tools/get_file_text/history.md`](tools/get_file_text/history.md), [`roadmap.md`](tools/get_file_text/roadmap.md).  
+**Docs:** [`docs/tools/get_file_text/history.md`](tools/get_file_text/history.md), [`roadmap.md`](tools/get_file_text/roadmap.md).
 
 **Current direction (implemented):** pdfjs + `@napi-rs/canvas`, text-density heuristic (~250 chars), DPI/payload caps, hybrid text + PNG output, paginated fetches. **T21 is complete**; the roadmap now tracks only future refinements beyond the shipped baseline.
 
@@ -877,13 +877,13 @@ For **checkbox execution**, use [?2](#2-master-execution-tracker--detailed-imple
 
 Cengage hardening (**T28-T31**) is complete; the concise status summary lives in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), and full task-by-task detail/evidence lives in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md).
 
-1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).  
-2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).  
-3. **Post-v1 tool depth** ? [?6.2](#62-upcoming-tools-section--reinterpretation).  
+1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
+2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).
+3. **Post-v1 tool depth** ? [?6.2](#62-upcoming-tools-section--reinterpretation).
 4. **Scraper structure** ? **T24** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
 5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
-6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) *(after T25)*.
-7. **future write tools (opt-in)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) *(after E11/E12; E13 recommended)*.
+6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) _(after T25)_.
+7. **future write tools (opt-in)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
 8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 
 ---
@@ -894,19 +894,19 @@ Cengage hardening (**T28-T31**) is complete; the concise status summary lives in
 
 ### 10.1 New tools (planned)
 
-| Tool | Source | Auth | Method |
-|------|--------|------|--------|
-| `get_exam_schedule` | York SIS `w2prod.sis.yorku.ca` | Yes (SSO; cookies after auth) | Playwright |
-| `get_class_timetable` | Same | Yes | Playwright |
-| `search_professors` | RateMyProfessors | No | `fetch` + GraphQL |
-| `get_professor_details` | RateMyProfessors | No | `fetch` + GraphQL |
+| Tool                    | Source                         | Auth                          | Method            |
+| ----------------------- | ------------------------------ | ----------------------------- | ----------------- |
+| `get_exam_schedule`     | York SIS `w2prod.sis.yorku.ca` | Yes (SSO; cookies after auth) | Playwright        |
+| `get_class_timetable`   | Same                           | Yes                           | Playwright        |
+| `search_professors`     | RateMyProfessors               | No                            | `fetch` + GraphQL |
+| `get_professor_details` | RateMyProfessors               | No                            | `fetch` + GraphQL |
 
 ### 10.2 Architecture deltas (engine-beta-specific)
 
-- **SIS cookies:** After eClass dashboard (and existing WAF/resource touch if present), navigate **SIS URLs once** before `context.cookies()` so `session.json` includes `w2prod.sis.yorku.ca`. Users with old sessions **re-authenticate** once.  
-- **`session.ts`:** No change required if all cookies are saved; Playwright scopes cookies by domain.  
-- **`src/scraper/sis.ts`:** New module ? **do not** put SIS scraping in `eclass.ts`.  
-- **RMP:** Node **`fetch` only**; no new HTTP libraries.  
+- **SIS cookies:** After eClass dashboard (and existing WAF/resource touch if present), navigate **SIS URLs once** before `context.cookies()` so `session.json` includes `w2prod.sis.yorku.ca`. Users with old sessions **re-authenticate** once.
+- **`session.ts`:** No change required if all cookies are saved; Playwright scopes cookies by domain.
+- **`src/scraper/sis.ts`:** New module ? **do not** put SIS scraping in `eclass.ts`.
+- **RMP:** Node **`fetch` only**; no new HTTP libraries.
 - **TTL additions** (merge into `TTL` in `store.ts` when implementing):
 
 ```typescript
@@ -927,19 +927,21 @@ const SIS_URLS = [
 for (const sisUrl of SIS_URLS) {
   try {
     await page.goto(sisUrl, { timeout: 15000, waitUntil: 'networkidle' });
-  } catch { /* timeouts OK ? cookie acquisition is the goal */ }
+  } catch {
+    /* timeouts OK ? cookie acquisition is the goal */
+  }
 }
 ```
 
 ### 10.4 Final tool matrix after engine beta
 
-| # | Tool | Source | Auth |
-|---|------|--------|------|
-| 1?9 | *(current eClass tools)* | eClass | Yes |
-| 10 | `get_exam_schedule` | SIS | Yes (SSO) |
-| 11 | `get_class_timetable` | SIS | Yes (SSO) |
-| 12 | `search_professors` | RMP | No |
-| 13 | `get_professor_details` | RMP | No |
+| #   | Tool                     | Source | Auth      |
+| --- | ------------------------ | ------ | --------- |
+| 1?9 | _(current eClass tools)_ | eClass | Yes       |
+| 10  | `get_exam_schedule`      | SIS    | Yes (SSO) |
+| 11  | `get_class_timetable`    | SIS    | Yes (SSO) |
+| 12  | `search_professors`      | RMP    | No        |
+| 13  | `get_professor_details`  | RMP    | No        |
 
 ---
 
@@ -953,46 +955,46 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 
 ### 11.2 Scored rubric (0?10)
 
-| Category | Python ref | This repo | Notes |
-|----------|------------|-----------|-------|
-| Architecture clarity | 8.0 | 7.5 | TS repo more complex |
-| Feature depth | 4.0 | 8.5 | TS much broader |
-| Reliability/resilience | 5.5 | 7.0 | Selector fallbacks help |
-| Security posture | 5.5 | 6.0 | Session hardening TBD |
-| Testing maturity | 4.5 | 4.5 | Needs CI + fixtures |
-| DevEx/onboarding | 7.0 | 8.5 | Strong practical docs |
-| Portability | 6.5 | 6.0 | Env assumptions |
-| Documentation | 8.0 | 8.0 | Good troubleshooting |
-| Professional polish | 7.0 | 7.0 | Needs formal guardrails |
-| Production readiness | 5.5 | 7.0 | Closer to daily use |
+| Category               | Python ref | This repo | Notes                   |
+| ---------------------- | ---------- | --------- | ----------------------- |
+| Architecture clarity   | 8.0        | 7.5       | TS repo more complex    |
+| Feature depth          | 4.0        | 8.5       | TS much broader         |
+| Reliability/resilience | 5.5        | 7.0       | Selector fallbacks help |
+| Security posture       | 5.5        | 6.0       | Session hardening TBD   |
+| Testing maturity       | 4.5        | 4.5       | Needs CI + fixtures     |
+| DevEx/onboarding       | 7.0        | 8.5       | Strong practical docs   |
+| Portability            | 6.5        | 6.0       | Env assumptions         |
+| Documentation          | 8.0        | 8.0       | Good troubleshooting    |
+| Professional polish    | 7.0        | 7.0       | Needs formal guardrails |
+| Production readiness   | 5.5        | 7.0       | Closer to daily use     |
 
 ### 11.3 SWOR, definition of 9+, KPIs, risks, sprints
 
-- **SWOR:** strengths = York value, modular tools, Playwright realism; weaknesses = quality gates, drift, session security; opportunities = fixtures, doctor, releases; risks = untested scope growth, silent breakage, leaks.  
-- **9.0+ means:** reliable, CI-tested, secure-enough local session, operable errors/logs, lifecycle docs, portable setup.  
-- **KPIs:** CI pass rate, regression detection in one PR cycle, >70% critical-path coverage, zero cookie leaks in logs.  
+- **SWOR:** strengths = York value, modular tools, Playwright realism; weaknesses = quality gates, drift, session security; opportunities = fixtures, doctor, releases; risks = untested scope growth, silent breakage, leaks.
+- **9.0+ means:** reliable, CI-tested, secure-enough local session, operable errors/logs, lifecycle docs, portable setup.
+- **KPIs:** CI pass rate, regression detection in one PR cycle, >70% critical-path coverage, zero cookie leaks in logs.
 - **Three-sprint sketch:** Sprint 1 = E01?E07 + start E08; Sprint 2 = E08?E12 + early E14; Sprint 3 = E13?E15 + E16?E19; **write tools:** land **E20-E21** with **T37-T40** when E11/E12 are green.
 
 ### 11.4 Score projection (after roadmap)
 
-| Category | Current | Target |
-|----------|---------|--------|
-| Architecture | 7.5 | 8.8 |
-| Features | 8.5 | 9.2 |
-| Reliability | 7.0 | 9.0 |
-| Security | 6.0 | 8.6 |
-| Testing | 4.5 | 8.5 |
-| DevEx | 8.5 | 9.2 |
-| Portability | 6.0 | 8.7 |
-| Docs | 8.0 | 9.0 |
-| Polish | 7.0 | 9.1 |
-| Production readiness | 7.0 | 9.0 |
+| Category             | Current | Target |
+| -------------------- | ------- | ------ |
+| Architecture         | 7.5     | 8.8    |
+| Features             | 8.5     | 9.2    |
+| Reliability          | 7.0     | 9.0    |
+| Security             | 6.0     | 8.6    |
+| Testing              | 4.5     | 8.5    |
+| DevEx                | 8.5     | 9.2    |
+| Portability          | 6.0     | 8.7    |
+| Docs                 | 8.0     | 9.0    |
+| Polish               | 7.0     | 9.1    |
+| Production readiness | 7.0     | 9.0    |
 
 ---
 
 ## 12. Phase D ? Maintainer / codebase health
 
-- **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in **?2.4**; full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).  
+- **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in **?2.4**; full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
 - **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); gates **E20-E21** in **§2.5**.
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
@@ -1000,25 +1002,25 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 
 ## Appendix A ? Documentation map
 
-| Topic | Path |
-|-------|------|
-| **This master plan** | `docs/PROJECT_MASTER.md` |
-| Engine versioning policy | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (22 tools) | `docs/tools/README.md` |
-| T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md` |
-| E2E run log (create when running T11) | `docs/e2e-run-log.md` |
-| Deadlines tool ? roadmap & testing | `docs/tools/deadlines/roadmap.md` |
-| Deadlines ? history | `docs/tools/deadlines/history.md` |
-| File / PDF ? history & roadmap | `docs/tools/get_file_text/history.md`, `roadmap.md` |
-| User-facing README | `README.md` |
+| Topic                                    | Path                                                       |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| **This master plan**                     | `docs/PROJECT_MASTER.md`                                   |
+| Engine versioning policy                 | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
+| Tool-by-tool docs index (22 tools)       | `docs/tools/README.md`                                     |
+| T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md`                                 |
+| E2E run log (create when running T11)    | `docs/e2e-run-log.md`                                      |
+| Deadlines tool ? roadmap & testing       | `docs/tools/deadlines/roadmap.md`                          |
+| Deadlines ? history                      | `docs/tools/deadlines/history.md`                          |
+| File / PDF ? history & roadmap           | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
+| User-facing README                       | `README.md`                                                |
 
 ---
 
 ## Appendix B ? Scripts directory policy
 
-- **Keep:** `setup.mjs`, `setup-claude.sh`, `tsconfig.json`, and the small set listed in [`scripts/README.md`](../scripts/README.md) (`test-scraper`, deadlines/month/item-details, `test-pdf-parser`, `debug-file-url`).  
-- **Remove from git or move to gitignored `scripts/output/`:** Captured dumps ? `*.txt`, `*.json`, `.html` that are probe outputs.  
-- **Optional:** `scripts/archive/` for one-off investigations + [`scripts/README.md`](../scripts/README.md).  
+- **Keep:** `setup.mjs`, `setup-claude.sh`, `tsconfig.json`, and the small set listed in [`scripts/README.md`](../scripts/README.md) (`test-scraper`, deadlines/month/item-details, `test-pdf-parser`, `debug-file-url`).
+- **Remove from git or move to gitignored `scripts/output/`:** Captured dumps ? `*.txt`, `*.json`, `.html` that are probe outputs.
+- **Optional:** `scripts/archive/` for one-off investigations + [`scripts/README.md`](../scripts/README.md).
 
 ---
 
@@ -1030,4 +1032,4 @@ The following were deleted from the repo root; use this file instead:
 
 ---
 
-*End of project master document.*
+_End of project master document._

@@ -3,7 +3,9 @@ import { isSessionValid } from '../src/scraper/session';
 
 async function main() {
   if (!isSessionValid()) {
-    console.error('ERROR: No session file found or it is stale. Please visit http://localhost:3000/auth first.');
+    console.error(
+      'ERROR: No session file found or it is stale. Please visit http://localhost:3000/auth first.'
+    );
     process.exit(1);
   }
 
@@ -35,4 +37,3 @@ main().catch((e) => {
   console.error('❌ ERROR:', e);
   process.exit(1);
 });
-
