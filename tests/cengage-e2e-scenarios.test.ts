@@ -25,8 +25,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('cengage T23 scenario coverage', () => {
-  it('scenario: direct dashboard link lists courses', async () => {
+describe('cengage mocked tool-contract scenarios (T23 baseline)', () => {
+  it('mocked scenario: direct dashboard link lists courses', async () => {
     const entryUrl = uniqueUrl(
       'https://www.cengage.com/dashboard/home',
       'dashboard'
@@ -46,7 +46,7 @@ describe('cengage T23 scenario coverage', () => {
     expect(listSpy).toHaveBeenCalledWith(entryUrl);
   });
 
-  it('scenario: direct course link returns assignments', async () => {
+  it('mocked scenario: direct course link returns assignments', async () => {
     const directCourseUrl = uniqueUrl(
       'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1001',
       'course'
@@ -86,7 +86,7 @@ describe('cengage T23 scenario coverage', () => {
     expect(assignmentsSpy).toHaveBeenCalledWith(directCourseUrl);
   });
 
-  it('scenario: auth-expired recovery returns auth_required and retry guidance', async () => {
+  it('mocked scenario: auth-expired recovery returns auth_required and retry guidance', async () => {
     const entryUrl = uniqueUrl(
       'https://www.cengage.com/dashboard/home',
       'auth-expired'

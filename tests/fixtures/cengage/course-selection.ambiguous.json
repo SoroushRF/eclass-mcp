@@ -1,0 +1,34 @@
+{
+  "query": "math 1010 calculus",
+  "courses": [
+    {
+      "courseId": "course-001",
+      "courseKey": "WA-production-1001",
+      "title": "MATH 1010 - Calculus I",
+      "launchUrl": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1001",
+      "platform": "webassign",
+      "confidence": 0.95
+    },
+    {
+      "courseId": "course-002",
+      "courseKey": "WA-production-1002",
+      "title": "MATH 1010 - Calculus II",
+      "launchUrl": "https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1002",
+      "platform": "webassign",
+      "confidence": 0.93
+    },
+    {
+      "courseId": "bio-abc",
+      "courseKey": "BIO-ABC",
+      "title": "Biology: Intro to Cells",
+      "launchUrl": "https://www.cengage.com/mindtap/course/bio-abc?courseId=bio-abc",
+      "platform": "cengage",
+      "confidence": 0.8
+    }
+  ],
+  "expectedStatus": "ambiguous",
+  "expectedCandidateTitles": [
+    "MATH 1010 - Calculus I",
+    "MATH 1010 - Calculus II"
+  ]
+}

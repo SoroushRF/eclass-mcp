@@ -1,6 +1,6 @@
 # E2E Run Log
 
-Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows.
+Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows. **P11b (Cengage live-like coverage expansion)** is complete as of **2026-04-11** with dedicated fixture/navigation semantics coverage and explicit mocked-vs-live-like naming split.
 
 ## P00 Baseline Snapshot - 2026-04-10 (Pre Dashboard-First Runtime Pivot)
 
@@ -193,6 +193,39 @@ Result summary:
 ### Notes
 - These rows validate the Cengage flows required by T23 at the tool-contract level.
 - Claude Desktop and Inspector row templates for manual host verification are documented in `docs/t11-e2e-handbook.md` section 13.
+
+## Run [5] - 2026-04-11 (P11b Live-Like Cengage Coverage)
+
+### Environment
+| Field | Value |
+|-------|-------|
+| Date | 2026-04-11 |
+| OS | Windows (PowerShell) |
+| Node version | v24.11.1 |
+| Repo base commit | 5e6fc15 |
+| Execution mode | Fixture/navigation semantics + mocked-contract split verification |
+
+### Command
+
+```powershell
+npx vitest run tests/cengage-live-like-navigation.test.ts tests/cengage-fixtures.test.ts tests/cengage-courses.test.ts tests/cengage-e2e-scenarios.test.ts
+```
+
+Result summary:
+- Test Files: 4 passed
+- Tests: all passing in local P11b matrix
+
+### P11b Scenario Rows
+| # | Scenario | Suite | Status | Evidence |
+|---|----------|-------|--------|----------|
+| C11B-L1 | Student-home transition settling (redirect -> dashboard -> student_home -> assignments) | `tests/cengage-live-like-navigation.test.ts` | Pass | Row `tracks student-home transition path and settles on assignments state` verifies transition path and settled state |
+| C11B-L2 | Ambiguous dashboard selection remains deterministic | `tests/cengage-live-like-navigation.test.ts` | Pass | Row `keeps ambiguous course selection deterministic for near-duplicate titles` validates stable `status="ambiguous"` candidates |
+| C11B-L3 | Dashboard-first multi-course assignment semantics from fixture rows | `tests/cengage-live-like-navigation.test.ts` | Pass | Row `parses dashboard-first assignment rows from multiple courses with preserved course metadata` validates course-preserved parsed outputs |
+| C11B-M1 | Mocked tool-contract baseline remains explicit and passing | `tests/cengage-e2e-scenarios.test.ts` | Pass | Suite renamed to `cengage mocked tool-contract scenarios (T23 baseline)`; all rows still passing |
+
+### Notes
+- Naming split is now explicit: mocked contract scenarios live in `tests/cengage-e2e-scenarios.test.ts`, while live-like fixture/navigation semantics are covered in `tests/cengage-live-like-navigation.test.ts`.
+- This run reduces blind spots in transition handling and ambiguous-selection semantics without replacing the existing mocked contract guardrails.
 
 ## T25 Regression Template
 

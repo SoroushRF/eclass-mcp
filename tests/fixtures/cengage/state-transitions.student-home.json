@@ -1,0 +1,59 @@
+{
+  "sequence": [
+    {
+      "url": "https://login.cengage.com/oidc/authorize",
+      "title": "Redirecting... Please wait",
+      "bodyTextSnippet": "Please wait while we redirect you",
+      "hasPasswordInput": false,
+      "hasLoginButton": false,
+      "hasAssignmentsWrapper": false,
+      "hasDueDateText": false,
+      "hasPastAssignmentsButton": false,
+      "hasCourseLinks": false,
+      "hasInterstitialText": true
+    },
+    {
+      "url": "https://www.cengage.com/dashboard/home",
+      "title": "Dashboard",
+      "bodyTextSnippet": "My Courses",
+      "hasPasswordInput": false,
+      "hasLoginButton": false,
+      "hasAssignmentsWrapper": false,
+      "hasDueDateText": false,
+      "hasPastAssignmentsButton": false,
+      "hasCourseLinks": true,
+      "hasInterstitialText": false
+    },
+    {
+      "url": "https://www.webassign.net/web/Student/Home.html",
+      "title": "WebAssign Student Home",
+      "bodyTextSnippet": "Assignments Overview",
+      "hasPasswordInput": false,
+      "hasLoginButton": false,
+      "hasAssignmentsWrapper": false,
+      "hasDueDateText": false,
+      "hasPastAssignmentsButton": false,
+      "hasCourseLinks": false,
+      "hasInterstitialText": false
+    },
+    {
+      "url": "https://www.webassign.net/web/Student/Home.html",
+      "title": "WebAssign Assignments",
+      "bodyTextSnippet": "Due Date Apr 20, 2026",
+      "hasPasswordInput": false,
+      "hasLoginButton": false,
+      "hasAssignmentsWrapper": true,
+      "hasDueDateText": true,
+      "hasPastAssignmentsButton": true,
+      "hasCourseLinks": false,
+      "hasInterstitialText": false
+    }
+  ],
+  "expectedTransitionStates": [
+    "unknown",
+    "dashboard",
+    "student_home",
+    "assignments"
+  ],
+  "expectedFinalState": "assignments"
+}

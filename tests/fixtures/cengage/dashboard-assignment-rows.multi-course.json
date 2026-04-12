@@ -1,0 +1,43 @@
+{
+  "courses": [
+    {
+      "courseId": "math-1010",
+      "courseTitle": "MATH 1010 - Calculus I",
+      "rows": [
+        {
+          "id": "asg-5011",
+          "href": "/assignment/5011",
+          "name": "Homework 1",
+          "dueDate": "2026-04-12 23:59",
+          "statusHint": "Submitted",
+          "rowText": "Homework 1 Due Date Apr 12, 2026 11:59 PM Submitted"
+        },
+        {
+          "id": "asg-5012",
+          "href": "/assignment/5012",
+          "name": "Practice Quiz",
+          "dueDate": "2026-04-19 20:00",
+          "score": "0/10",
+          "statusHint": "Not Submitted",
+          "rowText": "Practice Quiz Due Date Apr 19, 2026 08:00 PM Not Submitted Score 0/10"
+        }
+      ]
+    },
+    {
+      "courseId": "math-1020",
+      "courseTitle": "MATH 1020 - Calculus II",
+      "rows": [
+        {
+          "id": "asg-6011",
+          "href": "/assignment/6011",
+          "name": "Lab 1",
+          "dueDate": "2026-04-15 17:00",
+          "score": "10/10",
+          "statusHint": "Graded",
+          "rowText": "Lab 1 Due Date Apr 15, 2026 05:00 PM Graded Score 10/10"
+        }
+      ]
+    }
+  ],
+  "expectedTotalAssignments": 3
+}
