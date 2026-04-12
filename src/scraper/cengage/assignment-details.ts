@@ -161,10 +161,20 @@ const PDF_PARITY_MIN_TEXT_FOR_SAFE_TEXT = 250;
 const PDF_PARITY_MAX_PAYLOAD_BYTES = 800 * 1024;
 const PDF_PARITY_DEFAULT_CAPTURES_PER_QUESTION = 1;
 
-export async function extractAssignmentDetails(
-  page: Page,
+export interface NormalizedExtractAssignmentDetailsOptions {
+  maxQuestions: number;
+  maxQuestionTextChars: number;
+  maxAnswerTextChars: number;
+  includeAnswers: boolean;
+  includeResources: boolean;
+  includeAssetInventory: boolean;
+  maxInteractiveAssets: number;
+  maxMediaAssets: number;
+}
+
+export function normalizeExtractAssignmentDetailsOptions(
   options: ExtractAssignmentDetailsOptions = {}
-): Promise<ExtractedAssignmentDetails> {
+): NormalizedExtractAssignmentDetailsOptions {
   const maxQuestions = Number.isFinite(options.maxQuestions)
     ? Math.max(1, Math.trunc(options.maxQuestions as number))
     : DEFAULT_MAX_QUESTIONS;
@@ -188,6 +198,91 @@ export async function extractAssignmentDetails(
   const maxMediaAssets = Number.isFinite(options.maxMediaAssets)
     ? Math.max(1, Math.trunc(options.maxMediaAssets as number))
     : DEFAULT_MAX_MEDIA_ASSETS;
+
+  return {
+    maxQuestions,
+    maxQuestionTextChars,
+    maxAnswerTextChars,
+    includeAnswers,
+    includeResources,
+    includeAssetInventory,
+    maxInteractiveAssets,
+    maxMediaAssets,
+  };
+}
+
+export interface NormalizedCaptureAssignmentRenderedMediaOptions {
+  maxRenderedImages: number;
+  maxCaptureUnits: number;
+  maxCapturePerQuestion: number;
+  maxPayloadBytes: number;
+  minTextForSafeText: number;
+  captureDpi: number;
+}
+
+export function normalizeCaptureAssignmentRenderedMediaOptions(
+  options: CaptureAssignmentRenderedMediaOptions = {}
+): NormalizedCaptureAssignmentRenderedMediaOptions {
+  const maxRenderedImages = Number.isFinite(options.maxRenderedImages)
+    ? Math.max(
+        1,
+        Math.min(
+          PDF_PARITY_MAX_IMAGE_PAGES,
+          Math.trunc(options.maxRenderedImages as number)
+        )
+      )
+    : PDF_PARITY_MAX_IMAGE_PAGES;
+
+  const maxCaptureUnits = Number.isFinite(options.maxCaptureUnits)
+    ? Math.max(
+        1,
+        Math.min(
+          PDF_PARITY_MAX_TOTAL_UNITS,
+          Math.trunc(options.maxCaptureUnits as number)
+        )
+      )
+    : PDF_PARITY_MAX_TOTAL_UNITS;
+
+  const maxCapturePerQuestion = Number.isFinite(options.maxCapturePerQuestion)
+    ? Math.max(1, Math.trunc(options.maxCapturePerQuestion as number))
+    : PDF_PARITY_DEFAULT_CAPTURES_PER_QUESTION;
+
+  const maxPayloadBytes = Number.isFinite(options.maxPayloadBytes)
+    ? Math.max(10_000, Math.trunc(options.maxPayloadBytes as number))
+    : PDF_PARITY_MAX_PAYLOAD_BYTES;
+
+  const minTextForSafeText = Number.isFinite(options.minTextForSafeText)
+    ? Math.max(1, Math.trunc(options.minTextForSafeText as number))
+    : PDF_PARITY_MIN_TEXT_FOR_SAFE_TEXT;
+
+  const captureDpi = Number.isFinite(options.captureDpi)
+    ? Math.max(72, Math.trunc(options.captureDpi as number))
+    : PDF_PARITY_DEFAULT_DPI;
+
+  return {
+    maxRenderedImages,
+    maxCaptureUnits,
+    maxCapturePerQuestion,
+    maxPayloadBytes,
+    minTextForSafeText,
+    captureDpi,
+  };
+}
+
+export async function extractAssignmentDetails(
+  page: Page,
+  options: ExtractAssignmentDetailsOptions = {}
+): Promise<ExtractedAssignmentDetails> {
+  const {
+    maxQuestions,
+    maxQuestionTextChars,
+    maxAnswerTextChars,
+    includeAnswers,
+    includeResources,
+    includeAssetInventory,
+    maxInteractiveAssets,
+    maxMediaAssets,
+  } = normalizeExtractAssignmentDetailsOptions(options);
 
   return page.evaluate(
     ({
@@ -998,7 +1093,7 @@ export async function extractAssignmentDetails(
   );
 }
 
-function escapeCssIdentifier(value: string): string {
+export function escapeCssIdentifier(value: string): string {
   return value.replace(/([ !"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
 }
 
@@ -1016,41 +1111,14 @@ export async function captureAssignmentRenderedMedia(
   details: ExtractedAssignmentDetails,
   options: CaptureAssignmentRenderedMediaOptions = {}
 ): Promise<ExtractedAssignmentRenderedMediaSummary> {
-  const maxRenderedImages = Number.isFinite(options.maxRenderedImages)
-    ? Math.max(
-        1,
-        Math.min(
-          PDF_PARITY_MAX_IMAGE_PAGES,
-          Math.trunc(options.maxRenderedImages as number)
-        )
-      )
-    : PDF_PARITY_MAX_IMAGE_PAGES;
-
-  const maxCaptureUnits = Number.isFinite(options.maxCaptureUnits)
-    ? Math.max(
-        1,
-        Math.min(
-          PDF_PARITY_MAX_TOTAL_UNITS,
-          Math.trunc(options.maxCaptureUnits as number)
-        )
-      )
-    : PDF_PARITY_MAX_TOTAL_UNITS;
-
-  const maxCapturePerQuestion = Number.isFinite(options.maxCapturePerQuestion)
-    ? Math.max(1, Math.trunc(options.maxCapturePerQuestion as number))
-    : PDF_PARITY_DEFAULT_CAPTURES_PER_QUESTION;
-
-  const maxPayloadBytes = Number.isFinite(options.maxPayloadBytes)
-    ? Math.max(10_000, Math.trunc(options.maxPayloadBytes as number))
-    : PDF_PARITY_MAX_PAYLOAD_BYTES;
-
-  const minTextForSafeText = Number.isFinite(options.minTextForSafeText)
-    ? Math.max(1, Math.trunc(options.minTextForSafeText as number))
-    : PDF_PARITY_MIN_TEXT_FOR_SAFE_TEXT;
-
-  const captureDpi = Number.isFinite(options.captureDpi)
-    ? Math.max(72, Math.trunc(options.captureDpi as number))
-    : PDF_PARITY_DEFAULT_DPI;
+  const {
+    maxRenderedImages,
+    maxCaptureUnits,
+    maxCapturePerQuestion,
+    maxPayloadBytes,
+    minTextForSafeText,
+    captureDpi,
+  } = normalizeCaptureAssignmentRenderedMediaOptions(options);
 
   const candidates = await page.evaluate(
     ({

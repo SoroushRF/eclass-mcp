@@ -230,29 +230,28 @@ describe('cache key + expiry helpers', () => {
   });
 
   it('clear removes non-pinned JSON files only', () => {
-    const pinnedKey = getCacheKey('vitest-clear-all', 'pinned');
-    const normalKey = getCacheKey('vitest-clear-all', 'normal');
+    const pinnedName = 'pinned.json';
+    const normalName = 'normal.json';
+    const nonJsonName = 'notes.txt';
 
-    const pinnedFile = writeEntryFile(pinnedKey, {
-      expires_at: '2030-01-01T00:00:00.000Z',
-      fetched_at: '2026-01-01T00:00:00.000Z',
-      data: {},
-      version: CACHE_SCHEMA_VERSION,
-    });
-    const normalFile = writeEntryFile(normalKey, {
-      expires_at: '2030-01-01T00:00:00.000Z',
-      fetched_at: '2026-01-01T00:00:00.000Z',
-      data: {},
-      version: CACHE_SCHEMA_VERSION,
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([
+      pinnedName,
+      normalName,
+      nonJsonName,
+    ] as any);
+
+    const unlinkSpy = vi.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+      return undefined;
     });
 
     vi.spyOn(pins, 'getPinnedCacheFilenames').mockReturnValue(
-      new Set([path.basename(pinnedFile)])
+      new Set([pinnedName])
     );
 
     cache.clear();
 
-    expect(fs.existsSync(pinnedFile)).toBe(true);
-    expect(fs.existsSync(normalFile)).toBe(false);
+    expect(unlinkSpy).toHaveBeenCalledTimes(1);
+    expect(unlinkSpy).toHaveBeenCalledWith(path.join(CACHE_DIR, normalName));
   });
 });

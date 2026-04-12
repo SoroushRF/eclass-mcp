@@ -107,11 +107,11 @@ export interface WebAssignAssignmentDetailsResult {
   selectionMessage?: string;
 }
 
-function normalizeComparableText(value: string | undefined): string {
+export function normalizeComparableText(value: string | undefined): string {
   return (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function normalizeAssignmentStatus(
+export function normalizeAssignmentStatus(
   value: string | undefined
 ): 'pending' | 'submitted' | 'graded' | 'unknown' {
   const normalized = normalizeComparableText(value);
@@ -122,7 +122,7 @@ function normalizeAssignmentStatus(
   return 'unknown';
 }
 
-function mapAssignmentSelection(
+export function mapAssignmentSelection(
   assignment: WebAssignAssignment
 ): WebAssignAssignmentSelection {
   return {
@@ -136,7 +136,10 @@ function mapAssignmentSelection(
   };
 }
 
-function normalizeComparableUrl(value: string, baseUrl?: string): string {
+export function normalizeComparableUrl(
+  value: string,
+  baseUrl?: string
+): string {
   const raw = (value || '').trim();
   if (!raw) return '';
 
@@ -149,7 +152,7 @@ function normalizeComparableUrl(value: string, baseUrl?: string): string {
   }
 }
 
-function resolveAbsoluteUrl(
+export function resolveAbsoluteUrl(
   value: string | undefined,
   baseUrl: string
 ): string {
@@ -163,7 +166,7 @@ function resolveAbsoluteUrl(
   }
 }
 
-function assignmentMatchesById(
+export function assignmentMatchesById(
   assignment: WebAssignAssignment,
   assignmentId: string
 ): boolean {
@@ -186,12 +189,12 @@ function assignmentMatchesById(
   );
 }
 
-interface AssignmentSelectionResolution {
+export interface AssignmentSelectionResolution {
   selected?: WebAssignAssignment;
   message?: string;
 }
 
-function resolveAssignmentSelection(params: {
+export function resolveAssignmentSelection(params: {
   assignments: WebAssignAssignment[];
   baseUrl: string;
   assignmentUrl?: string;
