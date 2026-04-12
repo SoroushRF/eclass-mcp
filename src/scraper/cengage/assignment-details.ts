@@ -258,40 +258,47 @@ export async function extractAssignmentDetails(
       const splitPromptByPartMarkers = (
         value: string
       ): ExtractedAssignmentPromptSection[] => {
-        const markerRegex = /Part\s+(\d+)\s+of\s+(\d+)\s*-\s*/gi;
-        const matches = Array.from(value.matchAll(markerRegex));
-        if (matches.length === 0) {
+        const markerPrefixRegex =
+          /(?=Part\s+\d+\s+of\s+\d+\b(?:\s*[-:\u2013\u2014])?)/gi;
+
+        const segments = value
+          .split(markerPrefixRegex)
+          .map((segment) => normalizeText(segment))
+          .filter((segment) => segment.length > 0);
+
+        if (segments.length === 0) {
           return [];
         }
 
         const sections: ExtractedAssignmentPromptSection[] = [];
-        const intro = normalizeText(value.slice(0, matches[0]?.index || 0));
-        if (intro) {
-          sections.push({ title: 'Overview', text: intro });
-        }
+        let runningPartIndex = 0;
 
-        for (let i = 0; i < matches.length; i++) {
-          const current = matches[i];
-          const start = current.index || 0;
-          const end =
-            i + 1 < matches.length
-              ? matches[i + 1].index || value.length
-              : value.length;
-          const text = normalizeText(value.slice(start, end));
-          if (!text) {
+        for (const segment of segments) {
+          const headerMatch = segment.match(
+            /^Part\s+(\d+)\s+of\s+(\d+)\b(?:\s*[-:\u2013\u2014])?/i
+          );
+
+          if (!headerMatch) {
+            if (sections.length === 0) {
+              sections.push({ title: 'Overview', text: segment });
+            } else {
+              const previous = sections[sections.length - 1];
+              if (previous) {
+                previous.text = normalizeText(`${previous.text} ${segment}`);
+              }
+            }
             continue;
           }
 
-          const partNumber =
-            current[1] || current[0]?.match(/Part\s+(\d+)/i)?.[1] || `${i + 1}`;
-          const totalParts =
-            current[2] ||
-            current[0]?.match(/of\s+(\d+)/i)?.[1] ||
-            `${matches.length}`;
+          runningPartIndex += 1;
+          const partNumber = headerMatch[1] || `${runningPartIndex}`;
+          const totalParts = headerMatch[2] || undefined;
 
           sections.push({
-            title: `Part ${partNumber} of ${totalParts}`,
-            text,
+            title: totalParts
+              ? `Part ${partNumber} of ${totalParts}`
+              : `Part ${partNumber}`,
+            text: segment,
           });
         }
 
