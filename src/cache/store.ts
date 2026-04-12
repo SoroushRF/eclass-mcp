@@ -216,6 +216,25 @@ class CacheStore {
 
 export const cache = new CacheStore();
 
+/** Clears Cengage dashboard/course caches after Cengage re-auth refreshes session state. */
+export function clearCengageCacheArtifacts(): number {
+  const prefixes = [
+    `v${CACHE_SCHEMA_VERSION}:cengage:dashboard_inventory`,
+    `v${CACHE_SCHEMA_VERSION}:cengage:list_courses`,
+    `v${CACHE_SCHEMA_VERSION}:cengage:assignments`,
+    'cengage:dashboard_inventory',
+    'cengage:list_courses',
+    'cengage:assignments',
+  ];
+
+  let total = 0;
+  for (const prefix of prefixes) {
+    total += cache.clearByPrefix(prefix);
+  }
+
+  return total;
+}
+
 /** Absolute path to the JSON cache file for a logical cache key. */
 export function getCacheFilePathForKey(key: string): string {
   return path.join(CACHE_DIR, `${sanitizeCacheKeyForFilename(key)}.json`);

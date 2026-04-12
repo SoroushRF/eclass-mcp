@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as authServer from '../src/auth/server';
+import { CACHE_SCHEMA_VERSION, cache, getCacheKey } from '../src/cache/store';
 import { CengageScraper } from '../src/scraper/cengage';
 import { CengageAuthRequiredError } from '../src/scraper/cengage-errors';
 import { listCengageCourses } from '../src/tools/cengage';
@@ -29,12 +30,52 @@ function uniqueEntryUrl(tag: string): string {
   return `https://www.cengage.com/dashboard/home?test=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function isolateDashboardInventoryCache() {
+  const inventoryKey = getCacheKey('cengage', 'dashboard_inventory', 'session');
+  const realGetWithMeta = cache.getWithMeta.bind(cache);
+  const realSet = cache.set.bind(cache);
+
+  let inventoryEntry: {
+    fetched_at: string;
+    expires_at: string;
+    data: unknown;
+    version: number;
+  } | null = null;
+
+  vi.spyOn(cache, 'getWithMeta').mockImplementation((key: string) => {
+    if (key === inventoryKey) {
+      return inventoryEntry as any;
+    }
+    return realGetWithMeta(key as any) as any;
+  });
+
+  vi.spyOn(cache, 'set').mockImplementation(
+    (key: string, value, ttlMinutes) => {
+      if (key === inventoryKey) {
+        const now = new Date();
+        inventoryEntry = {
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + ttlMinutes * 60000
+          ).toISOString(),
+          data: value,
+          version: CACHE_SCHEMA_VERSION,
+        };
+        return;
+      }
+      realSet(key as any, value as any, ttlMinutes as any);
+    }
+  );
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('list cengage courses tool', () => {
   it('supports dashboard-first mode without entry URL', async () => {
+    isolateDashboardInventoryCache();
+
     const uniqueCourse = {
       ...SAMPLE_COURSES[0],
       title: `Dashboard Bootstrap ${Date.now()}`,
@@ -181,5 +222,43 @@ describe('list cengage courses tool', () => {
     const secondPayload = JSON.parse(second.content[0].text);
     expect(secondPayload._cache.hit).toBe(true);
     expect(listSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses dashboard inventory cache across no-entry query variants', async () => {
+    isolateDashboardInventoryCache();
+
+    const courseA = {
+      ...SAMPLE_COURSES[0],
+      title: `Inventory Cache A ${Date.now()}`,
+    };
+    const courseB = {
+      ...SAMPLE_COURSES[1],
+      title: `Inventory Cache B ${Date.now()}`,
+    };
+
+    const sessionListSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromSavedSession')
+      .mockResolvedValue([courseA, courseB]);
+    const entryListSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
+      .mockResolvedValue([courseA, courseB]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const first = await listCengageCourses({
+      courseQuery: courseA.title,
+    } as any);
+    const firstPayload = JSON.parse(first.content[0].text);
+    expect(firstPayload.status).toBe('ok');
+    expect(firstPayload.courses[0].title).toBe(courseA.title);
+
+    const second = await listCengageCourses({
+      courseQuery: courseB.title,
+    } as any);
+    const secondPayload = JSON.parse(second.content[0].text);
+    expect(secondPayload.status).toBe('ok');
+    expect(secondPayload.courses[0].title).toBe(courseB.title);
+
+    expect(sessionListSpy).toHaveBeenCalledTimes(1);
+    expect(entryListSpy).not.toHaveBeenCalled();
   });
 });

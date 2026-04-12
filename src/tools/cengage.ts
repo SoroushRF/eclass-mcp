@@ -34,6 +34,11 @@ const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
 const CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY = '__dashboard_session__';
+const CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY = getCacheKey(
+  'cengage',
+  'dashboard_inventory',
+  'session'
+);
 
 type DiscoveredLinkItem = DiscoverCengageLinksResponse['links'][number];
 
@@ -457,6 +462,25 @@ function resolveAssignmentsInput(
   return input;
 }
 
+async function getDashboardInventoryFromSessionCache(
+  scraper: CengageScraper
+): Promise<CengageDashboardCourse[]> {
+  const cached = cache.getWithMeta<CengageDashboardCourse[]>(
+    CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY
+  );
+  if (cached) {
+    return cached.data;
+  }
+
+  const courses = await scraper.listDashboardCoursesFromSavedSession();
+  cache.set(
+    CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY,
+    courses,
+    CENGAGE_LIST_COURSES_TTL_MINUTES
+  );
+  return courses;
+}
+
 export async function listCengageCourses(input: ListCengageCoursesInput) {
   const entryUrl = resolveListingEntryUrl(input);
   const cacheKey = cengageCacheKey('list_courses', {
@@ -481,7 +505,7 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
     scraper = new CengageScraper();
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
-      : await scraper.listDashboardCoursesFromSavedSession();
+      : await getDashboardInventoryFromSessionCache(scraper);
 
     if (courses.length === 0) {
       const payload: ListCengageCoursesResponse = {
@@ -693,7 +717,7 @@ export async function getCengageAssignments(
 
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
-      : await scraper.listDashboardCoursesFromSavedSession();
+      : await getDashboardInventoryFromSessionCache(scraper);
     const selection = resolveDashboardCourseSelection(courses, {
       courseId: args.courseId,
       courseKey: args.courseKey,

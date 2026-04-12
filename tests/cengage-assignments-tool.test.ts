@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as authServer from '../src/auth/server';
+import { CACHE_SCHEMA_VERSION, cache, getCacheKey } from '../src/cache/store';
 import { CengageScraper } from '../src/scraper/cengage';
 import { CengageAuthRequiredError } from '../src/scraper/cengage-errors';
 import { getCengageAssignments } from '../src/tools/cengage';
@@ -18,12 +19,52 @@ function uniqueEntryUrl(tag: string): string {
   return `https://www.cengage.com/dashboard/home?test=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function isolateDashboardInventoryCache() {
+  const inventoryKey = getCacheKey('cengage', 'dashboard_inventory', 'session');
+  const realGetWithMeta = cache.getWithMeta.bind(cache);
+  const realSet = cache.set.bind(cache);
+
+  let inventoryEntry: {
+    fetched_at: string;
+    expires_at: string;
+    data: unknown;
+    version: number;
+  } | null = null;
+
+  vi.spyOn(cache, 'getWithMeta').mockImplementation((key: string) => {
+    if (key === inventoryKey) {
+      return inventoryEntry as any;
+    }
+    return realGetWithMeta(key as any) as any;
+  });
+
+  vi.spyOn(cache, 'set').mockImplementation(
+    (key: string, value, ttlMinutes) => {
+      if (key === inventoryKey) {
+        const now = new Date();
+        inventoryEntry = {
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + ttlMinutes * 60000
+          ).toISOString(),
+          data: value,
+          version: CACHE_SCHEMA_VERSION,
+        };
+        return;
+      }
+      realSet(key as any, value as any, ttlMinutes as any);
+    }
+  );
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
 
 describe('get cengage assignments tool on new core', () => {
   it('supports dashboard-first mode when entry URL is omitted', async () => {
+    isolateDashboardInventoryCache();
+
     const uniqueCourse = {
       ...SAMPLE_COURSE,
       title: `Dashboard Bootstrap ${Date.now()}`,
@@ -222,5 +263,49 @@ describe('get cengage assignments tool on new core', () => {
     expect(secondPayload._cache.hit).toBe(true);
     expect(listSpy).toHaveBeenCalledTimes(1);
     expect(assignmentsSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('reuses dashboard inventory cache across no-entry assignment queries', async () => {
+    isolateDashboardInventoryCache();
+
+    const courseA = {
+      ...SAMPLE_COURSE,
+      title: `Inventory Assignments A ${Date.now()}`,
+      launchUrl:
+        'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-6101',
+    };
+    const courseB = {
+      ...SAMPLE_COURSE,
+      courseId: 'math-1020',
+      courseKey: 'WA-production-6102',
+      title: `Inventory Assignments B ${Date.now()}`,
+      launchUrl:
+        'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-6102',
+    };
+
+    const sessionListSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromSavedSession')
+      .mockResolvedValue([courseA, courseB]);
+    const entryListSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
+      .mockResolvedValue([courseA, courseB]);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const first = await getCengageAssignments({ courseQuery: courseA.title });
+    const firstPayload = JSON.parse(first.content[0].text);
+    expect(firstPayload.status).toBe('no_data');
+    expect(firstPayload.selectedCourse.title).toBe(courseA.title);
+
+    const second = await getCengageAssignments({ courseQuery: courseB.title });
+    const secondPayload = JSON.parse(second.content[0].text);
+    expect(secondPayload.status).toBe('no_data');
+    expect(secondPayload.selectedCourse.title).toBe(courseB.title);
+
+    expect(sessionListSpy).toHaveBeenCalledTimes(1);
+    expect(entryListSpy).not.toHaveBeenCalled();
+    expect(assignmentsSpy).toHaveBeenCalledTimes(2);
   });
 });

@@ -1,6 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
+  CACHE_SCHEMA_VERSION,
   TTL,
+  cache,
+  clearCengageCacheArtifacts,
   sanitizeCacheKeyForFilename,
   isCacheEntryExpired,
 } from '../src/cache/store';
@@ -29,5 +32,29 @@ describe('cache key + expiry helpers', () => {
     const now = new Date('2026-06-01T00:00:00.000Z');
     expect(isCacheEntryExpired(past, now)).toBe(true);
     expect(isCacheEntryExpired(future, now)).toBe(false);
+  });
+
+  it('clears all Cengage cache artifact prefixes', () => {
+    const clearSpy = vi
+      .spyOn(cache, 'clearByPrefix')
+      .mockImplementation(() => 1);
+
+    const cleared = clearCengageCacheArtifacts();
+
+    expect(cleared).toBe(6);
+    expect(clearSpy).toHaveBeenCalledWith(
+      `v${CACHE_SCHEMA_VERSION}:cengage:dashboard_inventory`
+    );
+    expect(clearSpy).toHaveBeenCalledWith(
+      `v${CACHE_SCHEMA_VERSION}:cengage:list_courses`
+    );
+    expect(clearSpy).toHaveBeenCalledWith(
+      `v${CACHE_SCHEMA_VERSION}:cengage:assignments`
+    );
+    expect(clearSpy).toHaveBeenCalledWith('cengage:dashboard_inventory');
+    expect(clearSpy).toHaveBeenCalledWith('cengage:list_courses');
+    expect(clearSpy).toHaveBeenCalledWith('cengage:assignments');
+
+    clearSpy.mockRestore();
   });
 });

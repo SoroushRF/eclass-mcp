@@ -162,6 +162,9 @@ export async function startAuthServer() {
         await context.storageState({ path: CENGAGE_STATE_PATH });
         saveCengageSessionMetadata({ statePath: CENGAGE_STATE_PATH });
 
+        const { clearCengageCacheArtifacts } = await import('../cache/store');
+        clearCengageCacheArtifacts();
+
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
