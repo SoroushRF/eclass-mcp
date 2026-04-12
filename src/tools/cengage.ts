@@ -54,10 +54,7 @@ const CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY = getCacheKey(
   'session'
 );
 
-export {
-  discoverCengageLinksFromFileBlocks,
-  discoverCengageLinksFromText,
-};
+export { discoverCengageLinksFromFileBlocks, discoverCengageLinksFromText };
 export type { DiscoverCengageLinksFromFileBlocksInput };
 
 async function getDashboardInventoryFromSessionCache(

@@ -9,7 +9,9 @@ import {
   ListCengageCoursesResponseSchema,
 } from '../cengage-contracts';
 
-export function asAssignmentsToolResponse(payload: GetCengageAssignmentsResponse) {
+export function asAssignmentsToolResponse(
+  payload: GetCengageAssignmentsResponse
+) {
   const validated = GetCengageAssignmentsResponseSchema.parse(payload);
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(validated) }],
