@@ -2,7 +2,7 @@
 
 This directory contains one folder per currently registered MCP tool in `src/index.ts`.
 
-## Current tools (22)
+## Current tools (23)
 
 - `list_courses` -> `docs/tools/list_courses/README.md`
 - `get_course_content` -> `docs/tools/get_course_content/README.md`
@@ -20,6 +20,7 @@ This directory contains one folder per currently registered MCP tool in `src/ind
 - `discover_cengage_links` -> `docs/tools/discover_cengage_links/README.md`
 - `list_cengage_courses` -> `docs/tools/list_cengage_courses/README.md`
 - `get_cengage_assignments` -> `docs/tools/get_cengage_assignments/README.md` (dashboard-first by default; supports `entryUrl` and legacy `ssoUrl` for fallback compatibility)
+- `get_cengage_assignment_details` -> `docs/tools/get_cengage_assignment_details/README.md`
 - `clear_cache` — see [README.md](../../README.md) (T26; skips pinned entries)
 - `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, `cache_delete_pinned` — see [README.md](../../README.md) (T27 pinned cache)
 

@@ -181,7 +181,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - [x] **T05** ? eClass scraper core (`src/scraper/eclass.ts`, `SessionExpiredError`, real scraping APIs; evolved well beyond original mock stage).
 - [x] **T06** ? File parsers (`src/parser/pdf.ts`, `docx.ts`, `pptx.ts`; PDF path later upgraded ? see file-tool docs).
 - [x] **T07** ? MCP tool modules (`src/tools/*.ts`, cache + session error handling).
-- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **22 tools** today vs original 6).
+- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **23 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** ??? **Formal Claude Desktop E2E verification** ??? **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
@@ -654,7 +654,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 - Cengage auth/session handling and navigation were hardened for dashboard and direct-course entry links, including auth-expired recovery behavior.
 - Operational default is now dashboard-first: sign in once, list courses without `entryUrl`, then fetch assignments via course selectors.
 - Discovery and explicit launch links are retained as bootstrap/fallback compatibility paths, not the primary execution path.
-- Three Cengage MCP tools are registered and validated: `discover_cengage_links`, `list_cengage_courses`, and `get_cengage_assignments`.
+- Four Cengage MCP tools are registered and validated: `discover_cengage_links`, `list_cengage_courses`, `get_cengage_assignments`, and `get_cengage_assignment_details`.
 - Validation now includes fixture/snapshot coverage and explicit E2E scenario coverage documented in the handbook/run-log.
 
 #### Detailed implementation reference
@@ -706,7 +706,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (22)
+### 3.1 MCP tools currently registered (23)
 
 | Tool                      | Purpose                                                                                                |
 | ------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -726,6 +726,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 | `discover_cengage_links`  | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs                |
 | `list_cengage_courses`    | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback)    |
 | `get_cengage_assignments` | Retrieve Cengage/WebAssign assignment lists from dashboard-first flow with explicit-link compatibility |
+| `get_cengage_assignment_details` | Retrieve question-level Cengage/WebAssign assignment details, structured prompt sections, and additive rendered-media/asset metadata |
 | `clear_cache`             | Clear **non-pinned** cache by scope; pinned entries unchanged                                          |
 | `cache_pin`               | Pin file / section / course content cache entry (quota-limited)                                        |
 | `cache_unpin`             | Remove pin from registry (does not delete cache file)                                                  |
@@ -1006,7 +1007,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 | ---------------------------------------- | ---------------------------------------------------------- |
 | **This master plan**                     | `docs/PROJECT_MASTER.md`                                   |
 | Engine versioning policy                 | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (22 tools)       | `docs/tools/README.md`                                     |
+| Tool-by-tool docs index (23 tools)       | `docs/tools/README.md`                                     |
 | T11 / T20 ? Claude Desktop E2E procedure | `docs/t11-e2e-handbook.md`                                 |
 | E2E run log (create when running T11)    | `docs/e2e-run-log.md`                                      |
 | Deadlines tool ? roadmap & testing       | `docs/tools/deadlines/roadmap.md`                          |

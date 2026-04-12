@@ -84,6 +84,7 @@ flowchart LR
 | `discover_cengage_links`  | Detect and classify Cengage/WebAssign links from pasted text or extracted content                      | `text`, `source?`, `courseId?`, `sectionUrl?`, `sourceFile?`                                                                                                      |
 | `list_cengage_courses`    | List Cengage/WebAssign courses from saved-session dashboard flow (optional link fallback)              | `entryUrl?`, `discoveredLink?`, `courseQuery?`                                                                                                                    |
 | `get_cengage_assignments` | Fetch Cengage/WebAssign assignments from saved-session dashboard flow with bounded aggregation support | `courseId?`, `courseKey?`, `courseQuery?`, `allCourses?`, `maxCourses?`, `maxAssignmentsPerCourse?`, `entryUrl?`, `ssoUrl?` (legacy)                              |
+| `get_cengage_assignment_details` | Fetch question-level Cengage/WebAssign assignment details with prompt sections, asset inventory, rendered-media fallback metadata, and scoring hints | `assignmentUrl?`, `assignmentId?`, `assignmentQuery?`, `courseId?`, `courseKey?`, `courseQuery?`, `includeAnswers?`, `includeResources?`, `includeAssetInventory?`, `includeRenderedMedia?`, `maxQuestions?`, `maxQuestionTextChars?`, `maxAnswerTextChars?` |
 | `clear_cache`             | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed     | `scope?`                                                                                                                                                          |
 | `cache_pin`               | Pin a resource already in cache (kept past TTL until unpinned)                                         | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?`                                                                                                       |
 | `cache_unpin`             | Remove pin metadata without deleting cache files                                                       | `pinId`                                                                                                                                                           |
@@ -103,12 +104,13 @@ flowchart LR
 
 1. **Default workflow:** authenticate once via `/auth-cengage`, call `list_cengage_courses` without `entryUrl`, then call `get_cengage_assignments` with `courseQuery`, `courseId`, or `courseKey`.
 2. **Aggregation workflow:** set `allCourses=true` in `get_cengage_assignments` to collect bounded summaries across dashboard courses (`maxCourses`, `maxAssignmentsPerCourse`).
-3. **When enrollment links still matter:** use explicit `entryUrl` when the course is not yet visible in dashboard inventory (for example first-time enrollment wrappers) or when reproducing a specific launch path.
-4. **Discovery role:** `discover_cengage_links` is bootstrap/fallback only; use it after dashboard-first calls cannot locate the needed course, then retry with discovered `entryUrl`/selection input.
-5. **Compatibility path:** `get_cengage_assignments` still accepts legacy `ssoUrl`; `entryUrl` remains the preferred explicit-link field.
-6. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
-7. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
-8. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
+3. **Details workflow:** after selecting an assignment, call `get_cengage_assignment_details` with `assignmentId`/`assignmentUrl`/`assignmentQuery` for question-level extraction and structured metadata.
+4. **When enrollment links still matter:** use explicit `entryUrl` when the course is not yet visible in dashboard inventory (for example first-time enrollment wrappers) or when reproducing a specific launch path.
+5. **Discovery role:** `discover_cengage_links` is bootstrap/fallback only; use it after dashboard-first calls cannot locate the needed course, then retry with discovered `entryUrl`/selection input.
+6. **Compatibility path:** `get_cengage_assignments` and `get_cengage_assignment_details` still accept legacy `ssoUrl`; `entryUrl` remains the preferred explicit-link field.
+7. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
+8. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
+9. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
 
 > 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
@@ -206,6 +208,7 @@ You're done. Ask Claude anything about your courses.
 "What do students say about the difficulty of John Doe's classes?"
 "List my Cengage/WebAssign courses from my saved session."
 "Get Cengage assignments for MATH 1014 using courseQuery."
+"Get full question-level details for Cengage assignment 38902818 in courseKey WA-production-1606311."
 "Get Cengage assignment summaries across all my courses (bounded mode)."
 "If dashboard-first misses the course, find Cengage/WebAssign links in this syllabus text as fallback."
 ```
@@ -285,7 +288,7 @@ rm -rf dist && npm.cmd run build
 
 | Topic                                                                   | Location                                                                                                                                 |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool-by-tool docs index (all 22 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
+| Tool-by-tool docs index (all 23 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
 | Cengage implementation and migration plan                               | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md)                                     |
 | Deadlines tool — full roadmap & architecture                            | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md)                                                                     |
 | Deadlines — implementation history                                      | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md)                                                                     |
@@ -310,7 +313,7 @@ rm -rf dist && npm.cmd run build
 - [x] DOCX and PPTX parsers
 - [x] **Grades tool** — full gradebook scraping with feedback (`get_grades`)
 - [x] **Announcements tool** — recent post extraction (`get_announcements`)
-- [x] **Cengage/WebAssign tools** — discovery, course listing, and assignment retrieval with auth-retry + `_cache` parity
+- [x] **Cengage/WebAssign tools** — discovery, course listing, assignment retrieval, and assignment-details extraction with auth-retry + `_cache` parity
 - [ ] **Harden quiz page selectors** — grade extraction missing in some cases _(P3)_
 - [ ] **Richer assignment descriptions** — extract authored content, not just boilerplate _(P4)_
 - [ ] **Smart image detection** — entropy/vision-based diagram isolation for PDFs
