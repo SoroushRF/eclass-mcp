@@ -5,17 +5,17 @@ Replace the current link-first Cengage/WebAssign flow with a dashboard-first flo
 
 This pivot is motivated by a real product gap:
 - The repo can authenticate the user to Cengage/WebAssign already.
-- The current tools still assume we should start from an `entryUrl` discovered from eClass, a PDF, or a pasted link.
+- Before the pivot, tools assumed we should start from an `entryUrl` discovered from eClass, a PDF, or a pasted link.
 - In practice, instructors use many different link shapes, wrappers, PDFs, and enrollment pages.
 - WebAssign is easier to model as "log into your account, enumerate your dashboard courses, then open assignments."
 
 ## Current State Summary
 - Cengage auth already exists via `/auth-cengage` and saves Playwright storage state under `.eclass-mcp/`.
-- `list_cengage_courses` and `get_cengage_assignments` are currently entry-link driven.
-- `discover_cengage_links` is useful, but it is acting like a primary workflow step instead of a fallback/bootstrap step.
-- `inferCourseFromCurrentPage()` can invent a synthetic course from a launch page URL, which is sometimes helpful but also causes misleading results for enrollment pages like `getenrolled.com`.
-- Current "E2E" coverage for Cengage is mostly mocked at the tool-contract level, so it does not fully validate live dashboard-first behavior.
-- Real dashboard dumps show stable card-level selectors (`home-page-entitlement-card-*`, `home-page-title`, `home-page-launch-course-link`) that we should parse directly.
+- `list_cengage_courses` and `get_cengage_assignments` now support dashboard-first mode without `entryUrl`, while preserving explicit-link compatibility.
+- `discover_cengage_links` is retained as bootstrap/fallback and remains useful for edge cases.
+- Enrollment wrappers such as `getenrolled.com` no longer masquerade as stable course inventory by default.
+- Cengage helper internals are now split under `src/tools/cengage/*` and `src/scraper/cengage/*` for maintainability.
+- Coverage now includes fixture and scenario suites for dashboard and selection flows; additional live-like breadth remains in scope under P11b.
 
 ## Target Product Shape
 - Primary flow:
@@ -34,6 +34,11 @@ This pivot is motivated by a real product gap:
 - Do not remove discovery-based flows entirely.
 - Do not couple WebAssign logic tightly to eClass course content.
 - Do not redesign WeBWorK in this doc; WeBWorK may still need a more hybrid model.
+
+## Progress Snapshot (2026-04-11)
+- Completed in repo: P00, P01, P02a, P02b, P02c, P03, P03a, P04, P05, P06, P07, P10.
+- Next task in sequence: P08 (bounded all-courses/all-assignments aggregation mode).
+- Remaining major items after P10: P08, P09, P11b, P12.
 
 ## Task List (Refined)
 
@@ -112,6 +117,7 @@ Notes:
 
 Main files:
 - `src/scraper/cengage.ts`
+- `src/scraper/cengage/navigation.ts`
 - `src/tools/cengage.ts`
 
 Done criteria:
@@ -172,6 +178,7 @@ Notes:
 
 Main files:
 - `src/scraper/cengage.ts`
+- `src/scraper/cengage/dashboard-inventory.ts`
 - `src/scraper/cengage-courses.ts`
 - `tests/fixtures/cengage/*`
 - `tests/cengage-fixtures.test.ts`
@@ -214,6 +221,7 @@ Notes:
 
 Main files:
 - `src/tools/cengage.ts`
+- `src/tools/cengage/cache.ts`
 - `src/cache/store.ts`
 - `src/auth/server.ts`
 
@@ -258,6 +266,7 @@ Notes:
 Main files:
 - `src/tools/cengage.ts`
 - `src/scraper/cengage.ts`
+- `src/scraper/cengage/assignments.ts`
 - `docs/tools/get_cengage_assignments/README.md`
 
 Done criteria:
@@ -279,6 +288,7 @@ Notes:
 Main files:
 - `src/tools/cengage.ts`
 - `src/scraper/cengage.ts`
+- `src/scraper/cengage/assignments.ts`
 - `src/tools/cengage-contracts.ts`
 
 Done criteria:
@@ -298,6 +308,7 @@ Notes:
 
 Main files:
 - `src/tools/cengage.ts`
+- `src/tools/cengage/link-discovery.ts`
 - `docs/tools/discover_cengage_links/README.md`
 - `README.md`
 
@@ -319,10 +330,12 @@ Notes:
 Main files:
 - `src/scraper/cengage-state.ts`
 - `src/scraper/cengage.ts`
+- `src/scraper/cengage/navigation.ts`
+- `tests/cengage-state.test.ts`
 
 Done criteria:
 - Canonical dashboard-first entry is resilient to redirect churn.
-- Structured diagnostics remain available for unknown states.
+- Structured diagnostics remain available for unknown states and transition paths.
 
 Dependencies:
 - P07.

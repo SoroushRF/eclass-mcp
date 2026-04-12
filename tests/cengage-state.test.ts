@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   classifyCengagePageState,
   detectCengagePageState,
+  waitForCengagePageState,
   type CengagePageStateSignals,
 } from '../src/scraper/cengage-state';
 
@@ -38,13 +39,13 @@ describe('cengage page state detector', () => {
     expect(result.state).toBe('assignments');
   });
 
-  it('detects course when on webassign student URL without assignment markers', () => {
+  it('detects student-home when on webassign student URL without assignment markers', () => {
     const result = classify({
       url: 'https://www.webassign.net/web/Student/Home.html',
       title: 'WebAssign Student Home',
     });
 
-    expect(result.state).toBe('course');
+    expect(result.state).toBe('student_home');
   });
 
   it('detects course when webassign login includes courseKey', () => {
@@ -132,5 +133,59 @@ describe('cengage page state detector', () => {
     expect(result.state).toBe('dashboard');
     expect(evaluate).toHaveBeenCalledTimes(2);
     expect(page.waitForLoadState).toHaveBeenCalled();
+  });
+
+  it('waits through redirect/interstitial states and settles on dashboard', async () => {
+    let callCount = 0;
+    let currentUrl = 'https://login.cengage.com/oidc/authorize';
+
+    const evaluate = vi.fn().mockImplementation(() => {
+      callCount += 1;
+      if (callCount === 1) {
+        return {
+          title: 'Redirecting... Please wait',
+          bodyTextSnippet: 'Please wait while we redirect you',
+          hasPasswordInput: false,
+          hasLoginButton: false,
+          hasAssignmentsWrapper: false,
+          hasDueDateText: false,
+          hasPastAssignmentsButton: false,
+          hasCourseLinks: false,
+          hasInterstitialText: true,
+        };
+      }
+
+      currentUrl = 'https://www.cengage.com/dashboard/home';
+      return {
+        title: 'Dashboard',
+        bodyTextSnippet: 'My Courses',
+        hasPasswordInput: false,
+        hasLoginButton: false,
+        hasAssignmentsWrapper: false,
+        hasDueDateText: false,
+        hasPastAssignmentsButton: false,
+        hasCourseLinks: true,
+        hasInterstitialText: false,
+      };
+    });
+
+    const page = {
+      evaluate,
+      url: () => currentUrl,
+      waitForLoadState: vi.fn().mockResolvedValue(undefined),
+      waitForTimeout: vi.fn().mockResolvedValue(undefined),
+    } as any;
+
+    const result = await waitForCengagePageState(page, {
+      timeoutMs: 2000,
+      pollIntervalMs: 1,
+      stableReadings: 1,
+      acceptableStates: ['dashboard'],
+    });
+
+    expect(result.state).toBe('dashboard');
+    expect(result.diagnostics.transitionPath?.length).toBeGreaterThanOrEqual(2);
+    expect(result.diagnostics.transitionPath?.[0]?.state).toBe('unknown');
+    expect(result.diagnostics.transitionPath?.[1]?.state).toBe('dashboard');
   });
 });

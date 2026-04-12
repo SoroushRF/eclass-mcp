@@ -4,6 +4,7 @@ export type CengagePageState =
   | 'login'
   | 'dashboard'
   | 'enrollment'
+  | 'student_home'
   | 'course'
   | 'assignments'
   | 'unknown';
@@ -18,6 +19,20 @@ export interface CengagePageStateSignals {
   hasDueDateText?: boolean;
   hasPastAssignmentsButton?: boolean;
   hasCourseLinks?: boolean;
+  hasInterstitialText?: boolean;
+}
+
+export interface CengagePageStateTransition {
+  state: CengagePageState;
+  reason: string;
+  url: string;
+}
+
+export interface WaitForCengagePageStateOptions {
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+  stableReadings?: number;
+  acceptableStates?: CengagePageState[];
 }
 
 export interface CengagePageStateResult {
@@ -33,14 +48,26 @@ export interface CengagePageStateResult {
       hasDueDateText: boolean;
       hasPastAssignmentsButton: boolean;
       hasCourseLinks: boolean;
+      hasInterstitialText: boolean;
       hasWebassignStudentUrl: boolean;
       hasWebassignLoginWithCourseKey: boolean;
       hasGetEnrolledCourseKey: boolean;
       hasDashboardUrl: boolean;
       hasLoginUrl: boolean;
     };
+    transitionPath?: CengagePageStateTransition[];
+    detectionAttempts?: number;
   };
 }
+
+const DEFAULT_SETTLED_STATES: readonly CengagePageState[] = [
+  'login',
+  'dashboard',
+  'enrollment',
+  'student_home',
+  'course',
+  'assignments',
+];
 
 function normalizeSignals(signals: CengagePageStateSignals) {
   const url = (signals.url || '').trim();
@@ -89,6 +116,11 @@ function normalizeSignals(signals: CengagePageStateSignals) {
     lowerBody.includes('my courses') ||
     lowerTitle.includes('dashboard');
 
+  const hasInterstitialText =
+    !!signals.hasInterstitialText ||
+    /redirect|please wait|loading|authorizing|one moment/i.test(lowerTitle) ||
+    /redirect|please wait|loading|authorizing|one moment/i.test(lowerBody);
+
   return {
     url,
     title,
@@ -98,6 +130,7 @@ function normalizeSignals(signals: CengagePageStateSignals) {
     hasDueDateText,
     hasPastAssignmentsButton,
     hasCourseLinks,
+    hasInterstitialText,
     hasWebassignStudentUrl,
     hasWebassignLoginWithCourseKey,
     hasGetEnrolledCourseKey,
@@ -145,13 +178,39 @@ export function classifyCengagePageState(
     };
   }
 
-  if (
-    normalized.hasWebassignStudentUrl ||
-    normalized.hasWebassignLoginWithCourseKey
-  ) {
+  if (normalized.hasWebassignStudentUrl) {
+    return {
+      state: 'student_home',
+      reason: 'Detected WebAssign student-home context.',
+      diagnostics: {
+        url: normalized.url,
+        title: normalized.title,
+        markers: {
+          ...normalized,
+        },
+      },
+    };
+  }
+
+  if (normalized.hasWebassignLoginWithCourseKey) {
     return {
       state: 'course',
       reason: 'Detected WebAssign course/student context.',
+      diagnostics: {
+        url: normalized.url,
+        title: normalized.title,
+        markers: {
+          ...normalized,
+        },
+      },
+    };
+  }
+
+  if (normalized.hasInterstitialText) {
+    return {
+      state: 'unknown',
+      reason:
+        'Detected redirect/interstitial loading markers while navigation is still settling.',
       diagnostics: {
         url: normalized.url,
         title: normalized.title,
@@ -239,6 +298,8 @@ async function collectCengagePageStateSignals(
       hasDueDateText: /due date/i.test(bodyText),
       hasPastAssignmentsButton,
       hasCourseLinks,
+      hasInterstitialText:
+        /redirect|please wait|loading|authorizing|one moment/i.test(bodyText),
     };
   });
 
@@ -279,6 +340,81 @@ export async function detectCengagePageState(
         .catch(() => null);
       await page.waitForTimeout(250);
     }
+  }
+
+  throw new Error('Failed to detect Cengage page state.');
+}
+
+function withTransitionDiagnostics(
+  result: CengagePageStateResult,
+  transitions: CengagePageStateTransition[],
+  attempts: number
+): CengagePageStateResult {
+  return {
+    ...result,
+    diagnostics: {
+      ...result.diagnostics,
+      transitionPath: transitions,
+      detectionAttempts: attempts,
+    },
+  };
+}
+
+export async function waitForCengagePageState(
+  page: Page,
+  options: WaitForCengagePageStateOptions = {}
+): Promise<CengagePageStateResult> {
+  const timeoutMs = Math.max(500, options.timeoutMs ?? 12000);
+  const pollIntervalMs = Math.max(100, options.pollIntervalMs ?? 350);
+  const stableReadings = Math.max(1, options.stableReadings ?? 2);
+  const acceptableStates = options.acceptableStates ?? [
+    ...DEFAULT_SETTLED_STATES,
+  ];
+
+  const transitions: CengagePageStateTransition[] = [];
+  const deadline = Date.now() + timeoutMs;
+
+  let attempts = 0;
+  let stableCount = 0;
+  let lastSignature = '';
+  let lastResult: CengagePageStateResult | null = null;
+
+  while (Date.now() <= deadline) {
+    attempts += 1;
+    const result = await detectCengagePageState(page);
+    const signature = `${result.state}|${result.diagnostics.url}`;
+
+    if (signature !== lastSignature) {
+      transitions.push({
+        state: result.state,
+        reason: result.reason,
+        url: result.diagnostics.url,
+      });
+      stableCount = 1;
+      lastSignature = signature;
+    } else {
+      stableCount += 1;
+    }
+
+    lastResult = result;
+
+    if (
+      acceptableStates.includes(result.state) &&
+      stableCount >= stableReadings
+    ) {
+      return withTransitionDiagnostics(result, transitions, attempts);
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
+
+    await page.waitForTimeout(Math.min(pollIntervalMs, remainingMs));
+  }
+
+  if (lastResult) {
+    return withTransitionDiagnostics(lastResult, transitions, attempts);
   }
 
   throw new Error('Failed to detect Cengage page state.');

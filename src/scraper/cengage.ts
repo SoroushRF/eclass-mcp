@@ -15,7 +15,7 @@ import {
   getValidSessionStatePathOrThrow,
   withAuthenticatedPage,
 } from './cengage/navigation';
-import { detectCengagePageState } from './cengage-state';
+import { waitForCengagePageState } from './cengage-state';
 import {
   normalizeAndClassifyCengageEntry,
   type CengageEntryLinkType,
@@ -69,7 +69,11 @@ export class CengageScraper {
       allowSyntheticFallback?: boolean;
     }
   ): Promise<CengageDashboardCourse[]> {
-    const state = await detectCengagePageState(page);
+    const state = await waitForCengagePageState(page, {
+      timeoutMs: 9000,
+      pollIntervalMs: 300,
+      stableReadings: 1,
+    });
     if (state.state === 'login') {
       throw new CengageAuthRequiredError(
         'Cengage authentication is required before course discovery.',
@@ -88,7 +92,9 @@ export class CengageScraper {
 
     if (
       context.allowSyntheticFallback &&
-      (state.state === 'course' || state.state === 'assignments')
+      (state.state === 'student_home' ||
+        state.state === 'course' ||
+        state.state === 'assignments')
     ) {
       const fallback = inferCourseFromCurrentPage(
         page.url(),
@@ -250,7 +256,11 @@ export class CengageScraper {
       }
 
       // Initial state snapshot gives deterministic context for auth/dashboard/course transitions.
-      const initialState = await detectCengagePageState(page);
+      const initialState = await waitForCengagePageState(page, {
+        timeoutMs: 10000,
+        pollIntervalMs: 300,
+        stableReadings: 1,
+      });
       if (initialState.state === 'login') {
         throw new CengageAuthRequiredError(
           'Cengage authentication is required before assignment extraction.',
@@ -263,6 +273,7 @@ export class CengageScraper {
       }
 
       // Wait for the specific WebAssign student home URL or dashboard indicators
+      let continueAfterStateFallback = false;
       try {
         await page.waitForURL(
           /(.*webassign\.net\/web\/Student.*|.*webassign\.net\/v4cgi\/student.*)/i,
@@ -271,7 +282,11 @@ export class CengageScraper {
           }
         );
       } catch (error) {
-        const currentState = await detectCengagePageState(page);
+        const currentState = await waitForCengagePageState(page, {
+          timeoutMs: 7000,
+          pollIntervalMs: 300,
+          stableReadings: 1,
+        });
 
         if (currentState.state === 'login') {
           throw new CengageAuthRequiredError(
@@ -301,15 +316,31 @@ export class CengageScraper {
           );
         }
 
-        throw new CengageNavigationError(
-          'Could not reach a WebAssign student page from the provided URL.',
-          {
-            entryUrl,
-            linkType: entry.linkType,
-            pageState: currentState,
-            cause: error instanceof Error ? error.message : 'Unknown error',
-          }
-        );
+        if (
+          currentState.state === 'assignments' ||
+          currentState.state === 'student_home' ||
+          currentState.state === 'course'
+        ) {
+          continueAfterStateFallback = true;
+        }
+
+        if (continueAfterStateFallback) {
+          console.error(
+            `[Cengage] waitForURL timeout recovered via state detection: ${currentState.state}`
+          );
+        }
+
+        if (!continueAfterStateFallback) {
+          throw new CengageNavigationError(
+            'Could not reach a WebAssign student page from the provided URL.',
+            {
+              entryUrl,
+              linkType: entry.linkType,
+              pageState: currentState,
+              cause: error instanceof Error ? error.message : 'Unknown error',
+            }
+          );
+        }
       }
 
       // Check if we need to click "Past Assignments" to see anything
