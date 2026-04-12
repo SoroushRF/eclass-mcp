@@ -1,12 +1,15 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { RMPClient, type RMPTeacherSearch } from '../scraper/rmp';
+import { UpstreamError } from '../scraper/scrape-errors';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
+  EclassToolErrorResponseSchema,
   RmpProfessorDetailsToolResponseSchema,
   RmpProfessorNotFoundResponseSchema,
   RmpSearchToolResponseSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
+import { toErrorPayload } from '../errors/tool-error';
 
 const rmpClient = new RMPClient();
 
@@ -233,6 +236,17 @@ export async function searchProfessorsTool(args: any) {
     }
     return toSearchToolResult(finalResp);
   } catch (error: any) {
+    if (error instanceof UpstreamError) {
+      return asValidatedMcpText(
+        'search_professors',
+        EclassToolErrorResponseSchema,
+        toErrorPayload(error.code, error.message, {
+          ...(error.httpStatus !== undefined
+            ? { details: { httpStatus: error.httpStatus } }
+            : {}),
+        })
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to search RMP: ${error.message}`
@@ -331,6 +345,17 @@ export async function getProfessorDetailsTool(args: any) {
 
     return toDetailsToolResult(response);
   } catch (error: any) {
+    if (error instanceof UpstreamError) {
+      return asValidatedMcpText(
+        'get_professor_details',
+        EclassToolErrorResponseSchema,
+        toErrorPayload(error.code, error.message, {
+          ...(error.httpStatus !== undefined
+            ? { details: { httpStatus: error.httpStatus } }
+            : {}),
+        })
+      );
+    }
     throw new McpError(
       ErrorCode.InternalError,
       `Failed to fetch RMP details: ${error.message}`

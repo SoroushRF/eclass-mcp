@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { ScrapeLayoutError } from '../src/scraper/eclass';
+import {
+  ScrapeLayoutError,
+  UpstreamError,
+  upstreamErrorFromHttpStatus,
+  upstreamErrorFromUnknown,
+} from '../src/scraper/eclass';
 import { SessionExpiredError } from '../src/scraper/session';
 import { MACHINE_CODES, isMachineCode } from '../src/errors/codes';
 import {
@@ -28,6 +33,39 @@ describe('E12 Phase 2 — ScrapeLayoutError', () => {
     expect(err.code).toBe('SCRAPE_LAYOUT_CHANGED');
     const payload = toErrorPayload('SCRAPE_LAYOUT_CHANGED', err.message, {
       details: err.context,
+    });
+    expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(true);
+  });
+});
+
+describe('E12 Phase 3 — UpstreamError', () => {
+  it('maps HTTP status to RATE_LIMITED for 429', () => {
+    const err = upstreamErrorFromHttpStatus(429, 'too many');
+    expect(err.code).toBe('RATE_LIMITED');
+    expect(err.httpStatus).toBe(429);
+    const payload = toErrorPayload(err.code, err.message, {
+      details: { httpStatus: err.httpStatus },
+    });
+    expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(true);
+  });
+
+  it('maps HTTP 408/504 to TIMEOUT', () => {
+    expect(upstreamErrorFromHttpStatus(408, 'x').code).toBe('TIMEOUT');
+    expect(upstreamErrorFromHttpStatus(504, 'y').code).toBe('TIMEOUT');
+    expect(upstreamErrorFromHttpStatus(500, 'z').code).toBe('UPSTREAM_ERROR');
+  });
+
+  it('upstreamErrorFromUnknown maps TimeoutError to TIMEOUT', () => {
+    const te = new Error('waiting failed');
+    te.name = 'TimeoutError';
+    const mapped = upstreamErrorFromUnknown(te);
+    expect(mapped.code).toBe('TIMEOUT');
+  });
+
+  it('UpstreamError validates as tool error payload', () => {
+    const err = new UpstreamError('UPSTREAM_ERROR', 'net fail', 502);
+    const payload = toErrorPayload(err.code, err.message, {
+      details: { httpStatus: err.httpStatus },
     });
     expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(true);
   });

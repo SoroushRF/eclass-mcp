@@ -1,3 +1,9 @@
+import {
+  UpstreamError,
+  upstreamErrorFromHttpStatus,
+  upstreamErrorFromUnknown,
+} from './scrape-errors';
+
 /**
  * RMP API Client for GraphQL interactions
  */
@@ -229,7 +235,10 @@ export class RMPClient {
           const message = data.errors
             .map((err) => err.message || 'unknown RMP error')
             .join('; ');
-          throw new Error(`RMP GraphQL errors: ${message}`);
+          throw new UpstreamError(
+            'UPSTREAM_ERROR',
+            `RMP GraphQL errors: ${message}`
+          );
         }
 
         const teachers = data?.data?.newSearch?.teachers?.edges || [];
@@ -308,7 +317,10 @@ export class RMPClient {
       const message = data.errors
         .map((err) => err.message || 'unknown RMP error')
         .join('; ');
-      throw new Error(`RMP GraphQL errors: ${message}`);
+      throw new UpstreamError(
+        'UPSTREAM_ERROR',
+        `RMP GraphQL errors: ${message}`
+      );
     }
     const teacher = data?.data?.node;
 
@@ -353,12 +365,21 @@ export class RMPClient {
 
       const raw = await response.text();
       if (!response.ok) {
-        throw new Error(
+        throw upstreamErrorFromHttpStatus(
+          response.status,
           `RMP API error: ${response.status} ${response.statusText} body=${raw.slice(0, 300)}`
         );
       }
 
-      const parsed = JSON.parse(raw) as GraphQLResponse;
+      let parsed: GraphQLResponse;
+      try {
+        parsed = JSON.parse(raw) as GraphQLResponse;
+      } catch (parseErr) {
+        throw new UpstreamError(
+          'UPSTREAM_ERROR',
+          `RMP response was not valid JSON: ${parseErr instanceof Error ? parseErr.message : String(parseErr)}`
+        );
+      }
       if (parsed.errors?.length) {
         console.error(
           `[RMP] GraphQL response errors: ${JSON.stringify(parsed.errors)}`
@@ -368,7 +389,8 @@ export class RMPClient {
       return parsed;
     } catch (error) {
       console.error('RMP Fetch error:', error);
-      throw error instanceof Error ? error : new Error(String(error));
+      if (error instanceof UpstreamError) throw error;
+      throw upstreamErrorFromUnknown(error);
     }
   }
 }

@@ -2,6 +2,7 @@ import {
   scraper,
   ScrapeLayoutError,
   SessionExpiredError,
+  UpstreamError,
 } from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
@@ -127,6 +128,17 @@ export async function getFileText(
         EclassToolErrorResponseSchema,
         toErrorPayload('SCRAPE_LAYOUT_CHANGED', e.message, {
           details: e.context,
+        })
+      );
+    }
+    if (e instanceof UpstreamError) {
+      return asValidatedMcpText(
+        'get_file_text',
+        EclassToolErrorResponseSchema,
+        toErrorPayload(e.code, e.message, {
+          ...(e.httpStatus !== undefined
+            ? { details: { httpStatus: e.httpStatus } }
+            : {}),
         })
       );
     }
