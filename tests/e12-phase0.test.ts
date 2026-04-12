@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { ScrapeLayoutError } from '../src/scraper/eclass';
 import { SessionExpiredError } from '../src/scraper/session';
 import { MACHINE_CODES, isMachineCode } from '../src/errors/codes';
 import {
@@ -8,6 +9,7 @@ import {
 import { ListCengageCoursesResponseSchema } from '../src/tools/cengage-contracts';
 import {
   EclassAuthRequiredSchema,
+  EclassToolErrorResponseSchema,
   MachineCodeSchema,
   PinToolJsonPayloadSchema,
   SisExamScheduleResponseSchema,
@@ -17,6 +19,17 @@ describe('E12 Phase 1 — SessionExpiredError', () => {
   it('exposes code SESSION_EXPIRED on the class', () => {
     const err = new SessionExpiredError('test');
     expect(err.code).toBe('SESSION_EXPIRED');
+  });
+});
+
+describe('E12 Phase 2 — ScrapeLayoutError', () => {
+  it('exposes code SCRAPE_LAYOUT_CHANGED', () => {
+    const err = new ScrapeLayoutError('layout', { page: 'x' });
+    expect(err.code).toBe('SCRAPE_LAYOUT_CHANGED');
+    const payload = toErrorPayload('SCRAPE_LAYOUT_CHANGED', err.message, {
+      details: err.context,
+    });
+    expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(true);
   });
 });
 

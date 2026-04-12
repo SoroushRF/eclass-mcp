@@ -17,3 +17,4 @@ export type {
   SectionTextData,
 } from './eclass/types';
 export { SessionExpiredError } from './eclass/types';
+export { ScrapeLayoutError } from './scrape-errors';

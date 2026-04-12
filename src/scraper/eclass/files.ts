@@ -1,5 +1,6 @@
 import type { EClassBrowserSession } from './browser-session';
 import path from 'path';
+import { ScrapeLayoutError } from '../scrape-errors';
 
 export async function downloadFile(
   session: EClassBrowserSession,
@@ -160,8 +161,9 @@ export async function downloadFile(
         mimeType = headers['content-type'] || 'application/octet-stream';
         buffer = await response.body();
       } else {
-        throw new Error(
-          'Hit an HTML wrapper page but could not extract a direct file URL even after JS rendering.'
+        throw new ScrapeLayoutError(
+          'Hit an HTML wrapper page but could not extract a direct file URL even after JS rendering.',
+          { page: 'download_file', phase: 'html_wrapper_no_direct_url' }
         );
       }
     }

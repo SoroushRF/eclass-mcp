@@ -18,6 +18,16 @@ export const EclassCacheMetaSchema = z
   })
   .passthrough();
 
+/** Structured tool error (non-auth), e.g. SCRAPE_LAYOUT_CHANGED (E12). */
+export const EclassToolErrorResponseSchema = z
+  .object({
+    status: z.literal('error'),
+    message: z.string(),
+    code: MachineCodeSchema,
+    details: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+
 /** Session / auth hint for eClass tools. */
 export const EclassAuthRequiredSchema = z
   .object({

@@ -1,9 +1,14 @@
-import { scraper, SessionExpiredError } from '../scraper/eclass';
+import {
+  scraper,
+  ScrapeLayoutError,
+  SessionExpiredError,
+} from '../scraper/eclass';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
-import { sessionExpiredPayload } from '../errors/tool-error';
+import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
   EclassAuthRequiredSchema,
+  EclassToolErrorResponseSchema,
   GetFileTextMcpResultSchema,
 } from './eclass-contracts';
 import {
@@ -113,6 +118,15 @@ export async function getFileText(
         sessionExpiredPayload(e.message, {
           afterAuth: true,
           authUrl: getAuthUrl('eclass'),
+        })
+      );
+    }
+    if (e instanceof ScrapeLayoutError) {
+      return asValidatedMcpText(
+        'get_file_text',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('SCRAPE_LAYOUT_CHANGED', e.message, {
+          details: e.context,
         })
       );
     }
