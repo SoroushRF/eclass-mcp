@@ -2,6 +2,15 @@ import type { DeadlineItem, DeadlineItemType, Assignment } from './types';
 import { SessionExpiredError } from './types';
 import type { Page } from 'playwright';
 
+export interface EClassAuthSignals {
+  url?: string;
+  title?: string;
+  hasPasswordInput?: boolean;
+  hasLoginForm?: boolean;
+  hasPassportYorkMarker?: boolean;
+  bodyTextSnippet?: string;
+}
+
 /**
  * Trims each query value. Clients/LLMs often paste broken URLs where `id` includes
  * spaces (e.g. id=148310%20%20%20...) which Moodle mishandles and navigation can hang.
@@ -23,8 +32,64 @@ export function sanitizeHttpUrlQueryParams(url: string): string {
   }
 }
 
+export function isEClassAuthPage(signals: EClassAuthSignals): boolean {
+  const url = (signals.url || '').toLowerCase();
+  const title = (signals.title || '').toLowerCase();
+  const body = (signals.bodyTextSnippet || '').toLowerCase();
+
+  const hasAuthUrlSignals =
+    url.includes('/login') ||
+    url.includes('saml') ||
+    url.includes('ppylogin') ||
+    url.includes('passportyork');
+
+  const hasAuthTitleSignals =
+    title.includes('passport york login') ||
+    title.includes('moodle login') ||
+    title.includes('log in to moodle') ||
+    title.includes('log in to eclass');
+
+  const hasAuthBodySignals =
+    body.includes('passport york login') ||
+    body.includes('new to passport york') ||
+    body.includes('you are not logged in');
+
+  const hasLoginFormSignals =
+    !!signals.hasLoginForm &&
+    (!!signals.hasPasswordInput || !!signals.hasPassportYorkMarker);
+
+  return (
+    hasAuthUrlSignals ||
+    hasAuthTitleSignals ||
+    hasAuthBodySignals ||
+    hasLoginFormSignals
+  );
+}
+
 export async function checkSession(page: Page) {
-  if (page.url().includes('login') || page.url().includes('saml')) {
+  const url = page.url();
+  if (isEClassAuthPage({ url })) {
+    throw new SessionExpiredError();
+  }
+
+  const signals = await page
+    .evaluate(() => {
+      const bodyText = document.body?.textContent || '';
+      return {
+        title: document.title || '',
+        hasPasswordInput: !!document.querySelector(
+          'input[type="password"], input#password'
+        ),
+        hasLoginForm: !!document.querySelector(
+          'form[action*="login"], form[name="loginform"], form[action*="ppylogin"]'
+        ),
+        hasPassportYorkMarker: bodyText.includes('Passport York Login'),
+        bodyTextSnippet: bodyText.slice(0, 2000),
+      };
+    })
+    .catch(() => null);
+
+  if (signals && isEClassAuthPage({ url, ...signals })) {
     throw new SessionExpiredError();
   }
 }

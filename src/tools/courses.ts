@@ -1,5 +1,5 @@
 import { scraper, SessionExpiredError, Course } from '../scraper/eclass';
-import { openAuthWindow } from '../auth/server';
+import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 
 export async function listCourses() {
@@ -25,14 +25,25 @@ export async function listCourses() {
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.COURSES * 60000);
-    const resp = attachCacheMeta(
-      { courses },
-      {
-        hit: false,
-        fetched_at: now.toISOString(),
-        expires_at: expiresAt.toISOString(),
-      }
-    );
+    const payload =
+      courses.length === 0
+        ? {
+            courses,
+            status: 'no_data',
+            message:
+              'No eClass courses were detected. If you are enrolled, re-authenticate and retry.',
+            retry: {
+              afterAuth: true,
+              authUrl: getAuthUrl('eclass'),
+            },
+          }
+        : { courses };
+
+    const resp = attachCacheMeta(payload, {
+      hit: false,
+      fetched_at: now.toISOString(),
+      expires_at: expiresAt.toISOString(),
+    });
 
     return {
       content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
@@ -40,7 +51,17 @@ export async function listCourses() {
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      const payload = {
+        status: 'auth_required',
+        message: e.message,
+        retry: {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        },
+      };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
+      };
     }
     throw e;
   }
