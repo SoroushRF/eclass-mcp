@@ -93,9 +93,13 @@ export async function extractAssignmentRowCandidates(
           if (!rowText || rowText.length < 12) continue;
 
           const lowerRowText = rowText.toLowerCase();
+          const hasAssignmentLink = !!row.querySelector(
+            'a[data-test^="assignment_link_"], a[href*="assignment"], a[href*="Assignment"]'
+          );
+          const dataTestValue = normalizeText(row.getAttribute('data-test'));
+          const hasAssignmentDataTest = /^assignment[_-]/i.test(dataTestValue);
           const hasAssignmentSignals =
             lowerRowText.includes('due date') ||
-            lowerRowText.includes('assignment') ||
             lowerRowText.includes('submitted') ||
             lowerRowText.includes('not submitted') ||
             lowerRowText.includes('past due') ||
@@ -103,7 +107,14 @@ export async function extractAssignmentRowCandidates(
             lowerRowText.includes('points') ||
             lowerRowText.includes('grade');
 
-          if (!hasAssignmentSignals) continue;
+          if (!hasAssignmentSignals && !hasAssignmentLink && !hasAssignmentDataTest)
+            continue;
+
+          const looksLikeHeaderRow =
+            !!row.querySelector('th[scope="col"]') &&
+            !hasAssignmentLink &&
+            !hasAssignmentDataTest;
+          if (looksLikeHeaderRow) continue;
 
           let name = '';
           for (const selector of nameSelectors) {
@@ -164,9 +175,17 @@ export async function extractAssignmentRowCandidates(
             (link?.getAttribute('href') || link?.href || '').toString()
           );
 
+          const dataTestAssignmentIdMatch = dataTestValue.match(
+            /^assignment[_-]([a-z0-9._-]+)$/i
+          );
+          const dataTestAssignmentId = normalizeText(
+            dataTestAssignmentIdMatch?.[1]
+          );
+
           const assignmentId = normalizeText(
             row.getAttribute('data-assignment-id') ||
               row.getAttribute('data-id') ||
+              dataTestAssignmentId ||
               row.id ||
               ''
           );

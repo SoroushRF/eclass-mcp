@@ -33,7 +33,11 @@ export interface ParseWebAssignAssignmentsOptions {
 
 export const ASSIGNMENT_CONTAINER_SELECTORS = [
   '#js-student-myAssignmentsWrapper',
+  '#js-student-myAssignmentsPage',
   '[id*="myAssignments"]',
+  '[data-test="currentAssignmentContainer"]',
+  '[data-test="pastAssignmentContainer"]',
+  '[data-test="allAssignmentContainer"]',
   '[data-testid*="assignment"][data-testid*="container"]',
   '[data-testid="my-assignments"]',
   '[data-e2e*="assignment"]',
@@ -42,6 +46,7 @@ export const ASSIGNMENT_CONTAINER_SELECTORS = [
 
 export const ASSIGNMENT_ROW_SELECTORS = [
   '[data-assignment-id]',
+  'tr[data-test^="assignment_"]',
   '[data-testid*="assignment-row"]',
   '.assignment-row',
   'li[class*="assignment"]',
@@ -53,6 +58,7 @@ export const ASSIGNMENT_ROW_SELECTORS = [
 ] as const;
 
 export const ASSIGNMENT_NAME_SELECTORS = [
+  '[data-test^="assignment_link_"]',
   '[data-testid*="assignment-title"]',
   '.assignment-title',
   'a[href*="assignment"]',
@@ -66,6 +72,7 @@ export const ASSIGNMENT_NAME_SELECTORS = [
 ] as const;
 
 export const ASSIGNMENT_DUE_DATE_SELECTORS = [
+  '[data-test="due"]',
   '[data-testid*="due"]',
   '[class*="due"]',
   'time[datetime]',
@@ -74,6 +81,7 @@ export const ASSIGNMENT_DUE_DATE_SELECTORS = [
 ] as const;
 
 export const ASSIGNMENT_SCORE_SELECTORS = [
+  '[data-test="score"]',
   '[data-testid*="score"]',
   '[class*="score"]',
   '[class*="grade"]',
@@ -82,6 +90,7 @@ export const ASSIGNMENT_SCORE_SELECTORS = [
 ] as const;
 
 export const ASSIGNMENT_STATUS_SELECTORS = [
+  '[data-test="status"]',
   '[data-testid*="status"]',
   '[class*="status"]',
   '[class*="submission"]',
@@ -98,6 +107,33 @@ function normalizeComparableToken(value: string | undefined): string {
     .replace(/[^a-z0-9]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function normalizeAssignmentName(value: string | undefined): string {
+  return normalizeText(value)
+    .replace(/\s*,?\s*due\s*date\s*:?\s+.*$/i, '')
+    .trim();
+}
+
+function isIgnoredAssignmentLabel(name: string): boolean {
+  const token = normalizeComparableToken(name);
+  const isSimpleTabLabel =
+    token === 'current assignments' ||
+    token === 'past assignments' ||
+    token === 'all assignments';
+  if (isSimpleTabLabel) {
+    return true;
+  }
+
+  if (token.includes('past assignment') && token.includes('restriction')) {
+    return true;
+  }
+
+  return (
+    token.includes('past assignment') &&
+    token.includes('due date') &&
+    token.includes('score')
+  );
 }
 
 const MONTHS: Record<string, number> = {
@@ -503,11 +539,12 @@ export function parseWebAssignAssignments(
   const deduped = new Map<string, CengageAssignmentRowCandidate>();
 
   for (const row of rows) {
-    const name = normalizeText(row.name);
+    const name = normalizeAssignmentName(row.name);
     const rowText = normalizeText(row.rowText);
 
     if (!name || !rowText) continue;
     if (name.toLowerCase() === 'unknown assignment') continue;
+    if (isIgnoredAssignmentLabel(name)) continue;
 
     const normalized: CengageAssignmentRowCandidate = {
       id: normalizeText(row.id) || undefined,

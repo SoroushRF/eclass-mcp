@@ -8,7 +8,10 @@ import {
   inferCourseFromCurrentPage,
   type CengageDashboardCourse,
 } from './cengage-courses';
-import { parseWebAssignAssignments } from './cengage-assignment-parser';
+import {
+  parseWebAssignAssignments,
+  type CengageAssignmentRowCandidate,
+} from './cengage-assignment-parser';
 import { extractAssignmentRowCandidates } from './cengage/assignments';
 import { extractDashboardCourseInventory } from './cengage/dashboard-inventory';
 import {
@@ -30,6 +33,31 @@ const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
   'https://login.cengage.com/',
 ];
 
+const ASSIGNMENT_TAB_SELECTOR_GROUPS = [
+  {
+    label: 'Past Assignments',
+    selectors: [
+      'button[data-analytics="past-assignments-tab"]',
+      '[role="tab"][data-analytics="past-assignments-tab"]',
+      '[role="tab"][aria-label*="Past Assignments"]',
+      'button[aria-label*="Past Assignments"]',
+      '[role="tab"]:has-text("Past Assignments")',
+      'button:has-text("Past Assignments")',
+    ],
+  },
+  {
+    label: 'All Assignments',
+    selectors: [
+      'button[data-analytics="all-assignments-tab"]',
+      '[role="tab"][data-analytics="all-assignments-tab"]',
+      '[role="tab"][aria-label*="All Assignments"]',
+      'button[aria-label*="All Assignments"]',
+      '[role="tab"]:has-text("All Assignments")',
+      'button:has-text("All Assignments")',
+    ],
+  },
+] as const;
+
 export interface WebAssignAssignment {
   name: string;
   dueDate: string;
@@ -45,6 +73,81 @@ export interface WebAssignAssignment {
 
 export class CengageScraper {
   private browser: Browser | null = null;
+
+  private async collectAssignmentRowsWithTabFallback(
+    page: Page
+  ): Promise<CengageAssignmentRowCandidate[]> {
+    let rowCandidates = await extractAssignmentRowCandidates(page);
+    if (rowCandidates.length > 0) {
+      return rowCandidates;
+    }
+
+    for (const tabGroup of ASSIGNMENT_TAB_SELECTOR_GROUPS) {
+      let matchedSelector: string | null = null;
+      let clicked = false;
+
+      for (const selector of tabGroup.selectors) {
+        const locator = page.locator(selector).first();
+        const count = await locator.count();
+        if (count === 0) {
+          continue;
+        }
+
+        const visible = await locator.isVisible().catch(() => false);
+        if (!visible) {
+          continue;
+        }
+
+        matchedSelector = selector;
+
+        const ariaSelected = (
+          (await locator.getAttribute('aria-selected')) || ''
+        ).toLowerCase();
+
+        if (ariaSelected !== 'true') {
+          const enabled = await locator.isEnabled().catch(() => true);
+          if (!enabled) {
+            matchedSelector = null;
+            continue;
+          }
+
+          await locator.click({ timeout: 2500 });
+          clicked = true;
+        }
+
+        break;
+      }
+
+      if (!matchedSelector) {
+        continue;
+      }
+
+      if (clicked) {
+        console.error(
+          `[Cengage] Switched assignment tab to "${tabGroup.label}" via: ${matchedSelector}`
+        );
+      } else {
+        console.error(
+          `[Cengage] "${tabGroup.label}" tab already selected via: ${matchedSelector}`
+        );
+      }
+
+      await page
+        .waitForLoadState('networkidle', { timeout: 3000 })
+        .catch(() => null);
+      await page.waitForTimeout(clicked ? 1500 : 800);
+
+      rowCandidates = await extractAssignmentRowCandidates(page);
+      if (rowCandidates.length > 0) {
+        console.error(
+          `[Cengage] Found ${rowCandidates.length} assignment rows after checking "${tabGroup.label}" tab.`
+        );
+        return rowCandidates;
+      }
+    }
+
+    return rowCandidates;
+  }
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browser) {
@@ -343,43 +446,9 @@ export class CengageScraper {
         }
       }
 
-      // Check if we need to click "Past Assignments" to see anything
-      // (This is common if there are no current assignments)
-      const hasAssignments = await page.isVisible(
-        'button:has-text("Assignment")'
+      const rowCandidates = await this.collectAssignmentRowsWithTabFallback(
+        page
       );
-      if (!hasAssignments) {
-        console.error(
-          `[Cengage] No current assignments visible, trying to reveal past assignments...`
-        );
-        try {
-          // Try various selectors for the "Past Assignments" tab/button
-          const selectors = [
-            'button:has-text("Past Assignments")',
-            'text="Past Assignments"',
-            '.css-q10f9y button', // Generic button in assignment container
-          ];
-
-          for (const selector of selectors) {
-            const btn = await page.$(selector);
-            if (btn && (await btn.isVisible())) {
-              await btn.click();
-              console.error(
-                `[Cengage] Clicked Past Assignments via: ${selector}`
-              );
-              break;
-            }
-          }
-          // Wait for data to load after click
-          await page.waitForTimeout(5000);
-        } catch (_error) {
-          console.error(
-            `[Cengage] Warning: Could not toggle past assignments view.`
-          );
-        }
-      }
-
-      const rowCandidates = await extractAssignmentRowCandidates(page);
       if (!Array.isArray(rowCandidates)) {
         throw new CengageParseError(
           'Unexpected assignment extraction payload type.',

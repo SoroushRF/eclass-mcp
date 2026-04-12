@@ -88,6 +88,47 @@ describe('cengage assignment parser v1', () => {
     expect(assignments[0].dueDateIso).toBe('2026-04-12T00:00:00');
   });
 
+  it('normalizes assignment names that inline due-date text', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        id: 'asg-3005',
+        name: 'Assignment 10, Due Date: April 3 (11:59PM)',
+        dueDate: 'Friday, April 3, 2026 at 11:59 PM EDT',
+        rowText:
+          'Assignment 10, Due Date: April 3 (11:59PM) Friday, April 3, 2026 at 11:59 PM EDT',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].name).toBe('Assignment 10');
+    expect(assignments[0].dueDate).toBe('2026-04-03 23:59');
+  });
+
+  it('ignores assignment tab/header labels captured as row-like candidates', () => {
+    const rows: CengageAssignmentRowCandidate[] = [
+      {
+        name: 'Current Assignments',
+        rowText: 'Current Assignments',
+      },
+      {
+        name: 'Past Assignments',
+        rowText: 'Past Assignments',
+      },
+      {
+        name: 'All Assignments',
+        rowText: 'All Assignments',
+      },
+      {
+        name: 'Past AssignmentsRestrictions',
+        rowText: 'Past Assignments Restrictions Due Date Score',
+      },
+    ];
+
+    const assignments = parseWebAssignAssignments(rows);
+    expect(assignments).toHaveLength(0);
+  });
+
   it('dedupes duplicate rows by assignment id and keeps richer candidate', () => {
     const rows: CengageAssignmentRowCandidate[] = [
       {
@@ -206,13 +247,20 @@ describe('cengage parser selector guards', () => {
     expect(ASSIGNMENT_CONTAINER_SELECTORS).toContain(
       '#js-student-myAssignmentsWrapper'
     );
+    expect(ASSIGNMENT_CONTAINER_SELECTORS).toContain(
+      '#js-student-myAssignmentsPage'
+    );
     expect(ASSIGNMENT_CONTAINER_SELECTORS).toContain('[id*="myAssignments"]');
+    expect(ASSIGNMENT_CONTAINER_SELECTORS).toContain(
+      '[data-test="pastAssignmentContainer"]'
+    );
     expect(ASSIGNMENT_CONTAINER_SELECTORS).not.toContain('body');
     expect(ASSIGNMENT_CONTAINER_SELECTORS).not.toContain('html');
   });
 
   it('contains assignment-focused row selectors', () => {
     expect(ASSIGNMENT_ROW_SELECTORS).toContain('[data-assignment-id]');
+    expect(ASSIGNMENT_ROW_SELECTORS).toContain('tr[data-test^="assignment_"]');
     expect(ASSIGNMENT_ROW_SELECTORS).toContain('li[class*="assignment"]');
     expect(ASSIGNMENT_ROW_SELECTORS).toContain('tr[class*="assignment"]');
   });
