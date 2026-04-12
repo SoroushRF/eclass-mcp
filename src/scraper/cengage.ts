@@ -605,18 +605,6 @@ export class CengageScraper {
     });
   }
 
-  async listDashboardCourses(
-    entryUrlInput?: string
-  ): Promise<CengageDashboardCourse[]> {
-    const hasExplicitEntry =
-      typeof entryUrlInput === 'string' && entryUrlInput.trim().length > 0;
-    if (!hasExplicitEntry) {
-      return this.listDashboardCoursesFromSavedSession();
-    }
-
-    return this.listDashboardCoursesFromEntryLink(entryUrlInput as string);
-  }
-
   async getAssignments(ssoUrl: string): Promise<WebAssignAssignment[]> {
     const entry = normalizeAndClassifyCengageEntry(ssoUrl);
     const entryUrl = entry.normalizedUrl;

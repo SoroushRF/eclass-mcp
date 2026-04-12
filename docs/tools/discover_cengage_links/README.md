@@ -13,7 +13,7 @@
 - Some edge hosts may classify as `other` until new patterns are added.
 
 ## Tests
-- `tests/cengage-link-classifier.test.ts`
+- `tests/cengage-url.test.ts`
 - `tests/cengage-file-link-mining.test.ts`
 - `tests/cengage-fixtures.test.ts`
 

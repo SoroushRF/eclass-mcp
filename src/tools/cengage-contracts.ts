@@ -179,12 +179,6 @@ export const GetCengageAssignmentsInputSchema = z.object({
     ),
 });
 
-export const GetCengageAssignmentsLegacyInputSchema = z.object({
-  ssoUrl: z
-    .string()
-    .describe('Legacy LTI/SSO URL extracted from eClass or Cengage dashboard.'),
-});
-
 export const GetCengageAssignmentsResponseSchema = z.object({
   status: CengageToolStatusSchema,
   entryUrl: z.string().optional(),

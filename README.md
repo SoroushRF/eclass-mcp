@@ -82,7 +82,7 @@ flowchart LR
 | `search_professors` | Finds professor profiles on RateMyProfessors | `name`, `campus?` |
 | `get_professor_details` | Fetches detailed ratings, difficulty, and comments for a professor | `teacherId` |
 | `discover_cengage_links` | Detect and classify Cengage/WebAssign links from pasted text or extracted content | `text`, `source?`, `courseId?`, `sectionUrl?`, `sourceFile?` |
-| `list_cengage_courses` | List Cengage/WebAssign courses from dashboard/course entry links | `entryUrl`, `discoveredLink?`, `courseQuery?` |
+| `list_cengage_courses` | List Cengage/WebAssign courses from dashboard inventory (or optional direct entry link) | `entryUrl?`, `discoveredLink?`, `courseQuery?` |
 | `get_cengage_assignments` | Fetch Cengage/WebAssign assignments from dashboard, direct-course, or legacy launch links | `entryUrl?`, `ssoUrl?` (legacy), `courseId?`, `courseKey?`, `courseQuery?` |
 | `clear_cache` | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed | `scope?` |
 | `cache_pin` | Pin a resource already in cache (kept past TTL until unpinned) | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?` |
