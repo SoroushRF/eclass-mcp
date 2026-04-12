@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { getLogger } from '../logging/context';
 
 /**
  * When set to `1` or `true`, tool output validation uses Zod `.parse()` (fail fast).
@@ -30,9 +31,9 @@ export function asValidatedMcpText<T>(
       content: [{ type: 'text' as const, text: JSON.stringify(r.data) }],
     };
   }
-  console.warn(
-    `[eclass-mcp] ${toolName} output validation failed:`,
-    r.error.issues
+  getLogger().warn(
+    { tool: toolName, issues: r.error.issues },
+    'tool output validation failed'
   );
   return {
     content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
@@ -54,9 +55,9 @@ export function asValidatedMcpResult<T>(
   if (r.success) {
     return r.data;
   }
-  console.warn(
-    `[eclass-mcp] ${toolName} MCP result validation failed:`,
-    r.error.issues
+  getLogger().warn(
+    { tool: toolName, issues: r.error.issues },
+    'MCP result validation failed'
   );
   return result as T;
 }

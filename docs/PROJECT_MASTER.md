@@ -255,7 +255,7 @@ Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retr
 | [x] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**) — see `src/tools/eclass-contracts.ts`, `mcp-validated-response.ts`, [`docs/e11-tool-output-inventory.md`](./e11-tool-output-inventory.md)                                                                    | B    |
 | [x] **E12** | Structured errors + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, upstream codes, `VALIDATION_FAILED`) — [`docs/e12-structured-errors.md`](./e12-structured-errors.md); modules under `src/errors/`, `src/scraper/scrape-errors.ts`, tool mappings — (**required** for write tools via **E20**)                          | B    |
 | [ ] **E13** | Session at-rest hardening + secure wipe on logout                                                                                                                                                                                                                                                                                     | C    |
-| [ ] **E14** | Structured logging + correlation ID + redaction                                                                                                                                                                                                                                                                                       | C    |
+| [x] **E14** | Structured logging + correlation ID + redaction — [`docs/logging.md`](./logging.md), `src/logging/*`, `ECLASS_MCP_LOG_LEVEL`                                                                                                                                                                                                                                                                                       | C    |
 | [ ] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode                                                                                                                                                                                                                                                                   | C    |
 | [ ] **E16** | `npm run doctor` (Node, Playwright, Claude config path, `.env`, permissions)                                                                                                                                                                                                                                                          | D    |
 | [ ] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config                                                                                                                                                                                                                                                                    | D    |
@@ -430,6 +430,8 @@ jobs:
 
 #### 2.9.4 E08?E12 ? Tests and contracts
 
+**E12 (structured errors) — full spec:** [`e12-structured-errors.md`](./e12-structured-errors.md) (machine codes, error classes, per-tool mapping, `McpError` vs JSON policy, tests).
+
 - **E08:** Add Vitest (or Jest); `npm test`; CI invocation with `--run` for non-interactive.
 - **E09:** First unit tests: `cache/store` expiry math, `session` stale logic, parser helpers with small buffers.
 - **E10:** Check in **sanitized HTML fixtures** under `tests/fixtures/`; tests run cheerio/jsdom or direct helper functions ? **no** live eClass in CI.
@@ -439,7 +441,7 @@ jobs:
 #### 2.9.5 E13?E15 ? Security and operations
 
 - **E13:** Encrypt `session.json` or OS keychain storage; document threat model (local disk, shared machine).
-- **E14:** `pino` or similar; child logger per tool invocation with `requestId`; redact cookie substrings.
+- **E14:** **Done.** Pino JSON to stderr; `runWithToolContext` + `getLogger()` + `requestId`/`tool` per MCP invocation; `redactCookieSubstrings` for free-form text; [`docs/logging.md`](./logging.md).
 - **E15:** Config object for selector arrays per page type; log which selector won; on total failure throw coded `SCRAPE_LAYOUT_CHANGED`.
 
 #### 2.9.6 E16?E19 ? Productization
@@ -674,7 +676,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 #### Safety before implementation (E20)
 
-1. **Contracts:** Complete **E11** (Zod) and **E12** (structured errors) for **all** write tools before merge. Machine-readable failures beat prose when the host retries or summarizes.
+1. **Contracts:** Complete **E11** (Zod) and **E12** (structured errors — [`e12-structured-errors.md`](./e12-structured-errors.md)) for **all** write tools before merge. Machine-readable failures beat prose when the host retries or summarizes.
 2. **Registration gate:** `ListTools` / `index.ts` registers write tools **only** when an explicit env var is set (name **`ECLASS_MCP_ENABLE_WRITES`** unless renamed in implementation; document in `.env.example`).
 3. **User-facing risk:** README subsection + **SECURITY.md** bullet: writes are **irreversible** in normal use; users are responsible for confirming paths and course context; no institutional warranty.
 4. **Session posture:** Treat **E13** as a **recommended** prerequisite for write tools on laptops that are not single-user private.
@@ -1014,6 +1016,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 | Deadlines ? history                       | `docs/tools/deadlines/history.md`                          |
 | File / PDF ? history & roadmap            | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
 | **E12 structured errors (machine codes)** | `docs/e12-structured-errors.md`                            |
+| **E14 logging (Pino, stderr, requestId)** | `docs/logging.md`                                        |
 | User-facing README                        | `README.md`                                                |
 
 ---

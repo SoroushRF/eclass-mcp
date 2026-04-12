@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { getLogger } from '../logging/context';
 import { getPinnedCacheFilenames, isCacheKeyPinned } from './pins';
 
 dotenv.config({ quiet: true });
@@ -80,9 +81,9 @@ class CacheStore {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
       }
     } catch (e: any) {
-      console.error(
-        `CRITICAL: Could not create cache directory at ${CACHE_DIR}:`,
-        e.message
+      getLogger().error(
+        { err: e, cacheDir: CACHE_DIR },
+        'CRITICAL: Could not create cache directory'
       );
     }
   }
@@ -128,7 +129,7 @@ class CacheStore {
 
       return entry;
     } catch (error) {
-      console.error(`Error reading cache for key "${key}":`, error);
+      getLogger().error({ err: error, key }, 'Error reading cache');
       return null;
     }
   }
@@ -148,7 +149,7 @@ class CacheStore {
     try {
       fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
     } catch (error) {
-      console.error(`Error writing cache for key "${key}":`, error);
+      getLogger().error({ err: error, key }, 'Error writing cache');
     }
   }
 
@@ -158,7 +159,7 @@ class CacheStore {
       try {
         fs.unlinkSync(filePath);
       } catch (error) {
-        console.error(`Error invalidating cache for key "${key}":`, error);
+        getLogger().error({ err: error, key }, 'Error invalidating cache');
       }
     }
   }
@@ -179,7 +180,10 @@ class CacheStore {
         }
       }
     } catch (error) {
-      console.error(`Error clearing cache by prefix "${prefix}":`, error);
+      getLogger().error(
+        { err: error, prefix },
+        'Error clearing cache by prefix'
+      );
     }
     return count;
   }
@@ -209,7 +213,7 @@ class CacheStore {
         }
       }
     } catch (error) {
-      console.error('Error clearing cache:', error);
+      getLogger().error({ err: error }, 'Error clearing cache');
     }
   }
 }

@@ -16,6 +16,7 @@ import {
   asValidatedMcpResult,
   isStrictToolOutput,
 } from '../src/tools/mcp-validated-response';
+import * as loggingContext from '../src/logging/context';
 
 describe('isStrictToolOutput', () => {
   afterEach(() => {
@@ -36,11 +37,25 @@ describe('isStrictToolOutput', () => {
 });
 
 describe('asValidatedMcpText', () => {
-  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const warnSpy = vi.fn();
 
   beforeEach(() => {
     warnSpy.mockClear();
     delete process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT;
+    vi.spyOn(loggingContext, 'getLogger').mockReturnValue({
+      warn: warnSpy,
+      error: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      fatal: vi.fn(),
+      trace: vi.fn(),
+      silent: vi.fn(),
+      child: vi.fn(),
+    } as unknown as ReturnType<typeof loggingContext.getLogger>);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   const schema = z.object({ a: z.number() });
@@ -59,11 +74,25 @@ describe('asValidatedMcpText', () => {
 });
 
 describe('asValidatedMcpResult', () => {
-  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const warnSpy = vi.fn();
 
   beforeEach(() => {
     warnSpy.mockClear();
     delete process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT;
+    vi.spyOn(loggingContext, 'getLogger').mockReturnValue({
+      warn: warnSpy,
+      error: vi.fn(),
+      info: vi.fn(),
+      debug: vi.fn(),
+      fatal: vi.fn(),
+      trace: vi.fn(),
+      silent: vi.fn(),
+      child: vi.fn(),
+    } as unknown as ReturnType<typeof loggingContext.getLogger>);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   const schema = GetFileTextMcpResultSchema;

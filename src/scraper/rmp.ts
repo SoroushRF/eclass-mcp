@@ -3,6 +3,7 @@ import {
   upstreamErrorFromHttpStatus,
   upstreamErrorFromUnknown,
 } from './scrape-errors';
+import { getLogger } from '../logging/context';
 
 /**
  * RMP API Client for GraphQL interactions
@@ -188,14 +189,25 @@ export class RMPClient {
           : `Requested campus "${campus}" returned 0 matches, and the cross-campus probe also returned 0. That usually means no match for the current query text.`;
 
       const matches = probe.length > 0 ? probe : direct;
-      console.error(
-        `[RMP] searchTeachers done name="${normalizedName}" campus=${campus} direct=0 crossCampus=${probe.length}`
+      getLogger().debug(
+        {
+          normalizedName,
+          campus,
+          direct: 0,
+          crossCampus: probe.length,
+        },
+        '[RMP] searchTeachers done'
       );
       return { matches, diagnostics };
     }
 
-    console.error(
-      `[RMP] searchTeachers done name="${normalizedName}" campus=${campus || 'all'} total=${direct.length}`
+    getLogger().debug(
+      {
+        normalizedName,
+        campus: campus || 'all',
+        total: direct.length,
+      },
+      '[RMP] searchTeachers done'
     );
     return { matches: direct, diagnostics };
   }
@@ -214,14 +226,25 @@ export class RMPClient {
   ): Promise<RMPTeacherSearch[]> {
     const resultsById = new Map<string, RMPTeacherSearch>();
 
-    console.error(
-      `[RMP] searchTeachers start name="${normalizedName}" campus=${campus || 'all'} schools=${schoolIds.length}`
+    getLogger().debug(
+      {
+        normalizedName,
+        campus: campus || 'all',
+        schools: schoolIds.length,
+      },
+      '[RMP] searchTeachers start'
     );
 
     for (const schoolId of schoolIds) {
       for (const [index, term] of terms.entries()) {
-        console.error(
-          `[RMP] querying schoolId=${schoolId} term="${term}" attempt=${index + 1}/${terms.length}`
+        getLogger().debug(
+          {
+            schoolId,
+            term,
+            attempt: index + 1,
+            attempts: terms.length,
+          },
+          '[RMP] querying'
         );
 
         const data = await this.fetchGraphQL(query, {
@@ -243,8 +266,9 @@ export class RMPClient {
 
         const teachers = data?.data?.newSearch?.teachers?.edges || [];
         if (teachers.length === 0) {
-          console.error(
-            `[RMP] no matches for schoolId=${schoolId} term="${term}"`
+          getLogger().debug(
+            { schoolId, term },
+            '[RMP] no matches for schoolId/term'
           );
           continue;
         }
@@ -256,8 +280,9 @@ export class RMPClient {
           }
         }
 
-        console.error(
-          `[RMP] found ${teachers.length} match(es) for schoolId=${schoolId} term="${term}"`
+        getLogger().debug(
+          { schoolId, term, count: teachers.length },
+          '[RMP] found matches'
         );
         break;
       }
@@ -325,8 +350,9 @@ export class RMPClient {
     const teacher = data?.data?.node;
 
     if (!teacher || teacher.__typename !== 'Teacher') {
-      console.error(
-        `[RMP] teacher details missing or wrong type for teacherId=${teacherId}`
+      getLogger().debug(
+        { teacherId },
+        '[RMP] teacher details missing or wrong type'
       );
       return null;
     }
@@ -381,14 +407,15 @@ export class RMPClient {
         );
       }
       if (parsed.errors?.length) {
-        console.error(
-          `[RMP] GraphQL response errors: ${JSON.stringify(parsed.errors)}`
+        getLogger().debug(
+          { errors: parsed.errors },
+          '[RMP] GraphQL response errors'
         );
       }
 
       return parsed;
     } catch (error) {
-      console.error('RMP Fetch error:', error);
+      getLogger().error({ err: error }, 'RMP Fetch error');
       if (error instanceof UpstreamError) throw error;
       throw upstreamErrorFromUnknown(error);
     }

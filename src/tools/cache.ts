@@ -1,4 +1,5 @@
 import { cache } from '../cache/store';
+import { getLogger } from '../logging/context';
 import { ClearCacheToolResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 
@@ -15,9 +16,7 @@ export type CacheScope =
 
 export async function clearCache(scope: CacheScope = 'all') {
   try {
-    console.error(
-      `[MCP Server] Manual cache clear requested for scope: ${scope}`
-    );
+    getLogger().info({ scope }, 'Manual cache clear requested');
 
     let clearedCount = 0;
 

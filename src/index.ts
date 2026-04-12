@@ -41,6 +41,10 @@ import {
   GetCengageAssignmentsInputSchema,
   ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
+import { rootLogger } from './logging/logger';
+import { runWithToolContext } from './logging/context';
+
+const bootstrapLog = rootLogger.child({ component: 'bootstrap' });
 
 // Create the MCP server
 const server = new McpServer({
@@ -54,21 +58,28 @@ server.tool(
   'list_courses',
   'Lists all courses the student is enrolled in on eClass.',
   {},
-  (async () => await listCourses()) as any
+  (async () =>
+    await runWithToolContext('list_courses', () => listCourses())) as any
 );
 
 server.tool(
   'get_course_content',
   'Gets full content of a specific course.',
   { courseId: z.string().describe('The course ID') },
-  (async ({ courseId }: any) => await getCourseContent(courseId)) as any
+  (async ({ courseId }: any) =>
+    await runWithToolContext('get_course_content', () =>
+      getCourseContent(courseId)
+    )) as any
 );
 
 server.tool(
   'get_section_text',
   'Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.',
   { url: z.string().describe('The exact URL to the course section') },
-  (async ({ url }: any) => await getSectionText(url)) as any
+  (async ({ url }: any) =>
+    await runWithToolContext('get_section_text', () =>
+      getSectionText(url)
+    )) as any
 );
 
 server.tool(
@@ -94,11 +105,8 @@ server.tool(
       ),
   },
   (async ({ courseId, fileUrl, startPage, endPage }: any) =>
-    await getFileText(
-      courseId || 'unknown',
-      fileUrl,
-      startPage,
-      endPage
+    await runWithToolContext('get_file_text', () =>
+      getFileText(courseId || 'unknown', fileUrl, startPage, endPage)
     )) as any
 );
 
@@ -110,7 +118,9 @@ server.tool(
     courseId: z.string().optional().describe('Filter by course ID'),
   },
   (async ({ daysAhead, courseId }: any) =>
-    await getUpcomingDeadlines(daysAhead, courseId)) as any
+    await runWithToolContext('get_upcoming_deadlines', () =>
+      getUpcomingDeadlines(daysAhead, courseId)
+    )) as any
 );
 
 server.tool(
@@ -156,7 +166,8 @@ server.tool(
       .optional()
       .describe('Max items to deep-fetch when includeDetails=true (default 7)'),
   },
-  (async (args: any) => await getDeadlines(args)) as any
+  (async (args: any) =>
+    await runWithToolContext('get_deadlines', () => getDeadlines(args))) as any
 );
 
 server.tool(
@@ -226,14 +237,18 @@ server.tool(
       .optional()
       .describe('Max number of CSV attachments to inline (default 3)'),
   },
-  (async (args: any) => await getItemDetails(args)) as any
+  (async (args: any) =>
+    await runWithToolContext('get_item_details', () =>
+      getItemDetails(args)
+    )) as any
 );
 
 server.tool(
   'get_grades',
   "Returns the student's grades.",
   { courseId: z.string().optional().describe('Filter by course ID') },
-  (async ({ courseId }: any) => await getGrades(courseId)) as any
+  (async ({ courseId }: any) =>
+    await runWithToolContext('get_grades', () => getGrades(courseId))) as any
 );
 
 server.tool(
@@ -244,21 +259,29 @@ server.tool(
     limit: z.number().optional().describe('Max number (default 10)'),
   },
   (async ({ courseId, limit }: any) =>
-    await getAnnouncements(courseId, limit)) as any
+    await runWithToolContext('get_announcements', () =>
+      getAnnouncements(courseId, limit)
+    )) as any
 );
 
 server.tool(
   'get_exam_schedule',
   "Fetches the current student's personal exam schedule from York SIS.",
   {},
-  (async () => await getExamSchedule()) as any
+  (async () =>
+    await runWithToolContext('get_exam_schedule', () =>
+      getExamSchedule()
+    )) as any
 );
 
 server.tool(
   'get_class_timetable',
   "Fetches the current student's personal class timetable from York SIS for the current session.",
   {},
-  (async () => await getClassTimetable()) as any
+  (async () =>
+    await runWithToolContext('get_class_timetable', () =>
+      getClassTimetable()
+    )) as any
 );
 
 server.tool(
@@ -271,7 +294,10 @@ server.tool(
       .optional()
       .describe('Optional York campus filter'),
   },
-  (async (args: any) => await searchProfessorsTool(args)) as any
+  (async (args: any) =>
+    await runWithToolContext('search_professors', () =>
+      searchProfessorsTool(args)
+    )) as any
 );
 
 server.tool(
@@ -282,7 +308,10 @@ server.tool(
       .string()
       .describe('The RMP teacher ID (from search_professors)'),
   },
-  (async (args: any) => await getProfessorDetailsTool(args)) as any
+  (async (args: any) =>
+    await runWithToolContext('get_professor_details', () =>
+      getProfessorDetailsTool(args)
+    )) as any
 );
 
 server.tool(
@@ -290,13 +319,15 @@ server.tool(
   'Scans raw text for Cengage/WebAssign URLs and returns normalized, classified link candidates with source hints.',
   DiscoverCengageLinksInputSchema.shape,
   (async ({ text, source, courseId, sectionUrl, sourceFile }: any) =>
-    await discoverCengageLinks({
-      text,
-      source,
-      courseId,
-      sectionUrl,
-      sourceFile,
-    })) as any
+    await runWithToolContext('discover_cengage_links', () =>
+      discoverCengageLinks({
+        text,
+        source,
+        courseId,
+        sectionUrl,
+        sourceFile,
+      })
+    )) as any
 );
 
 server.tool(
@@ -304,7 +335,9 @@ server.tool(
   'Lists available Cengage/WebAssign courses from saved session state (dashboard-first) or from a provided entry URL/discovered link, with optional query pre-filtering.',
   ListCengageCoursesInputSchema.shape,
   (async ({ entryUrl, discoveredLink, courseQuery }: any) =>
-    await listCengageCourses({ entryUrl, discoveredLink, courseQuery })) as any
+    await runWithToolContext('list_cengage_courses', () =>
+      listCengageCourses({ entryUrl, discoveredLink, courseQuery })
+    )) as any
 );
 
 server.tool(
@@ -312,13 +345,15 @@ server.tool(
   'Fetches assignment list and deadlines from Cengage/WebAssign using dashboard-first saved-session flow or explicit direct course/dashboard/legacy SSO links. Supports optional course selection inputs when multiple courses are present.',
   GetCengageAssignmentsInputSchema.shape,
   (async ({ entryUrl, ssoUrl, courseId, courseKey, courseQuery }: any) =>
-    await getCengageAssignments({
-      entryUrl,
-      ssoUrl,
-      courseId,
-      courseKey,
-      courseQuery,
-    })) as any
+    await runWithToolContext('get_cengage_assignments', () =>
+      getCengageAssignments({
+        entryUrl,
+        ssoUrl,
+        courseId,
+        courseKey,
+        courseQuery,
+      })
+    )) as any
 );
 
 server.tool(
@@ -340,21 +375,23 @@ server.tool(
     maxQuestionTextChars,
     maxAnswerTextChars,
   }: any) =>
-    await getCengageAssignmentDetails({
-      entryUrl,
-      ssoUrl,
-      courseId,
-      courseKey,
-      courseQuery,
-      assignmentUrl,
-      assignmentId,
-      assignmentQuery,
-      includeAnswers,
-      includeResources,
-      maxQuestions,
-      maxQuestionTextChars,
-      maxAnswerTextChars,
-    })) as any
+    await runWithToolContext('get_cengage_assignment_details', () =>
+      getCengageAssignmentDetails({
+        entryUrl,
+        ssoUrl,
+        courseId,
+        courseKey,
+        courseQuery,
+        assignmentUrl,
+        assignmentId,
+        assignmentQuery,
+        includeAnswers,
+        includeResources,
+        maxQuestions,
+        maxQuestionTextChars,
+        maxAnswerTextChars,
+      })
+    )) as any
 );
 
 server.tool(
@@ -377,7 +414,8 @@ server.tool(
       .default('all')
       .describe('The scope of cache to clear (default: all)'),
   },
-  (async ({ scope }: any) => await clearCache(scope)) as any
+  (async ({ scope }: any) =>
+    await runWithToolContext('clear_cache', () => clearCache(scope))) as any
 );
 
 const pinResourceEnum = z.enum(['file', 'sectiontext', 'content']);
@@ -400,14 +438,16 @@ server.tool(
       .describe('Required when resource_type=content'),
     note: z.string().optional(),
   },
-  (async (args: any) => await cachePin(args)) as any
+  (async (args: any) =>
+    await runWithToolContext('cache_pin', () => cachePin(args))) as any
 );
 
 server.tool(
   'cache_unpin',
   'Remove a pin from the registry without deleting the cache file. Use cache_delete_pinned to remove stored bytes.',
   { pinId: z.string().describe('Pin ID from cache_list_pins') },
-  (async ({ pinId }: any) => await cacheUnpin({ pinId })) as any
+  (async ({ pinId }: any) =>
+    await runWithToolContext('cache_unpin', () => cacheUnpin({ pinId }))) as any
 );
 
 server.tool(
@@ -417,14 +457,19 @@ server.tool(
     resource_type: pinResourceEnum.optional().describe('Filter by type'),
   },
   (async ({ resource_type }: any) =>
-    await cacheListPins({ resource_type })) as any
+    await runWithToolContext('cache_list_pins', () =>
+      cacheListPins({ resource_type })
+    )) as any
 );
 
 server.tool(
   'cache_refresh_pin',
   'Re-fetch and refresh the underlying cached data for a pin (resets TTL for that cache entry).',
   { pinId: z.string() },
-  (async ({ pinId }: any) => await cacheRefreshPin({ pinId })) as any
+  (async ({ pinId }: any) =>
+    await runWithToolContext('cache_refresh_pin', () =>
+      cacheRefreshPin({ pinId })
+    )) as any
 );
 
 server.tool(
@@ -435,7 +480,10 @@ server.tool(
     mode: z.enum(['all', 'by_type']).optional(),
     resource_type: pinResourceEnum.optional(),
   },
-  (async (args: any) => await cacheDeletePinned(args)) as any
+  (async (args: any) =>
+    await runWithToolContext('cache_delete_pinned', () =>
+      cacheDeletePinned(args)
+    )) as any
 );
 
 // Main startup
@@ -444,10 +492,12 @@ async function main() {
   await startAuthServer();
 
   if (!isSessionValid()) {
-    console.error('eClass session not found or stale. Opening login window...');
+    bootstrapLog.warn(
+      'eClass session not found or stale. Opening login window...'
+    );
     openAuthWindow();
   } else {
-    console.error('eClass session check: Local session file found.');
+    bootstrapLog.info('eClass session check: Local session file found.');
   }
 
   const transport = new StdioServerTransport();
@@ -455,6 +505,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error('Fatal error in MCP server:', error);
+  rootLogger.fatal({ err: error }, 'Fatal error in MCP server');
   process.exit(1);
 });

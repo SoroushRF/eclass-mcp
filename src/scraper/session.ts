@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
+import { getLogger } from '../logging/context';
 
 export class SessionExpiredError extends Error {
   /** E12 machine code for session expiry (eClass / SIS paths). */
@@ -74,7 +75,7 @@ export function saveSession(
       'utf-8'
     );
   } catch (error) {
-    console.error('Error saving session:', error);
+    getLogger().error({ err: error }, 'Error saving session');
   }
 }
 
@@ -96,7 +97,7 @@ export function loadSession(
 
     return data.cookies;
   } catch (error) {
-    console.error('Error loading session:', error);
+    getLogger().error({ err: error }, 'Error loading session');
     return null;
   }
 }
@@ -132,7 +133,7 @@ export function clearSession(fileName: string = 'session.json'): void {
     try {
       fs.unlinkSync(file);
     } catch (error) {
-      console.error('Error clearing session:', error);
+      getLogger().error({ err: error }, 'Error clearing session');
     }
   }
 }

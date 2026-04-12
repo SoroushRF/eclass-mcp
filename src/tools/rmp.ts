@@ -10,6 +10,7 @@ import {
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { toErrorPayload } from '../errors/tool-error';
+import { getLogger } from '../logging/context';
 
 const rmpClient = new RMPClient();
 
@@ -185,8 +186,9 @@ export async function searchProfessorsTool(args: any) {
     const cached = cache.getWithMeta<any>(cacheKey);
 
     if (cached) {
-      console.error(
-        `[RMP] search cache hit for "${normalizedName}" (${campus || 'all'})`
+      getLogger().debug(
+        { normalizedName, campus: campus || 'all' },
+        '[RMP] search cache hit'
       );
       const resp = {
         ...cached.data,
@@ -199,8 +201,9 @@ export async function searchProfessorsTool(args: any) {
       return toSearchToolResult(resp);
     }
 
-    console.error(
-      `[RMP] search cache miss for "${normalizedName}" (${campus || 'all'})`
+    getLogger().debug(
+      { normalizedName, campus: campus || 'all' },
+      '[RMP] search cache miss'
     );
 
     const report = await rmpClient.searchTeachersWithDiagnostics(name, campus);
@@ -222,8 +225,13 @@ export async function searchProfessorsTool(args: any) {
       !report.diagnostics.usedCrossCampusProbe
     ) {
       cache.set(cacheKey, response, TTL.RMP);
-      console.error(
-        `[RMP] cached ${response.matches.length} match(es) for "${normalizedName}" (${campus || 'all'})`
+      getLogger().debug(
+        {
+          matches: response.matches.length,
+          normalizedName,
+          campus: campus || 'all',
+        },
+        '[RMP] cached search results'
       );
 
       const now = new Date();
@@ -233,11 +241,15 @@ export async function searchProfessorsTool(args: any) {
         expires_at: new Date(now.getTime() + TTL.RMP * 60000).toISOString(),
       };
     } else {
-      console.error(
-        `[RMP] not caching result for "${normalizedName}" (${campus || 'all'})` +
-          (report.diagnostics.usedCrossCampusProbe
-            ? ' because it came from a fallback probe'
-            : ' because it was empty')
+      getLogger().debug(
+        {
+          normalizedName,
+          campus: campus || 'all',
+          reason: report.diagnostics.usedCrossCampusProbe
+            ? 'fallback_probe'
+            : 'empty',
+        },
+        '[RMP] not caching search result'
       );
     }
     return toSearchToolResult(finalResp);
@@ -281,7 +293,7 @@ export async function getProfessorDetailsTool(args: any) {
     const cached = cache.getWithMeta<any>(cacheKey);
 
     if (cached) {
-      console.error(`[RMP] detail cache hit for teacherId=${teacherId}`);
+      getLogger().debug({ teacherId }, '[RMP] detail cache hit');
       const resp = {
         ...cached.data,
         _cache: {
@@ -293,11 +305,11 @@ export async function getProfessorDetailsTool(args: any) {
       return toDetailsToolResult(resp);
     }
 
-    console.error(`[RMP] detail cache miss for teacherId=${teacherId}`);
+    getLogger().debug({ teacherId }, '[RMP] detail cache miss');
 
     const details = await rmpClient.getTeacherDetails(teacherId);
     if (!details) {
-      console.error(`[RMP] no details returned for teacherId=${teacherId}`);
+      getLogger().debug({ teacherId }, '[RMP] no details returned');
       return asValidatedMcpText(
         'get_professor_details',
         RmpProfessorNotFoundResponseSchema,
@@ -343,7 +355,7 @@ export async function getProfessorDetailsTool(args: any) {
     };
 
     cache.set(cacheKey, data, TTL.RMP);
-    console.error(`[RMP] cached details for teacherId=${teacherId}`);
+    getLogger().debug({ teacherId }, '[RMP] cached professor details');
 
     const now = new Date();
     const response = {
