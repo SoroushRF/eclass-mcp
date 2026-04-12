@@ -33,6 +33,16 @@ describe('isStrictToolOutput', () => {
     expect(isStrictToolOutput()).toBe(true);
     process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = 'true';
     expect(isStrictToolOutput()).toBe(true);
+    process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = 'TRUE';
+    expect(isStrictToolOutput()).toBe(true);
+  });
+
+  it('is false for other values', () => {
+    process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = '0';
+    expect(isStrictToolOutput()).toBe(false);
+
+    process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = 'yes';
+    expect(isStrictToolOutput()).toBe(false);
   });
 });
 
@@ -71,6 +81,18 @@ describe('asValidatedMcpText', () => {
     expect(warnSpy).toHaveBeenCalled();
     expect(JSON.parse(out.content[0].text)).toEqual({ b: 2 });
   });
+
+  it('uses strict parse when strict env is enabled', () => {
+    process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = 'true';
+    const out = asValidatedMcpText('t', schema, { a: 3 });
+    expect(out.content[0].text).toBe('{"a":3}');
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('throws on invalid payload in strict mode', () => {
+    process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = '1';
+    expect(() => asValidatedMcpText('t', schema, { nope: 1 })).toThrow();
+  });
 });
 
 describe('asValidatedMcpResult', () => {
@@ -102,6 +124,21 @@ describe('asValidatedMcpResult', () => {
       content: [{ type: 'text' as const, text: 'hi' }],
     });
     expect(r.content).toHaveLength(1);
+  });
+
+  it('warns and returns original result when non-strict validation fails', () => {
+    const raw = { unexpected: true };
+    const r = asValidatedMcpResult('get_file_text', schema, raw);
+
+    expect(warnSpy).toHaveBeenCalled();
+    expect(r).toBe(raw);
+  });
+
+  it('throws when strict validation fails', () => {
+    process.env.ECLASS_MCP_STRICT_TOOL_OUTPUT = 'true';
+    expect(() =>
+      asValidatedMcpResult('get_file_text', schema, { nope: 1 })
+    ).toThrow();
   });
 });
 
