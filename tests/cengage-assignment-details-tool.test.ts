@@ -34,7 +34,10 @@ describe('get cengage assignment details tool', () => {
       'listDashboardCoursesFromEntryLink'
     ).mockResolvedValue([SAMPLE_COURSE]);
 
-    vi.spyOn(CengageScraper.prototype, 'getAssignmentDetails').mockResolvedValue({
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentDetails'
+    ).mockResolvedValue({
       selectedAssignment: {
         assignmentId: '39248944',
         name: 'Assignment 1',
@@ -110,7 +113,10 @@ describe('get cengage assignment details tool', () => {
       'listDashboardCoursesFromEntryLink'
     ).mockResolvedValue([SAMPLE_COURSE]);
 
-    vi.spyOn(CengageScraper.prototype, 'getAssignmentDetails').mockRejectedValue(
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentDetails'
+    ).mockRejectedValue(
       new CengageParseError('No assignment matched assignmentQuery.', {
         availableAssignments: [
           {

@@ -76,8 +76,7 @@ export interface WebAssignAssignment {
   url?: string;
 }
 
-export interface GetWebAssignAssignmentDetailsOptions
-  extends ExtractAssignmentDetailsOptions {
+export interface GetWebAssignAssignmentDetailsOptions extends ExtractAssignmentDetailsOptions {
   assignmentUrl?: string;
   assignmentId?: string;
   assignmentQuery?: string;
@@ -142,7 +141,10 @@ function normalizeComparableUrl(value: string, baseUrl?: string): string {
   }
 }
 
-function resolveAbsoluteUrl(value: string | undefined, baseUrl: string): string {
+function resolveAbsoluteUrl(
+  value: string | undefined,
+  baseUrl: string
+): string {
   const raw = (value || '').trim();
   if (!raw) return '';
 
@@ -237,7 +239,8 @@ function resolveAssignmentSelection(params: {
   const normalizedQuery = normalizeComparableText(assignmentQuery);
   if (normalizedQuery) {
     const exactMatches = assignments.filter(
-      (assignment) => normalizeComparableText(assignment.name) === normalizedQuery
+      (assignment) =>
+        normalizeComparableText(assignment.name) === normalizedQuery
     );
 
     if (exactMatches.length === 1) {
@@ -656,9 +659,8 @@ export class CengageScraper {
         }
       }
 
-      const rowCandidates = await this.collectAssignmentRowsWithTabFallback(
-        page
-      );
+      const rowCandidates =
+        await this.collectAssignmentRowsWithTabFallback(page);
       if (!Array.isArray(rowCandidates)) {
         throw new CengageParseError(
           'Unexpected assignment extraction payload type.',
@@ -806,9 +808,8 @@ export class CengageScraper {
         }
       }
 
-      const rowCandidates = await this.collectAssignmentRowsWithTabFallback(
-        page
-      );
+      const rowCandidates =
+        await this.collectAssignmentRowsWithTabFallback(page);
       if (!Array.isArray(rowCandidates)) {
         throw new CengageParseError(
           'Unexpected assignment extraction payload type.',

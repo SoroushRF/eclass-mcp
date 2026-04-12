@@ -107,7 +107,11 @@ export async function extractAssignmentRowCandidates(
             lowerRowText.includes('points') ||
             lowerRowText.includes('grade');
 
-          if (!hasAssignmentSignals && !hasAssignmentLink && !hasAssignmentDataTest)
+          if (
+            !hasAssignmentSignals &&
+            !hasAssignmentLink &&
+            !hasAssignmentDataTest
+          )
             continue;
 
           const looksLikeHeaderRow =

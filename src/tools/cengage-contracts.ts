@@ -288,10 +288,7 @@ export const GetCengageAssignmentDetailsInputSchema = z.object({
     .describe(
       'Optional Cengage/WebAssign URL (dashboard, LTI launch, direct course, or login). If omitted, dashboard-first mode is used from saved session state.'
     ),
-  ssoUrl: z
-    .string()
-    .optional()
-    .describe('Legacy alias for entryUrl.'),
+  ssoUrl: z.string().optional().describe('Legacy alias for entryUrl.'),
   courseId: z
     .string()
     .optional()

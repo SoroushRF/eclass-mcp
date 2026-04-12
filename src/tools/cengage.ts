@@ -359,7 +359,8 @@ function coerceAvailableAssignments(
             ? candidate.dueDateIso
             : undefined,
         status,
-        score: typeof candidate.score === 'string' ? candidate.score : undefined,
+        score:
+          typeof candidate.score === 'string' ? candidate.score : undefined,
         url: typeof candidate.url === 'string' ? candidate.url : undefined,
       };
     })
@@ -389,7 +390,8 @@ export async function getCengageAssignmentDetails(
     maxAnswerTextChars: args.maxAnswerTextChars || null,
   });
 
-  const cached = cache.getWithMeta<GetCengageAssignmentDetailsResponse>(cacheKey);
+  const cached =
+    cache.getWithMeta<GetCengageAssignmentDetailsResponse>(cacheKey);
   if (cached) {
     return asAssignmentDetailsToolResponse(
       withCacheMeta(cached.data, toCacheHitMeta(cached))

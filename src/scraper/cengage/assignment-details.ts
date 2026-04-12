@@ -80,7 +80,10 @@ export async function extractAssignmentDetails(
         (value || '').replace(/\s+/g, ' ').trim();
 
       const toPositiveInt = (value: string | null | undefined): number => {
-        const parsed = Number.parseInt(normalizeText(value).replace(/\D+/g, ''), 10);
+        const parsed = Number.parseInt(
+          normalizeText(value).replace(/\D+/g, ''),
+          10
+        );
         return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
       };
 
@@ -152,8 +155,7 @@ export async function extractAssignmentDetails(
         questionElement: Element
       ): { earned?: number; possible?: number } => {
         const pointsText = normalizeText(
-          questionElement
-            .querySelector('.js-question-header strong')
+          questionElement.querySelector('.js-question-header strong')
             ?.textContent || ''
         );
         const match = pointsText.match(
@@ -207,7 +209,9 @@ export async function extractAssignmentDetails(
           for (const anchor of anchors) {
             const label = normalizeText(anchor.textContent);
             const rawHref =
-              anchor.getAttribute('href') || anchor.getAttribute('data-href') || '';
+              anchor.getAttribute('href') ||
+              anchor.getAttribute('data-href') ||
+              '';
             const url = normalizeResourceUrl(rawHref || anchor.href || '');
             if (!label || !url) {
               continue;
@@ -231,7 +235,9 @@ export async function extractAssignmentDetails(
 
       const assignmentName = normalizeText(
         document
-          .querySelector<HTMLElement>('[id^="assignment"][data-assignment-name]')
+          .querySelector<HTMLElement>(
+            '[id^="assignment"][data-assignment-name]'
+          )
           ?.getAttribute('data-assignment-name') || ''
       );
 
@@ -248,15 +254,17 @@ export async function extractAssignmentDetails(
 
       const questions: ExtractedAssignmentQuestion[] = limitedQuestions.map(
         (questionElement, index) => {
-          const questionHeader = questionElement.querySelector('.js-question-header');
+          const questionHeader = questionElement.querySelector(
+            '.js-question-header'
+          );
           const questionDisplay = parseQuestionDisplay(questionHeader);
           const viewPosition = toPositiveInt(
             questionElement.getAttribute('data-view-position')
           );
           const questionNumberFromHeader = toPositiveInt(
-            questionElement
-              .querySelector<HTMLElement>('[data-test^="questionNum"]')
-              ?.textContent
+            questionElement.querySelector<HTMLElement>(
+              '[data-test^="questionNum"]'
+            )?.textContent
           );
 
           const questionNumber =
@@ -265,9 +273,12 @@ export async function extractAssignmentDetails(
           const questionIdFromDisplay = normalizeText(
             String(questionDisplay?.questionID || '')
           );
-          const questionIdMatch = questionElement.id.match(/^question([a-z0-9._-]+)_/i);
+          const questionIdMatch = questionElement.id.match(
+            /^question([a-z0-9._-]+)_/i
+          );
           const questionIdFromContainer = normalizeText(questionIdMatch?.[1]);
-          const questionId = questionIdFromDisplay || questionIdFromContainer || undefined;
+          const questionId =
+            questionIdFromDisplay || questionIdFromContainer || undefined;
 
           const promptNode =
             questionElement.querySelector('.studentQuestionContent .wa1par') ||
@@ -281,8 +292,9 @@ export async function extractAssignmentDetails(
           let answerRaw = '';
           if (includeAnswersArg) {
             const answerNode =
-              questionElement.querySelector('.studentQuestionContent .wa1ans') ||
-              questionElement.querySelector('.studentQuestionBox .wa1ans');
+              questionElement.querySelector(
+                '.studentQuestionContent .wa1ans'
+              ) || questionElement.querySelector('.studentQuestionBox .wa1ans');
             answerRaw = normalizeText(answerNode?.textContent || '');
           }
           const answer = truncateText(answerRaw, maxAnswerTextCharsArg);
@@ -301,10 +313,12 @@ export async function extractAssignmentDetails(
 
           const pointsFromDisplay = {
             earned: toNumber(
-              questionDisplayAny?.score || questionDisplayAny?.summary?.total?.score
+              questionDisplayAny?.score ||
+                questionDisplayAny?.summary?.total?.score
             ),
             possible: toNumber(
-              questionDisplayAny?.total || questionDisplayAny?.summary?.total?.total
+              questionDisplayAny?.total ||
+                questionDisplayAny?.summary?.total?.total
             ),
           };
 
