@@ -1,6 +1,8 @@
 import { scraper, SessionExpiredError } from '../scraper/eclass';
-import { openAuthWindow } from '../auth/server';
+import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { cache, TTL, getCacheKey } from '../cache/store';
+import { EclassAuthRequiredSchema, GetFileTextMcpResultSchema } from './eclass-contracts';
+import { asValidatedMcpResult, asValidatedMcpText } from './mcp-validated-response';
 import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
@@ -37,14 +39,14 @@ export async function getFileText(
         : [];
 
       if (typeof data === 'string') {
-        return {
+        return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {
           content: [...staleHint, { type: 'text' as const, text: data }],
-        };
+        });
       }
       if (Array.isArray(data)) {
-        return {
+        return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {
           content: [...staleHint, ...(data as ContentBlock[])],
-        };
+        });
       }
     }
 
@@ -84,11 +86,17 @@ export async function getFileText(
       cache.set(cacheKey, blocks, TTL.FILES);
     }
 
-    return { content: blocks };
+    return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {
+      content: blocks,
+    });
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      return asValidatedMcpText('get_file_text', EclassAuthRequiredSchema, {
+        status: 'auth_required' as const,
+        message: e.message,
+        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
+      });
     }
     throw e;
   }

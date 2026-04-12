@@ -1,7 +1,12 @@
 import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
-import { openAuthWindow } from '../auth/server';
+import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { DeadlineItem, ItemDetails } from '../types/deadlines';
+import {
+  EclassToolJsonPayloadSchema,
+  ItemDetailsMetaSchema,
+} from './eclass-contracts';
+import { asValidatedMcpText } from './mcp-validated-response';
 
 type DeadlineScope = 'upcoming' | 'month' | 'range';
 
@@ -60,9 +65,11 @@ export async function getUpcomingDeadlines(
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
       });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-      };
+      return asValidatedMcpText(
+        'get_upcoming_deadlines',
+        EclassToolJsonPayloadSchema,
+        resp
+      );
     }
 
     const deadlines = await scraper.getDeadlines(courseId);
@@ -76,13 +83,23 @@ export async function getUpcomingDeadlines(
       expires_at: expiresAt.toISOString(),
     });
 
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-    };
+    return asValidatedMcpText(
+      'get_upcoming_deadlines',
+      EclassToolJsonPayloadSchema,
+      resp
+    );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      return asValidatedMcpText(
+        'get_upcoming_deadlines',
+        EclassToolJsonPayloadSchema,
+        {
+          status: 'auth_required' as const,
+          message: e.message,
+          retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
+        }
+      );
     }
     throw e;
   }
@@ -295,13 +312,15 @@ export async function getDeadlines(params: {
     }
 
     const resp = attachCacheMeta(items, cacheMeta);
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-    };
+    return asValidatedMcpText('get_deadlines', EclassToolJsonPayloadSchema, resp);
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      return asValidatedMcpText('get_deadlines', EclassToolJsonPayloadSchema, {
+        status: 'auth_required' as const,
+        message: e.message,
+        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
+      });
     }
     throw e;
   }
@@ -339,9 +358,11 @@ export async function getItemDetails(params: {
     // Backwards compatible mode: return only the JSON payload + cache meta
     if (!includeImages && !includeCsv) {
       const resp = attachCacheMeta(details, cacheMeta);
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-      };
+      return asValidatedMcpText(
+        'get_item_details',
+        EclassToolJsonPayloadSchema,
+        resp
+      );
     }
 
     const content: any[] = [];
@@ -460,10 +481,12 @@ export async function getItemDetails(params: {
         meta.nextImageOffset = 0;
         meta.note = 'No instruction images found in descriptionHtml.';
 
-        content.unshift({
-          type: 'text' as const,
-          text: JSON.stringify(meta),
-        });
+        const metaBlock = asValidatedMcpText(
+          'get_item_details',
+          ItemDetailsMetaSchema,
+          meta
+        );
+        content.unshift(metaBlock.content[0]);
 
         return { content };
       }
@@ -585,16 +608,26 @@ export async function getItemDetails(params: {
     }
 
     // First block: metadata
-    content.unshift({
-      type: 'text' as const,
-      text: JSON.stringify(meta),
-    });
+    const metaBlockFinal = asValidatedMcpText(
+      'get_item_details',
+      ItemDetailsMetaSchema,
+      meta
+    );
+    content.unshift(metaBlockFinal.content[0]);
 
     return { content };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      return asValidatedMcpText(
+        'get_item_details',
+        EclassToolJsonPayloadSchema,
+        {
+          status: 'auth_required' as const,
+          message: e.message,
+          retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
+        }
+      );
     }
     throw e;
   }

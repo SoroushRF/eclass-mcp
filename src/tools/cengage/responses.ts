@@ -1,3 +1,8 @@
+/**
+ * Cengage tool outputs: authoritative validation lives here via per-response
+ * Zod schemas in cengage-contracts.ts. Do not add a second generic output
+ * wrapper — E11 uses these `.parse()` calls as the contract boundary.
+ */
 import type {
   DiscoverCengageLinksResponse,
   GetCengageAssignmentDetailsResponse,

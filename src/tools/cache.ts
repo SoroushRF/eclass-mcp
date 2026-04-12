@@ -1,4 +1,6 @@
 import { cache } from '../cache/store';
+import { ClearCacheToolResponseSchema } from './eclass-contracts';
+import { asValidatedMcpText } from './mcp-validated-response';
 
 export type CacheScope =
   | 'all'
@@ -53,28 +55,25 @@ export async function clearCache(scope: CacheScope = 'all') {
         break;
     }
 
-    return {
-      content: [
-        {
-          type: 'text' as const,
-          text:
-            `Successfully cleared default (non-pinned) cache for scope "${scope}". ` +
-            `${clearedCount} entries removed. ` +
-            `User-pinned cache entries were not deleted. ` +
-            `To remove pinned data, use cache_delete_pinned (or cache_unpin to drop the pin without deleting files).`,
-        },
-      ],
-    };
+    return asValidatedMcpText('clear_cache', ClearCacheToolResponseSchema, {
+      ok: true,
+      scope,
+      clearedCount,
+      message:
+        `Successfully cleared default (non-pinned) cache for scope "${scope}". ` +
+        `${clearedCount} entries removed. ` +
+        `User-pinned cache entries were not deleted. ` +
+        `To remove pinned data, use cache_delete_pinned (or cache_unpin to drop the pin without deleting files).`,
+    });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     return {
-      content: [
-        {
-          type: 'text' as const,
-          text: `Failed to clear cache: ${message}`,
-        },
-      ],
-      isError: true,
+      ...asValidatedMcpText('clear_cache', ClearCacheToolResponseSchema, {
+        ok: false,
+        message: `Failed to clear cache: ${message}`,
+        isError: true,
+      }),
+      isError: true as const,
     };
   }
 }

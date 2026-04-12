@@ -39,6 +39,14 @@
 - 🧹 **Granular Invalidation** — manual `clear_cache` clears **default** TTL cache only; **user-pinned** entries stay until you `cache_delete_pinned` or `cache_unpin`; automatic volatile clearing on re-auth
 - 📌 **Pinned cache (T27)** — pin files, section text, or course content to keep past TTL; on-disk quota via `ECLASS_MCP_PIN_QUOTA_BYTES` (default 300 MiB)
 
+### Tool output contracts (E11)
+
+Tool responses are validated with **Zod** before serialization (`src/tools/eclass-contracts.ts`, `src/tools/mcp-validated-response.ts`). By default validation is **non-fatal**: `safeParse` runs, unknown/extra keys are allowed via `.passthrough()`, and on mismatch the server logs a warning and still returns the payload JSON. Set **`ECLASS_MCP_STRICT_TOOL_OUTPUT=1`** in `.env` only when you want validation to throw (local debugging). Cengage tools keep their own schema boundary in `src/tools/cengage/responses.ts`.
+
+### Structured error codes (E12, phased)
+
+Machine-readable **`code`** values (e.g. `SESSION_EXPIRED`, `VALIDATION_FAILED`) are defined in `src/errors/codes.ts`. Helpers in `src/errors/tool-error.ts` build consistent JSON alongside existing `message` / `status` fields. Schemas in `eclass-contracts.ts` allow **optional** `code` so older payloads still validate; tools gain `code` incrementally by phase.
+
 ---
 
 ## 🏗️ Architecture

@@ -21,11 +21,11 @@ import { SessionExpiredError } from '../scraper/eclass';
 import { openAuthWindow } from '../auth/server';
 import { getCourseContent, getSectionText } from './content';
 import { getFileText } from './files';
+import { PinToolJsonPayloadSchema } from './eclass-contracts';
+import { asValidatedMcpText } from './mcp-validated-response';
 
-function jsonResponse(obj: unknown) {
-  return {
-    content: [{ type: 'text' as const, text: JSON.stringify(obj, null, 2) }],
-  };
+function pinToolJson(toolName: string, obj: unknown) {
+  return asValidatedMcpText(toolName, PinToolJsonPayloadSchema, obj);
 }
 
 function parseFileResourceKey(resource_key: string): {
@@ -61,7 +61,7 @@ export async function cachePin(args: {
     let cacheKey: string;
     if (resource_type === 'file') {
       if (!args.fileUrl) {
-        return jsonResponse({
+        return pinToolJson('cache_pin', {
           ok: false,
           reason: 'invalid_args',
           message: 'fileUrl is required for resource_type=file',
@@ -70,7 +70,7 @@ export async function cachePin(args: {
       cacheKey = buildFileCacheKey(args.fileUrl, args.startPage, args.endPage);
     } else if (resource_type === 'sectiontext') {
       if (!args.url) {
-        return jsonResponse({
+        return pinToolJson('cache_pin', {
           ok: false,
           reason: 'invalid_args',
           message: 'url is required for resource_type=sectiontext',
@@ -79,7 +79,7 @@ export async function cachePin(args: {
       cacheKey = buildSectionTextCacheKey(args.url);
     } else {
       if (!args.courseId) {
-        return jsonResponse({
+        return pinToolJson('cache_pin', {
           ok: false,
           reason: 'invalid_args',
           message: 'courseId is required for resource_type=content',
@@ -91,7 +91,7 @@ export async function cachePin(args: {
     const pinId = computePinId(resource_type, resource_key);
     const fp = getCacheFilePathForKey(cacheKey);
     if (!fs.existsSync(fp)) {
-      return jsonResponse({
+      return pinToolJson('cache_pin', {
         ok: false,
         reason: 'not_cached',
         cacheKey,
@@ -101,7 +101,7 @@ export async function cachePin(args: {
 
     const quota = checkPinQuota(cacheKey, pinId);
     if (!quota.ok) {
-      return jsonResponse({
+      return pinToolJson('cache_pin', {
         ok: false,
         reason: quota.reason,
         used_bytes: quota.used_bytes,
@@ -120,7 +120,7 @@ export async function cachePin(args: {
     };
     upsertPin(record);
 
-    return jsonResponse({
+    return pinToolJson('cache_pin', {
       ok: true,
       pinId,
       resource_type,
@@ -133,7 +133,7 @@ export async function cachePin(args: {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ ok: false, reason: 'error', message });
+    return pinToolJson('cache_pin', { ok: false, reason: 'error', message });
   }
 }
 
@@ -141,13 +141,13 @@ export async function cacheUnpin(args: { pinId: string }) {
   try {
     const removed = removePin(args.pinId);
     if (!removed) {
-      return jsonResponse({
+      return pinToolJson('cache_unpin', {
         ok: false,
         reason: 'not_found',
         pinId: args.pinId,
       });
     }
-    return jsonResponse({
+    return pinToolJson('cache_unpin', {
       ok: true,
       removed: true,
       pinId: args.pinId,
@@ -156,7 +156,7 @@ export async function cacheUnpin(args: { pinId: string }) {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ ok: false, reason: 'error', message });
+    return pinToolJson('cache_unpin', { ok: false, reason: 'error', message });
   }
 }
 
@@ -186,14 +186,18 @@ export async function cacheListPins(args: { resource_type?: PinResourceType }) {
         size_bytes,
       };
     });
-    return jsonResponse({
+    return pinToolJson('cache_list_pins', {
       ok: true,
       pins: rows,
       quota: { used_bytes: used, limit_bytes: limit },
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ ok: false, reason: 'error', message });
+    return pinToolJson('cache_list_pins', {
+      ok: false,
+      reason: 'error',
+      message,
+    });
   }
 }
 
@@ -201,7 +205,7 @@ export async function cacheRefreshPin(args: { pinId: string }) {
   try {
     const pin = getPinById(args.pinId);
     if (!pin) {
-      return jsonResponse({
+      return pinToolJson('cache_refresh_pin', {
         ok: false,
         reason: 'not_found',
         pinId: args.pinId,
@@ -220,7 +224,7 @@ export async function cacheRefreshPin(args: { pinId: string }) {
     }
 
     const now = new Date().toISOString();
-    return jsonResponse({
+    return pinToolJson('cache_refresh_pin', {
       ok: true,
       pinId: pin.pinId,
       refreshed: true,
@@ -232,14 +236,18 @@ export async function cacheRefreshPin(args: { pinId: string }) {
   } catch (e: unknown) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return jsonResponse({
+      return pinToolJson('cache_refresh_pin', {
         ok: false,
         reason: 'session_expired',
         message: e.message,
       });
     }
     const message = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ ok: false, reason: 'error', message });
+    return pinToolJson('cache_refresh_pin', {
+      ok: false,
+      reason: 'error',
+      message,
+    });
   }
 }
 
@@ -255,7 +263,7 @@ export async function cacheDeletePinned(args: {
     if (args.pinId) {
       const pin = getPinById(args.pinId);
       if (!pin) {
-        return jsonResponse({
+        return pinToolJson('cache_delete_pinned', {
           ok: false,
           reason: 'not_found',
           pinId: args.pinId,
@@ -268,7 +276,7 @@ export async function cacheDeletePinned(args: {
       }
       removePin(args.pinId);
       removedPins++;
-      return jsonResponse({
+      return pinToolJson('cache_delete_pinned', {
         ok: true,
         removed_pins: removedPins,
         removed_cache_files: removedCacheFiles,
@@ -286,7 +294,7 @@ export async function cacheDeletePinned(args: {
         }
       }
       removedPins = removePinsByFilter(() => true).length;
-      return jsonResponse({
+      return pinToolJson('cache_delete_pinned', {
         ok: true,
         removed_pins: removedPins,
         removed_cache_files: removedCacheFiles,
@@ -304,7 +312,7 @@ export async function cacheDeletePinned(args: {
         }
       }
       removedPins = removed.length;
-      return jsonResponse({
+      return pinToolJson('cache_delete_pinned', {
         ok: true,
         removed_pins: removedPins,
         removed_cache_files: removedCacheFiles,
@@ -312,7 +320,7 @@ export async function cacheDeletePinned(args: {
       });
     }
 
-    return jsonResponse({
+    return pinToolJson('cache_delete_pinned', {
       ok: false,
       reason: 'invalid_args',
       message:
@@ -320,6 +328,10 @@ export async function cacheDeletePinned(args: {
     });
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
-    return jsonResponse({ ok: false, reason: 'error', message });
+    return pinToolJson('cache_delete_pinned', {
+      ok: false,
+      reason: 'error',
+      message,
+    });
   }
 }

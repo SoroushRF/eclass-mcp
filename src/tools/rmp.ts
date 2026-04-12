@@ -1,6 +1,12 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import { RMPClient, type RMPTeacherSearch } from '../scraper/rmp';
 import { cache, TTL, getCacheKey } from '../cache/store';
+import {
+  RmpProfessorDetailsToolResponseSchema,
+  RmpProfessorNotFoundResponseSchema,
+  RmpSearchToolResponseSchema,
+} from './eclass-contracts';
+import { asValidatedMcpText } from './mcp-validated-response';
 
 const rmpClient = new RMPClient();
 
@@ -61,12 +67,12 @@ function toSearchToolResult(response: {
   diagnostics: any;
   _cache?: any;
 }) {
-  return {
-    content: [{ type: 'text' as const, text: buildSearchSummary(response) }],
+  return asValidatedMcpText('search_professors', RmpSearchToolResponseSchema, {
+    summary: buildSearchSummary(response),
     matches: response.matches,
     diagnostics: response.diagnostics,
     _cache: response._cache,
-  };
+  });
 }
 
 function buildDetailsSummary(response: {
@@ -142,12 +148,16 @@ function toDetailsToolResult(response: {
   }>;
   _cache?: any;
 }) {
-  return {
-    content: [{ type: 'text' as const, text: buildDetailsSummary(response) }],
-    professor: response.professor,
-    recentReviews: response.recentReviews,
-    _cache: response._cache,
-  };
+  return asValidatedMcpText(
+    'get_professor_details',
+    RmpProfessorDetailsToolResponseSchema,
+    {
+      summary: buildDetailsSummary(response),
+      professor: response.professor,
+      recentReviews: response.recentReviews,
+      _cache: response._cache,
+    }
+  );
 }
 
 /**
@@ -262,7 +272,14 @@ export async function getProfessorDetailsTool(args: any) {
     const details = await rmpClient.getTeacherDetails(teacherId);
     if (!details) {
       console.error(`[RMP] no details returned for teacherId=${teacherId}`);
-      return { error: 'Professor not found or profile is unavailable.' };
+      return asValidatedMcpText(
+        'get_professor_details',
+        RmpProfessorNotFoundResponseSchema,
+        {
+          ok: false,
+          error: 'Professor not found or profile is unavailable.',
+        }
+      );
     }
 
     const data = {

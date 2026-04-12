@@ -5,7 +5,9 @@ import {
   SectionTextData,
 } from '../scraper/eclass';
 import { sanitizeHttpUrlQueryParams } from '../scraper/eclass/helpers';
-import { openAuthWindow } from '../auth/server';
+import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { EclassToolJsonPayloadSchema } from './eclass-contracts';
+import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 
 export async function getCourseContent(courseId: string) {
@@ -21,9 +23,11 @@ export async function getCourseContent(courseId: string) {
         expires_at: cached.expires_at,
         ...(stale ? { stale: true } : {}),
       });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-      };
+      return asValidatedMcpText(
+        'get_course_content',
+        EclassToolJsonPayloadSchema,
+        resp
+      );
     }
 
     const content = await scraper.getCourseContent(courseId);
@@ -37,13 +41,19 @@ export async function getCourseContent(courseId: string) {
       expires_at: expiresAt.toISOString(),
     });
 
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-    };
+    return asValidatedMcpText(
+      'get_course_content',
+      EclassToolJsonPayloadSchema,
+      resp
+    );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      return asValidatedMcpText('get_course_content', EclassToolJsonPayloadSchema, {
+        status: 'auth_required' as const,
+        message: e.message,
+        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
+      });
     }
     throw e;
   }
@@ -66,9 +76,11 @@ export async function getSectionText(url: string) {
         expires_at: cached.expires_at,
         ...(stale ? { stale: true } : {}),
       });
-      return {
-        content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-      };
+      return asValidatedMcpText(
+        'get_section_text',
+        EclassToolJsonPayloadSchema,
+        resp
+      );
     }
 
     const content = await scraper.getSectionText(targetUrl);
@@ -82,13 +94,19 @@ export async function getSectionText(url: string) {
       expires_at: expiresAt.toISOString(),
     });
 
-    return {
-      content: [{ type: 'text' as const, text: JSON.stringify(resp) }],
-    };
+    return asValidatedMcpText(
+      'get_section_text',
+      EclassToolJsonPayloadSchema,
+      resp
+    );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
       openAuthWindow();
-      return { content: [{ type: 'text' as const, text: e.message }] };
+      return asValidatedMcpText('get_section_text', EclassToolJsonPayloadSchema, {
+        status: 'auth_required' as const,
+        message: e.message,
+        retry: { afterAuth: true, authUrl: getAuthUrl('eclass') },
+      });
     }
     throw e;
   }
