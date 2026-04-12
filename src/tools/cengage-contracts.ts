@@ -234,6 +234,139 @@ export const GetCengageAssignmentsResponseSchema = z.object({
   _cache: CengageCacheMetaSchema.optional(),
 });
 
+export const CengageAssignmentQuestionResultSchema = z.enum([
+  'correct',
+  'incorrect',
+  'partial',
+  'ungraded',
+  'unknown',
+]);
+
+export const CengageAssignmentResourceLinkSchema = z.object({
+  label: z.string(),
+  url: z.string(),
+});
+
+export const CengageAssignmentQuestionSchema = z.object({
+  questionNumber: z.number().int().min(1),
+  questionId: z.string().optional(),
+  prompt: z.string(),
+  promptTruncated: z.boolean().optional(),
+  answer: z.string().optional(),
+  answerTruncated: z.boolean().optional(),
+  pointsEarned: z.number().optional(),
+  pointsPossible: z.number().optional(),
+  submissionsUsed: z.string().optional(),
+  result: CengageAssignmentQuestionResultSchema.optional(),
+  feedback: z.string().optional(),
+  resourceLinks: z.array(CengageAssignmentResourceLinkSchema).optional(),
+});
+
+export const CengageAssignmentDetailsSchema = z.object({
+  pageTitle: z.string().optional(),
+  heading: z.string().optional(),
+  questionCount: z.number().int().min(0),
+  returnedQuestionCount: z.number().int().min(0),
+  truncatedQuestions: z.boolean().optional(),
+  questions: z.array(CengageAssignmentQuestionSchema),
+});
+
+export const CengageAssignmentSelectionSchema = z.object({
+  assignmentId: z.string().optional(),
+  name: z.string(),
+  dueDate: z.string().optional(),
+  dueDateIso: z.string().optional(),
+  status: CengageAssignmentStatusSchema,
+  score: z.string().optional(),
+  url: z.string().optional(),
+});
+
+export const GetCengageAssignmentDetailsInputSchema = z.object({
+  entryUrl: z
+    .string()
+    .optional()
+    .describe(
+      'Optional Cengage/WebAssign URL (dashboard, LTI launch, direct course, or login). If omitted, dashboard-first mode is used from saved session state.'
+    ),
+  ssoUrl: z
+    .string()
+    .optional()
+    .describe('Legacy alias for entryUrl.'),
+  courseId: z
+    .string()
+    .optional()
+    .describe('Optional explicit course id when multiple courses exist.'),
+  courseKey: z
+    .string()
+    .optional()
+    .describe('Optional explicit WebAssign course key when available.'),
+  courseQuery: z
+    .string()
+    .optional()
+    .describe(
+      'Optional course name query when selecting among multiple courses.'
+    ),
+  assignmentUrl: z
+    .string()
+    .optional()
+    .describe(
+      'Optional assignment URL from get_cengage_assignments. Relative and absolute URLs are accepted.'
+    ),
+  assignmentId: z
+    .string()
+    .optional()
+    .describe('Optional assignment id from get_cengage_assignments.'),
+  assignmentQuery: z
+    .string()
+    .optional()
+    .describe('Optional case-insensitive assignment name query.'),
+  includeAnswers: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true (default), include answer-area text and correctness hints per question.'
+    ),
+  includeResources: z
+    .boolean()
+    .optional()
+    .describe(
+      'If true (default), include per-question resource links (Read It, etc.).'
+    ),
+  maxQuestions: z
+    .number()
+    .int()
+    .min(1)
+    .max(200)
+    .optional()
+    .describe('Max number of questions to return (default 50).'),
+  maxQuestionTextChars: z
+    .number()
+    .int()
+    .min(200)
+    .max(10000)
+    .optional()
+    .describe('Max characters per question prompt (default 2000).'),
+  maxAnswerTextChars: z
+    .number()
+    .int()
+    .min(100)
+    .max(10000)
+    .optional()
+    .describe('Max characters per answer text (default 1200).'),
+});
+
+export const GetCengageAssignmentDetailsResponseSchema = z.object({
+  status: CengageToolStatusSchema,
+  entryUrl: z.string().optional(),
+  selectedCourse: CengageCourseSummarySchema.optional(),
+  selectedAssignment: CengageAssignmentSelectionSchema.optional(),
+  availableAssignments: z.array(CengageAssignmentSelectionSchema).optional(),
+  details: CengageAssignmentDetailsSchema.optional(),
+  message: z.string().optional(),
+  retry: CengageRetryGuidanceSchema.optional(),
+  _cache: CengageCacheMetaSchema.optional(),
+});
+
 export type DiscoverCengageLinksInput = z.infer<
   typeof DiscoverCengageLinksInputSchema
 >;
@@ -253,4 +386,11 @@ export type GetCengageAssignmentsInput = z.infer<
 >;
 export type GetCengageAssignmentsResponse = z.infer<
   typeof GetCengageAssignmentsResponseSchema
+>;
+
+export type GetCengageAssignmentDetailsInput = z.infer<
+  typeof GetCengageAssignmentDetailsInputSchema
+>;
+export type GetCengageAssignmentDetailsResponse = z.infer<
+  typeof GetCengageAssignmentDetailsResponseSchema
 >;

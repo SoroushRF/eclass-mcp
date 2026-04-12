@@ -1,13 +1,24 @@
 import type {
   DiscoverCengageLinksResponse,
+  GetCengageAssignmentDetailsResponse,
   GetCengageAssignmentsResponse,
   ListCengageCoursesResponse,
 } from '../cengage-contracts';
 import {
   DiscoverCengageLinksResponseSchema,
+  GetCengageAssignmentDetailsResponseSchema,
   GetCengageAssignmentsResponseSchema,
   ListCengageCoursesResponseSchema,
 } from '../cengage-contracts';
+
+export function asAssignmentDetailsToolResponse(
+  payload: GetCengageAssignmentDetailsResponse
+) {
+  const validated = GetCengageAssignmentDetailsResponseSchema.parse(payload);
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(validated) }],
+  };
+}
 
 export function asAssignmentsToolResponse(
   payload: GetCengageAssignmentsResponse

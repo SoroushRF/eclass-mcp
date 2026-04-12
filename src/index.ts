@@ -31,11 +31,13 @@ import {
 } from './tools/pins';
 import {
   discoverCengageLinks,
+  getCengageAssignmentDetails,
   getCengageAssignments,
   listCengageCourses,
 } from './tools/cengage';
 import {
   DiscoverCengageLinksInputSchema,
+  GetCengageAssignmentDetailsInputSchema,
   GetCengageAssignmentsInputSchema,
   ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
@@ -316,6 +318,42 @@ server.tool(
       courseId,
       courseKey,
       courseQuery,
+    })) as any
+);
+
+server.tool(
+  'get_cengage_assignment_details',
+  'Opens a specific Cengage/WebAssign assignment and extracts question-level prompts, scoring hints, answers, and resource links (similar to deep item details on eClass).',
+  GetCengageAssignmentDetailsInputSchema.shape,
+  (async ({
+    entryUrl,
+    ssoUrl,
+    courseId,
+    courseKey,
+    courseQuery,
+    assignmentUrl,
+    assignmentId,
+    assignmentQuery,
+    includeAnswers,
+    includeResources,
+    maxQuestions,
+    maxQuestionTextChars,
+    maxAnswerTextChars,
+  }: any) =>
+    await getCengageAssignmentDetails({
+      entryUrl,
+      ssoUrl,
+      courseId,
+      courseKey,
+      courseQuery,
+      assignmentUrl,
+      assignmentId,
+      assignmentQuery,
+      includeAnswers,
+      includeResources,
+      maxQuestions,
+      maxQuestionTextChars,
+      maxAnswerTextChars,
     })) as any
 );
 

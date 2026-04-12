@@ -1,6 +1,7 @@
 import type { CengageDashboardCourse } from '../../scraper/cengage-courses';
 import { CengageAuthRequiredError } from '../../scraper/cengage-errors';
 import type {
+  GetCengageAssignmentDetailsInput,
   GetCengageAssignmentsInput,
   ListCengageCoursesInput,
 } from '../cengage-contracts';
@@ -92,6 +93,16 @@ export function summarizeCourseCandidates(
 export function resolveAssignmentsInput(
   input: GetCengageAssignmentsInput | string
 ): GetCengageAssignmentsInput {
+  if (typeof input === 'string') {
+    return { ssoUrl: input };
+  }
+
+  return input;
+}
+
+export function resolveAssignmentDetailsInput(
+  input: GetCengageAssignmentDetailsInput | string
+): GetCengageAssignmentDetailsInput {
   if (typeof input === 'string') {
     return { ssoUrl: input };
   }
