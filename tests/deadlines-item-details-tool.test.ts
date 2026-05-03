@@ -110,7 +110,8 @@ describe('deadlines getItemDetails media and csv branches', () => {
     expect(meta.csvSkippedCount).toBe(1);
 
     const csvBlock = result.content.find(
-      (block) => block.text && block.text.includes('--- CSV:')
+      (block: { text?: string }) =>
+        block.text && block.text.includes('--- CSV:')
     );
     expect(csvBlock?.text).toContain('--- CSV: grades-a.csv ---');
     expect(csvBlock?.text).toContain('col1,col2\n1,2');
@@ -156,8 +157,9 @@ describe('deadlines getItemDetails media and csv branches', () => {
     expect(meta.csvIncludedCount).toBe(1);
 
     const csvText =
-      result.content.find((block) => block.text?.includes('--- CSV:'))?.text ||
-      '';
+      result.content.find((block: { text?: string }) =>
+        block.text?.includes('--- CSV:')
+      )?.text || '';
     expect(csvText).toContain('--- CSV: large.csv ---');
     expect(csvText.length).toBeLessThan(80);
   });
@@ -273,6 +275,7 @@ describe('deadlines getItemDetails media and csv branches', () => {
     const openAuthSpy = vi
       .spyOn(authServer, 'openAuthWindow')
       .mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(false);
     vi.spyOn(authServer, 'getAuthUrl').mockReturnValue(
       'http://localhost:3000/auth'
     );
@@ -284,5 +287,27 @@ describe('deadlines getItemDetails media and csv branches', () => {
     expect(payload.code).toBe('SESSION_EXPIRED');
     expect(payload.retry?.authUrl).toBe('http://localhost:3000/auth');
     expect(openAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries getItemDetails after auth completes', async () => {
+    const url = 'https://eclass.yorku.ca/mod/assign/view.php?id=auth-retry';
+    rememberDetailsKey(url);
+
+    const detailsSpy = vi
+      .spyOn(scraper, 'getItemDetails')
+      .mockRejectedValueOnce(new SessionExpiredError('session expired'))
+      .mockResolvedValueOnce({
+        kind: 'assign',
+        url,
+        title: 'Retried assignment',
+      } as any);
+    vi.spyOn(authServer, 'openAuthWindow').mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(true);
+
+    const result = await getItemDetails({ url, includeImages: true });
+    const payload = parseMeta(result);
+
+    expect(payload.title).toBe('Retried assignment');
+    expect(detailsSpy).toHaveBeenCalledTimes(2);
   });
 });

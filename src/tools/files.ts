@@ -4,7 +4,7 @@ import {
   SessionExpiredError,
   UpstreamError,
 } from '../scraper/eclass';
-import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { getAuthUrl } from '../auth/server';
 import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
@@ -20,6 +20,7 @@ import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
 import path from 'path';
+import { handleEclassSessionExpired } from './auth-retry';
 
 export async function getFileText(
   courseId: string,
@@ -27,7 +28,7 @@ export async function getFileText(
   startPage?: number,
   endPage?: number
 ) {
-  try {
+  const run = async () => {
     // Build a cache key
     let cacheKey = getCacheKey('file', fileUrl);
     if (startPage || endPage) {
@@ -110,16 +111,21 @@ export async function getFileText(
     return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {
       content: blocks,
     });
+  };
+
+  try {
+    return await run();
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_file_text',
-        EclassAuthRequiredSchema,
-        sessionExpiredPayload(e.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
+      return handleEclassSessionExpired(e, run, (error) =>
+        asValidatedMcpText(
+          'get_file_text',
+          EclassAuthRequiredSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        )
       );
     }
     if (e instanceof ScrapeLayoutError) {

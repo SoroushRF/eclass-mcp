@@ -5,14 +5,15 @@ import {
   SectionTextData,
 } from '../scraper/eclass';
 import { sanitizeHttpUrlQueryParams } from '../scraper/eclass/helpers';
-import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { getAuthUrl } from '../auth/server';
 import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { handleEclassSessionExpired } from './auth-retry';
 
 export async function getCourseContent(courseId: string) {
-  try {
+  const run = async () => {
     const cacheKey = getCacheKey('content', courseId);
     const cached = cache.getWithMeta<CourseContent>(cacheKey);
 
@@ -47,16 +48,21 @@ export async function getCourseContent(courseId: string) {
       EclassToolJsonPayloadSchema,
       resp
     );
+  };
+
+  try {
+    return await run();
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_course_content',
-        EclassToolJsonPayloadSchema,
-        sessionExpiredPayload(e.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
+      return handleEclassSessionExpired(e, run, (error) =>
+        asValidatedMcpText(
+          'get_course_content',
+          EclassToolJsonPayloadSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        )
       );
     }
     throw e;
@@ -64,7 +70,7 @@ export async function getCourseContent(courseId: string) {
 }
 
 export async function getSectionText(url: string) {
-  try {
+  const run = async () => {
     const targetUrl = sanitizeHttpUrlQueryParams(url);
     console.error(
       `[MCP Server] Claude requested section text for: ${targetUrl}`
@@ -103,16 +109,21 @@ export async function getSectionText(url: string) {
       EclassToolJsonPayloadSchema,
       resp
     );
+  };
+
+  try {
+    return await run();
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_section_text',
-        EclassToolJsonPayloadSchema,
-        sessionExpiredPayload(e.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
+      return handleEclassSessionExpired(e, run, (error) =>
+        asValidatedMcpText(
+          'get_section_text',
+          EclassToolJsonPayloadSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        )
       );
     }
     throw e;

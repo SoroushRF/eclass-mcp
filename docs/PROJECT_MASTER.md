@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-04-12
+**Last updated:** 2026-05-03
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -57,7 +57,7 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T30**     | [x] Cengage Integration Phases 3-4 complete: scraper core + MCP wiring + cache metadata parity — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
 | **T31**     | [x] Cengage Integration Phase 5 complete: verification coverage and E2E run logging — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)            |
 | **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                |
-| **T36**     | Auth blocking poll retrofit — apply seamless auto-retry pattern to existing eClass + SIS tools — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                                 |
+| **T36**     | [x] Auth blocking poll retrofit — eClass + SIS tools open `/auth`, wait briefly for login, and retry once before returning `auth_required` — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                  |
 | **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                            |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D)                                                                                                                                                                                                                            |
 | **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                   |
@@ -86,7 +86,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
   - Cengage and WeBWorK assignment platform integration.
   - Platform discovery engine: passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
   - Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
-  - Blocking poll / auto-retry pattern introduced for Cengage and WeBWorK, then retrofitted to eClass and SIS (T40) so all tools respond seamlessly without requiring a re-prompt after login.
+  - Blocking poll / auto-retry pattern retrofitted to eClass and SIS (T36) so those tools respond seamlessly without requiring a re-prompt after login.
 
 - `1.0.0`
   - First stable engine release.
@@ -166,7 +166,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 
 - Historical core-only release: `0.9.0-core`
 - Current engine stage: `1.0.0-beta.1`
-- Next planned beta: `1.0.0-beta.2` (Cengage, WeBWorK, blocking poll / auto-retry for all platforms)
+- Next planned beta: `1.0.0-beta.2` (Cengage completed; eClass/SIS blocking poll completed; WeBWorK still pending)
 - Next major public engine milestone: `1.0.0`
 - Future planning should assume the engine and product will eventually diverge into separate release lines.
 
@@ -225,7 +225,7 @@ Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retr
 - [x] **T30** ? **Cengage Phase 3 & 4 (Scraper & Tools):** DOM inspection, headless scraper, session expiry check, tool generation, tier caching (`_cache`), and registration. **Completed 2026-04-10**.
 - [x] **T31** ? **Cengage Phase 5 (Verification):** Updates to E2E handbook, run log updates. **Completed 2026-04-10**.
 - [ ] **T32-T35** ? **WeBWorK multi-instance:** discovery, host registry, scraper + tools, E2E.
-- [ ] **T36** ? **Auth blocking poll retrofit:** apply seamless auto-retry pattern to existing eClass + SIS tools so all tools respond seamlessly without requiring a re-prompt after login.
+- [x] **T36** ? **Auth blocking poll retrofit:** eClass + SIS tools now open `/auth`, wait up to 2 minutes by default (`ECLASS_MCP_AUTH_WAIT_MS` override), and retry once before returning `auth_required`. **Completed 2026-05-03**.
 
 #### 2.4.3 Future write tools (T37-T40)
 
@@ -648,7 +648,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 - **T28-T31 (Cengage):** completed.
 - **T32-T35 (WeBWorK multi-instance):** pending.
-- **T36 (auth blocking poll retrofit for eClass + SIS):** pending.
+- **T36 (auth blocking poll retrofit for eClass + SIS):** completed 2026-05-03.
 
 #### Cengage implementation overview (completed)
 
@@ -666,7 +666,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 #### Remaining scope in this tracker
 
 1. **T32-T35 (WeBWorK):** multi-instance discovery, host registry, scraper/tooling, and E2E rows.
-2. **T36 (Auth retry retrofit):** apply seamless blocking poll/auto-retry pattern to existing eClass and SIS tool flows.
+2. **T36 (Auth retry retrofit):** completed for existing eClass and SIS tool flows; timeout fallback preserves `status="auth_required"` + `SESSION_EXPIRED`.
 
 ---
 

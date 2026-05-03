@@ -1,5 +1,5 @@
 import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
-import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { getAuthUrl } from '../auth/server';
 import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
 import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
@@ -10,6 +10,7 @@ import {
   ItemDetailsMetaSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
+import { handleEclassSessionExpired } from './auth-retry';
 
 type DeadlineScope = 'upcoming' | 'month' | 'range';
 
@@ -58,8 +59,9 @@ function parseBoundaryDate(raw: string, isEndBoundary: boolean): Date {
 
 export async function getUpcomingDeadlines(
   _daysAhead: number = 30,
-  courseId?: string
-) {
+  courseId?: string,
+  authRetryAttempted: boolean = false
+): Promise<any> {
   try {
     const cacheKey = getCacheKey('deadlines', 'upcoming', courseId || 'all');
     const cached = cache.getWithMeta<Assignment[]>(cacheKey);
@@ -95,7 +97,22 @@ export async function getUpcomingDeadlines(
     );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
+      const fallback = (error: SessionExpiredError) =>
+        asValidatedMcpText(
+          'get_upcoming_deadlines',
+          EclassToolJsonPayloadSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        );
+      if (!authRetryAttempted) {
+        return handleEclassSessionExpired(
+          e,
+          () => getUpcomingDeadlines(_daysAhead, courseId, true),
+          fallback
+        );
+      }
       return asValidatedMcpText(
         'get_upcoming_deadlines',
         EclassToolJsonPayloadSchema,
@@ -173,16 +190,19 @@ async function getDetailsWithMeta(
   };
 }
 
-export async function getDeadlines(params: {
-  courseId?: string;
-  scope?: DeadlineScope;
-  month?: number;
-  year?: number;
-  from?: string;
-  to?: string;
-  includeDetails?: boolean;
-  maxDetails?: number;
-}) {
+export async function getDeadlines(
+  params: {
+    courseId?: string;
+    scope?: DeadlineScope;
+    month?: number;
+    year?: number;
+    from?: string;
+    to?: string;
+    includeDetails?: boolean;
+    maxDetails?: number;
+  },
+  authRetryAttempted: boolean = false
+): Promise<any> {
   const {
     courseId,
     scope = 'upcoming',
@@ -332,15 +352,23 @@ export async function getDeadlines(params: {
     );
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_deadlines',
-        EclassToolJsonPayloadSchema,
-        sessionExpiredPayload(e.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
-      );
+      const fallback = (error: SessionExpiredError) =>
+        asValidatedMcpText(
+          'get_deadlines',
+          EclassToolJsonPayloadSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        );
+      if (!authRetryAttempted) {
+        return handleEclassSessionExpired(
+          e,
+          () => getDeadlines(params, true),
+          fallback
+        );
+      }
+      return fallback(e);
     }
     if (e instanceof ValidationError) {
       return asValidatedMcpText(
@@ -355,18 +383,21 @@ export async function getDeadlines(params: {
   }
 }
 
-export async function getItemDetails(params: {
-  url: string;
-  includeImages?: boolean;
-  maxImages?: number;
-  imageOffset?: number;
-  maxTotalImageBytes?: number;
-  includeCsv?: boolean;
-  csvMode?: 'auto' | 'full' | 'preview';
-  maxCsvBytes?: number;
-  csvPreviewLines?: number;
-  maxCsvAttachments?: number;
-}) {
+export async function getItemDetails(
+  params: {
+    url: string;
+    includeImages?: boolean;
+    maxImages?: number;
+    imageOffset?: number;
+    maxTotalImageBytes?: number;
+    includeCsv?: boolean;
+    csvMode?: 'auto' | 'full' | 'preview';
+    maxCsvBytes?: number;
+    csvPreviewLines?: number;
+    maxCsvAttachments?: number;
+  },
+  authRetryAttempted: boolean = false
+): Promise<any> {
   try {
     const url = params?.url;
     if (!url) {
@@ -649,15 +680,23 @@ export async function getItemDetails(params: {
     return { content };
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_item_details',
-        EclassToolJsonPayloadSchema,
-        sessionExpiredPayload(e.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
-      );
+      const fallback = (error: SessionExpiredError) =>
+        asValidatedMcpText(
+          'get_item_details',
+          EclassToolJsonPayloadSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        );
+      if (!authRetryAttempted) {
+        return handleEclassSessionExpired(
+          e,
+          () => getItemDetails(params, true),
+          fallback
+        );
+      }
+      return fallback(e);
     }
     if (e instanceof ValidationError) {
       return asValidatedMcpText(

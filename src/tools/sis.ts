@@ -1,15 +1,16 @@
 import { SISScraper, SessionExpiredError } from '../scraper/sis';
-import { openAuthWindow } from '../auth/server';
+import { getAuthUrl } from '../auth/server';
 import {
   SisExamScheduleResponseSchema,
   SisTimetableResponseSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
+import { handleEclassSessionExpired } from './auth-retry';
 
 const scraper = new SISScraper();
 
 export async function getExamSchedule() {
-  try {
+  const run = async () => {
     const exams = await scraper.scrapeExams();
     if (exams.length === 0) {
       return asValidatedMcpText(
@@ -32,18 +33,23 @@ export async function getExamSchedule() {
         exams,
       }
     );
+  };
+
+  try {
+    return await run();
   } catch (error: unknown) {
     if (error instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_exam_schedule',
-        SisExamScheduleResponseSchema,
-        {
+      return handleEclassSessionExpired(error, run, () =>
+        asValidatedMcpText('get_exam_schedule', SisExamScheduleResponseSchema, {
           status: 'auth_required',
           code: 'SESSION_EXPIRED',
           message:
             'Your York session has expired. A login window has been opened. Please log in and try again.',
-        }
+          retry: {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          },
+        })
       );
     }
     const message = error instanceof Error ? error.message : String(error);
@@ -59,7 +65,7 @@ export async function getExamSchedule() {
 }
 
 export async function getClassTimetable() {
-  try {
+  const run = async () => {
     const entries = await scraper.scrapeTimetable();
     if (entries.length === 0) {
       return asValidatedMcpText(
@@ -83,18 +89,23 @@ export async function getClassTimetable() {
         entries,
       }
     );
+  };
+
+  try {
+    return await run();
   } catch (error: unknown) {
     if (error instanceof SessionExpiredError) {
-      openAuthWindow();
-      return asValidatedMcpText(
-        'get_class_timetable',
-        SisTimetableResponseSchema,
-        {
+      return handleEclassSessionExpired(error, run, () =>
+        asValidatedMcpText('get_class_timetable', SisTimetableResponseSchema, {
           status: 'auth_required',
           code: 'SESSION_EXPIRED',
           message:
             'Your York session has expired. A login window has been opened. Please log in and try again.',
-        }
+          retry: {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          },
+        })
       );
     }
     const message = error instanceof Error ? error.message : String(error);

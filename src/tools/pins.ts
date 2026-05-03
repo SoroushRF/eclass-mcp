@@ -18,11 +18,12 @@ import {
 } from '../cache/pins';
 import { getCacheFilePathForKey } from '../cache/store';
 import { SessionExpiredError } from '../scraper/eclass';
-import { openAuthWindow } from '../auth/server';
+import { getAuthUrl } from '../auth/server';
 import { getCourseContent, getSectionText } from './content';
 import { getFileText } from './files';
 import { PinToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
+import { handleEclassSessionExpired } from './auth-retry';
 
 function pinToolJson(toolName: string, obj: unknown) {
   return asValidatedMcpText(toolName, PinToolJsonPayloadSchema, obj);
@@ -43,6 +44,25 @@ function parseFileResourceKey(resource_key: string): {
   const endPart = m[2];
   const endPage = endPart === 'end' ? undefined : parseInt(endPart, 10);
   return { fileUrl, startPage, endPage };
+}
+
+function getAuthRequiredMessage(result: {
+  content?: Array<{ text?: string } | Record<string, unknown>>;
+}): string | null {
+  const firstBlock = result.content?.[0] as { text?: string } | undefined;
+  const text = firstBlock?.text;
+  if (!text) return null;
+  try {
+    const payload = JSON.parse(text);
+    if (payload?.status === 'auth_required') {
+      return typeof payload.message === 'string'
+        ? payload.message
+        : 'Session expired';
+    }
+  } catch {
+    return null;
+  }
+  return null;
 }
 
 export async function cachePin(args: {
@@ -201,7 +221,10 @@ export async function cacheListPins(args: { resource_type?: PinResourceType }) {
   }
 }
 
-export async function cacheRefreshPin(args: { pinId: string }) {
+export async function cacheRefreshPin(
+  args: { pinId: string },
+  authRetryAttempted: boolean = false
+): Promise<any> {
   try {
     const pin = getPinById(args.pinId);
     if (!pin) {
@@ -212,16 +235,28 @@ export async function cacheRefreshPin(args: { pinId: string }) {
       });
     }
 
-    if (pin.resource_type === 'file') {
-      const { fileUrl, startPage, endPage } = parseFileResourceKey(
-        pin.resource_key
-      );
-      await getFileText('unknown', fileUrl, startPage, endPage);
-    } else if (pin.resource_type === 'sectiontext') {
-      await getSectionText(pin.resource_key);
-    } else {
-      await getCourseContent(pin.resource_key);
-    }
+    const runRefresh = async (): Promise<void> => {
+      let result: {
+        content?: Array<{ text?: string } | Record<string, unknown>>;
+      };
+      if (pin.resource_type === 'file') {
+        const { fileUrl, startPage, endPage } = parseFileResourceKey(
+          pin.resource_key
+        );
+        result = await getFileText('unknown', fileUrl, startPage, endPage);
+      } else if (pin.resource_type === 'sectiontext') {
+        result = await getSectionText(pin.resource_key);
+      } else {
+        result = await getCourseContent(pin.resource_key);
+      }
+
+      const authMessage = getAuthRequiredMessage(result);
+      if (authMessage) {
+        throw new SessionExpiredError(authMessage);
+      }
+    };
+
+    await runRefresh();
 
     const now = new Date().toISOString();
     return pinToolJson('cache_refresh_pin', {
@@ -235,13 +270,25 @@ export async function cacheRefreshPin(args: { pinId: string }) {
     });
   } catch (e: unknown) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      return pinToolJson('cache_refresh_pin', {
-        ok: false,
-        reason: 'session_expired',
-        code: 'SESSION_EXPIRED',
-        message: e.message,
-      });
+      const fallback = (error: SessionExpiredError) =>
+        pinToolJson('cache_refresh_pin', {
+          ok: false,
+          reason: 'session_expired',
+          code: 'SESSION_EXPIRED',
+          message: error.message,
+          retry: {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          },
+        });
+      if (authRetryAttempted) {
+        return fallback(e);
+      }
+      return handleEclassSessionExpired(
+        e,
+        async () => cacheRefreshPin(args, true),
+        fallback
+      );
     }
     const message = e instanceof Error ? e.message : String(e);
     return pinToolJson('cache_refresh_pin', {

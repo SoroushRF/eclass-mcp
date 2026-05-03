@@ -55,7 +55,8 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 ### Phase 1 — Session (`SESSION_EXPIRED`)
 
 - **`SessionExpiredError`** ([`src/scraper/session.ts`](../src/scraper/session.ts)) carries `code: 'SESSION_EXPIRED'`.
-- eClass, SIS, pins, Cengage auth paths return **`sessionExpiredPayload()`** in tool handlers when this error is caught.
+- eClass, SIS, and pin-refresh tool paths open `/auth`, wait briefly for a refreshed session, and retry once before returning **`sessionExpiredPayload()`**.
+- Cengage auth paths return `auth_required` with retry guidance through their Cengage-specific response schemas.
 
 ### Phase 2 — Scraper drift (`SCRAPE_LAYOUT_CHANGED`)
 

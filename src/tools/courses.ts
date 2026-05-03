@@ -1,12 +1,13 @@
 import { scraper, SessionExpiredError, Course } from '../scraper/eclass';
-import { getAuthUrl, openAuthWindow } from '../auth/server';
+import { getAuthUrl } from '../auth/server';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
+import { handleEclassSessionExpired } from './auth-retry';
 
 export async function listCourses() {
-  try {
+  const run = async () => {
     const cacheKey = getCacheKey('courses');
     const cached = cache.getWithMeta<Course[]>(cacheKey);
 
@@ -55,17 +56,21 @@ export async function listCourses() {
       EclassToolJsonPayloadSchema,
       resp
     );
+  };
+
+  try {
+    return await run();
   } catch (e) {
     if (e instanceof SessionExpiredError) {
-      openAuthWindow();
-      const payload = sessionExpiredPayload(e.message, {
-        afterAuth: true,
-        authUrl: getAuthUrl('eclass'),
-      });
-      return asValidatedMcpText(
-        'list_courses',
-        EclassToolJsonPayloadSchema,
-        payload
+      return handleEclassSessionExpired(e, run, (error) =>
+        asValidatedMcpText(
+          'list_courses',
+          EclassToolJsonPayloadSchema,
+          sessionExpiredPayload(error.message, {
+            afterAuth: true,
+            authUrl: getAuthUrl('eclass'),
+          })
+        )
       );
     }
     throw e;

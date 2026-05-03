@@ -33,7 +33,7 @@
 - 📣 **Announcements** — course news and forum posts
 - 🗂️ **Course Content** — file/resource listings per course section
 - 🎓 **SIS Integration** — personal exam schedules and class timetables (lectures, labs, tutorials)
-- 🔐 **Session Auth** — one-click login via a local browser window; session bridging for both eClass and SIS domains
+- 🔐 **Session Auth** — one-click login via a local browser window; session bridging for both eClass and SIS domains; eClass/SIS tools wait briefly and retry once after re-auth
 - 💾 **Smart Caching** — tiered file-based JSON cache with versioned schemas (Hot 30m, Warm 20m, Course 3h, Stable 48h)
 - 📝 **Cache Transparency** — every tool returns an `_cache` object representing data freshness (hit/miss, fetched_at, expires_at)
 - 🧹 **Granular Invalidation** — manual `clear_cache` clears **default** TTL cache only; **user-pinned** entries stay until you `cache_delete_pinned` or `cache_unpin`; automatic volatile clearing on re-auth
@@ -46,6 +46,10 @@ Tool responses are validated with **Zod** before serialization (`src/tools/eclas
 ### Structured error codes (E12, phased)
 
 Machine-readable **`code`** values (e.g. `SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, `VALIDATION_FAILED`) are defined in `src/errors/codes.ts`. Helpers in `src/errors/tool-error.ts` build consistent JSON alongside existing `message` / `status` fields. Schemas in `eclass-contracts.ts` allow **optional** `code` so older payloads still validate; tools gain `code` incrementally by phase. Scraper layout drift uses `ScrapeLayoutError` in `src/scraper/scrape-errors.ts` (returned as JSON from `get_file_text` when a file download wrapper cannot be resolved).
+
+### Auth retry behavior (T36)
+
+When an eClass or SIS-backed tool hits `SESSION_EXPIRED`, the server opens `/auth`, waits up to **2 minutes** for the saved session to become valid, and retries the original tool operation once. If login is not completed in time, the tool returns the existing structured `status="auth_required"` response with retry guidance. Override the wait with **`ECLASS_MCP_AUTH_WAIT_MS`** in `.env`.
 
 ### Logging (E14)
 

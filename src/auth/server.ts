@@ -15,6 +15,8 @@ dotenv.config({ quiet: true });
 const AUTH_PORT = parseInt(process.env.AUTH_PORT || '3000', 10);
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+export const DEFAULT_AUTH_WAIT_MS = 2 * 60 * 1000;
+export const DEFAULT_AUTH_POLL_INTERVAL_MS = 1000;
 
 let authServerInstance: http.Server | null = null;
 let authServerPort: number | null = null;
@@ -32,6 +34,45 @@ const AUTH_PATHS: Record<AuthPlatform, string> = {
 
 export function getAuthUrl(platform: AuthPlatform = 'eclass'): string {
   return `http://localhost:${getAuthServerPort()}${AUTH_PATHS[platform]}`;
+}
+
+export function resolveAuthWaitMs(
+  value: string | undefined = process.env.ECLASS_MCP_AUTH_WAIT_MS
+): number {
+  if (!value) return DEFAULT_AUTH_WAIT_MS;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return DEFAULT_AUTH_WAIT_MS;
+  }
+  return parsed;
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForAuthSession(options?: {
+  timeoutMs?: number;
+  pollIntervalMs?: number;
+}): Promise<boolean> {
+  const timeoutMs = options?.timeoutMs ?? resolveAuthWaitMs();
+  const pollIntervalMs =
+    options?.pollIntervalMs ?? DEFAULT_AUTH_POLL_INTERVAL_MS;
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() <= deadline) {
+    if (isSessionValid()) {
+      return true;
+    }
+
+    const remainingMs = deadline - Date.now();
+    if (remainingMs <= 0) {
+      break;
+    }
+    await wait(Math.min(pollIntervalMs, remainingMs));
+  }
+
+  return isSessionValid();
 }
 
 function listenOnPort(server: http.Server, port: number): Promise<number> {

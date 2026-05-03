@@ -92,6 +92,7 @@ describe('deadlines tool branch behavior', () => {
     const openAuthSpy = vi
       .spyOn(authServer, 'openAuthWindow')
       .mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(false);
     vi.spyOn(authServer, 'getAuthUrl').mockReturnValue(
       'http://localhost:3000/auth'
     );
@@ -101,6 +102,29 @@ describe('deadlines tool branch behavior', () => {
     expect(payload.code).toBe('SESSION_EXPIRED');
     expect(payload.retry?.authUrl).toBe('http://localhost:3000/auth');
     expect(openAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('getUpcomingDeadlines retries after auth completes', async () => {
+    const courseId = nextCourseId('upcoming-auth-retry');
+    rememberKey(getCacheKey('deadlines', 'upcoming', courseId));
+
+    const deadlinesSpy = vi
+      .spyOn(scraper, 'getDeadlines')
+      .mockRejectedValueOnce(new SessionExpiredError('expired'))
+      .mockResolvedValueOnce([
+        mkAssignment(
+          'retry-1',
+          'https://eclass.yorku.ca/mod/assign/view.php?id=11'
+        ),
+      ] as any);
+    vi.spyOn(authServer, 'openAuthWindow').mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(true);
+
+    const payload = parsePayload(await getUpcomingDeadlines(30, courseId));
+
+    expect(payload.items).toHaveLength(1);
+    expect(payload._cache.hit).toBe(false);
+    expect(deadlinesSpy).toHaveBeenCalledTimes(2);
   });
 
   it('getDeadlines upcoming infers item type and caches follow-up calls', async () => {
@@ -352,6 +376,7 @@ describe('deadlines tool branch behavior', () => {
     const openAuthSpy = vi
       .spyOn(authServer, 'openAuthWindow')
       .mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(false);
     vi.spyOn(authServer, 'getAuthUrl').mockReturnValue(
       'http://localhost:3000/auth'
     );
@@ -364,5 +389,30 @@ describe('deadlines tool branch behavior', () => {
     expect(payload.code).toBe('SESSION_EXPIRED');
     expect(payload.retry?.authUrl).toBe('http://localhost:3000/auth');
     expect(openAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('getDeadlines retries once after auth completes', async () => {
+    const courseId = nextCourseId('scope-auth-retry');
+    rememberKey(getCacheKey('deadlines', 'upcoming', courseId, ''));
+
+    const deadlinesSpy = vi
+      .spyOn(scraper, 'getDeadlines')
+      .mockRejectedValueOnce(new SessionExpiredError('expired'))
+      .mockResolvedValueOnce([
+        mkAssignment(
+          'retry-2',
+          'https://eclass.yorku.ca/mod/quiz/view.php?id=22'
+        ),
+      ] as any);
+    vi.spyOn(authServer, 'openAuthWindow').mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(true);
+
+    const payload = parsePayload(
+      await getDeadlines({ scope: 'upcoming', courseId })
+    );
+
+    expect(payload.items).toHaveLength(1);
+    expect(payload.items[0].type).toBe('quiz');
+    expect(deadlinesSpy).toHaveBeenCalledTimes(2);
   });
 });
