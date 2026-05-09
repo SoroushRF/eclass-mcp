@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as authServer from '../src/auth/server';
 import { cache, getCacheKey } from '../src/cache/store';
 import { scraper, SessionExpiredError } from '../src/scraper/eclass';
@@ -9,6 +9,10 @@ import { getExamSchedule, getClassTimetable } from '../src/tools/sis';
 function parsePayload(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
 }
+
+beforeEach(() => {
+  cache.invalidate(getCacheKey('courses'));
+});
 
 afterEach(() => {
   cache.invalidate(getCacheKey('courses'));

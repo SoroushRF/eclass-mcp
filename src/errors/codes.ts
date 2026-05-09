@@ -9,6 +9,7 @@ export const MACHINE_CODES = [
   'RATE_LIMITED',
   'TIMEOUT',
   'VALIDATION_FAILED',
+  'COURSE_CONTEXT_MISMATCH',
   'INTERNAL_ERROR',
 ] as const;
 

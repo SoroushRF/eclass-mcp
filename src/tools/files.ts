@@ -75,12 +75,12 @@ export async function getFileText(
     const { buffer, mimeType, filename } = await scraper.downloadFile(fileUrl);
 
     const ext = path.extname(filename).toLowerCase();
-    let blocks: ContentBlock[] = [];
+    let blocks: ContentBlock[];
 
     if (mimeType.includes('pdf') || ext === '.pdf') {
       blocks = await parsePdfSmart(buffer, startPage, endPage);
     } else {
-      let text = '';
+      let text: string;
       if (
         mimeType.includes('officedocument.wordprocessingml') ||
         ext === '.docx'

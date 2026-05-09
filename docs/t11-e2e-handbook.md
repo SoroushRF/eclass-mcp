@@ -106,9 +106,9 @@ Use these prompts as written unless the local data forces a small adjustment.
 | 2   | List sections and files for course <ID>                     | `get_course_content`     | Response has a `sections` array; each item has `type`, `name`, `url` |
 | 3   | Open this section URL and summarize the text: <section URL> | `get_section_text`       | Has `title` and at least one of `mainText` or `tabs` populated       |
 | 4   | Read this file: <fileUrl from content>                      | `get_file_text`          | Returns content blocks; text blocks are non-empty; no error payload  |
-| 5   | What’s due in the next two weeks?                           | `get_upcoming_deadlines` | Non-empty array; each item has `dueDate` and `url`                   |
-| 6   | What deadlines are in March 2026?                           | `get_deadlines`          | Non-empty array; dates fall within the requested month               |
-| 7   | Assignments due between <start> and <end>                   | `get_deadlines`          | Non-empty array; dates fall within the requested range               |
+| 5   | What is due in the next two weeks?                           | `get_assignments`        | Resolver envelope; checked sources are explicit; returned items have `platform`, `name`, and due metadata |
+| 6   | What deadlines are in March 2026?                           | `get_assignments`        | Resolver envelope; returned dates fall within the requested month    |
+| 7   | Assignments due between <start> and <end>                   | `get_assignments`        | Resolver envelope; returned dates fall within the requested range    |
 | 8   | Get full details for this assignment URL <url>              | `get_item_details`       | Has `kind` and at least one of `instructions` or `fields`            |
 | 9   | What are my grades?                                         | `get_grades`             | Rows include item names and grade values                             |
 | 10  | Recent announcements                                        | `get_announcements`      | Non-empty array; each entry has `title`, `date`, and `body`          |
@@ -290,9 +290,9 @@ Use a course that has sections, files, assignments, grades, and announcements wh
 | 2   | List sections and files for course <ID>                     | `get_course_content`     | Sections/items still appear correctly after the refactor                     |
 | 3   | Open this section URL and summarize the text: <section URL> | `get_section_text`       | Main text and tabbed content still extract correctly                         |
 | 4   | Read this file: <fileUrl from content>                      | `get_file_text`          | File content still returns text/images with no shape drift                   |
-| 5   | What’s due in the next two weeks?                           | `get_upcoming_deadlines` | Deadline list still contains course/date metadata                            |
-| 6   | What deadlines are in March 2026?                           | `get_deadlines`          | Month filter still works and returns only requested-month items              |
-| 7   | Assignments due between <start> and <end>                   | `get_deadlines`          | Range filter still works, including past/future ranges                       |
+| 5   | What is due in the next two weeks?                           | `get_assignments`        | Resolver still returns normalized assignment rows and source status metadata |
+| 6   | What deadlines are in March 2026?                           | `get_assignments`        | Month filter still works and returns only requested-month items              |
+| 7   | Assignments due between <start> and <end>                   | `get_assignments`        | Range filter still works, including past/future ranges                       |
 | 8   | Get full details for this assignment URL <url>              | `get_item_details`       | Assignment/quiz details still include instructions, status, and grade fields |
 | 9   | What are my grades?                                         | `get_grades`             | Grade rows still parse correctly after module split                          |
 | 10  | Recent announcements                                        | `get_announcements`      | Announcement list still contains title/date/body                             |
@@ -330,7 +330,7 @@ Run these rows in MCP Inspector against `dist/index.js`.
 | #      | Tool                                                            | Input shape                                                              | Pass criteria                                                                                  |
 | ------ | --------------------------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- |
 | C23-I1 | `list_cengage_courses`                                          | `{ entryUrl: "https://www.cengage.com/dashboard/home" }`                 | `status` is `ok` or `needs_course_selection`; `courses` array present                          |
-| C23-I2 | `get_cengage_assignments`                                       | `{ entryUrl: "https://www.webassign.net/v4cgi/login.pl?courseKey=..." }` | `status` is `ok` or `no_data`; response includes `selectedCourse` when resolved                |
+| C23-I2 | `get_cengage_assignments`                                       | `{ entryUrl: "https://www.webassign.net/v4cgi/login.pl?courseKey=..." }` | `status` is `ok`, `no_data`, or `needs_course_activation`; response includes `selectedCourse` when resolved and never returns rows from the wrong active course |
 | C23-I3 | `list_cengage_courses` after invalidating Cengage session files | `{ entryUrl: "https://www.cengage.com/dashboard/home" }`                 | `status` is `auth_required`; `retry.afterAuth=true`; `retry.authUrl` points to `/auth-cengage` |
 
 ### 13.3 Claude Desktop Prompt Rows
@@ -340,7 +340,7 @@ Use these prompts for host-level verification.
 | #      | Prompt                                                                | Expected tool             | Pass criteria                                                               |
 | ------ | --------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------- |
 | C23-C1 | List my Cengage courses from this dashboard URL: <dashboard URL>      | `list_cengage_courses`    | Claude returns course candidates or an explicit selection-needed response   |
-| C23-C2 | Get Cengage assignments from this direct course URL: <course URL>     | `get_cengage_assignments` | Claude returns assignments or explicit no-data with selected course context |
+| C23-C2 | Get Cengage assignments from this direct course URL: <course URL>     | `get_cengage_assignments` | Claude returns assignments, explicit no-data, or `needs_course_activation` with selected course context |
 | C23-C3 | I just expired my Cengage session. Try listing Cengage courses again. | `list_cengage_courses`    | Claude receives `auth_required`, guides login, then succeeds on retry       |
 
 ### 13.4 Auth-Expired Setup (Cengage)
@@ -359,3 +359,47 @@ To force auth-expired behavior before C23-I3/C23-C3:
 - Record each C23 row in `docs/e2e-run-log.md` as Pass/Fail/Skip.
 - Include a short redacted snippet for `status`, `message`, and `retry` fields.
 - For auth-expired, include evidence that `/auth-cengage` was surfaced.
+
+## 14. T41 Cross-Platform Assignment Resolver
+
+Use this section for validating the default assignment path after T41.
+
+### 14.1 Inspector Scenario Rows
+
+Run these rows in MCP Inspector against `dist/index.js`.
+
+| #      | Tool              | Input shape                                                                                 | Pass criteria                                                                                                        |
+| ------ | ----------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| T41-I1 | `get_assignments` | `{ courseCode: "MATH1014", scope: "upcoming" }`                                              | Response has `status`, `assignments`, `sources.eclass`, `sources.cengage`, and `platformIndex`                       |
+| T41-I2 | `get_assignments` | `{ courseCode: "MATH1014", includeExternal: "always" }`                                      | Cengage/WebAssign is checked or returns `needs_external_auth` with `/auth-cengage` retry guidance                    |
+| T41-I3 | `get_assignments` | Retry after `needs_course_selection` with `platformSelection.cengage.courseKey` or `courseId` | Response persists the selected mapping; `.eclass-mcp/course-platform-index.json` exists outside `.eclass-mcp/cache/` |
+| T41-I4 | `get_deadlines`   | Course with no eClass deadline rows                                                          | Empty eClass response includes `recommendedTool="get_assignments"` and does not claim final no-assignment certainty  |
+
+### 14.2 Claude Desktop Prompt Rows
+
+| #      | Prompt                                                                    | Expected tool     | Pass criteria                                                                                     |
+| ------ | ------------------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| T41-C1 | What assignments do I have this week?                                     | `get_assignments` | Claude uses resolver, not eClass-only deadline tools, for the user-facing answer                  |
+| T41-C2 | Check MATH 1014 assignments across eClass and Cengage/WebAssign.          | `get_assignments` | If Cengage auth is missing, Claude surfaces login/retry guidance instead of saying no assignments |
+| T41-C3 | I choose this Cengage courseKey: <courseKey>. Now check assignments again. | `get_assignments` | Claude passes `platformSelection.cengage.courseKey`; later calls can use the saved platform index |
+
+## 15. T42 Cengage/WebAssign Course Activation Hardening
+
+Use this section when validating the MATH 1014 -> PHYS 1800 regression fix.
+
+### 15.1 Inspector Scenario Rows
+
+| #      | Tool                       | Input shape                                                                                           | Pass criteria                                                                                                                                  |
+| ------ | -------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| T42-I1 | `get_cengage_assignments`  | `{ entryUrl: "<direct WebAssign course URL>", courseKey: "<expected courseKey>" }`                     | Explicit direct URL is attempted first; response is `ok`, `no_data`, or `needs_course_activation`, never rows from a different active course   |
+| T42-I2 | `get_assignments`          | `{ courseCode: "MATH1014", includeExternal: "always" }`                                                | If WebAssign lands in another active course, response is `needs_course_activation` or `partial` with `code="COURSE_CONTEXT_MISMATCH"`          |
+| T42-I3 | `get_cengage_assignment_details` | `{ courseKey: "<expected courseKey>", assignmentId: "<assignmentId>" }`                          | Details extraction verifies active course context before selecting/opening the assignment                                                       |
+| T42-I4 | `get_cengage_assignments`  | `{ allCourses: true, maxCourses: 4, maxAssignmentsPerCourse: 5 }`                                      | One course activation failure is represented as a per-course error summary; assignments from another active course are not mixed into that row |
+
+### 15.2 Claude Desktop Prompt Rows
+
+| #      | Prompt                                                                 | Expected tool             | Pass criteria                                                                                                         |
+| ------ | ---------------------------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| T42-C1 | Check MATH 1014 assignments in WebAssign.                              | `get_assignments`         | Claude does not switch to eClass-only proof if WebAssign returns `needs_course_activation`                             |
+| T42-C2 | Use this WebAssign course link for MATH 1014: <direct course URL>.     | `get_cengage_assignments` | Claude reports `needs_course_activation` if WebAssign opens another course; it does not tell the user to simply reauth |
+| T42-C3 | Show details for this WebAssign assignment in MATH 1014.               | `get_cengage_assignment_details` | Claude surfaces course-activation mismatch before trusting question details                                            |

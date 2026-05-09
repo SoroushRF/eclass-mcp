@@ -9,6 +9,7 @@ export const CengageToolStatusSchema = z.enum([
   'ok',
   'auth_required',
   'needs_course_selection',
+  'needs_course_activation',
   'no_data',
   'error',
 ]);
@@ -29,6 +30,8 @@ export const CengageRetryGuidanceSchema = z.object({
       'session_stale',
       'login_required',
       'auth_required',
+      'course_context_mismatch',
+      'course_activation_required',
     ])
     .optional(),
   input: z.record(z.string(), z.unknown()).optional(),
@@ -239,6 +242,8 @@ export const GetCengageAssignmentsResponseSchema = z.object({
   assignments: z.array(CengageAssignmentSchema),
   message: z.string().optional(),
   retry: CengageRetryGuidanceSchema.optional(),
+  diagnostics: z.record(z.string(), z.unknown()).optional(),
+  nextActions: z.array(z.string()).optional(),
   _cache: CengageCacheMetaSchema.optional(),
 });
 
@@ -553,6 +558,8 @@ export const GetCengageAssignmentDetailsResponseSchema = z.object({
   details: CengageAssignmentDetailsSchema.optional(),
   message: z.string().optional(),
   retry: CengageRetryGuidanceSchema.optional(),
+  diagnostics: z.record(z.string(), z.unknown()).optional(),
+  nextActions: z.array(z.string()).optional(),
   _cache: CengageCacheMetaSchema.optional(),
 });
 

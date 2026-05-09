@@ -5,10 +5,13 @@ import {
 } from '../scraper/cengage-courses';
 import {
   CengageAuthRequiredError,
+  CengageCourseActivationError,
   CengageError,
+  CengageNavigationError,
 } from '../scraper/cengage-errors';
+import { normalizeAndClassifyCengageEntry } from '../scraper/cengage-url';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
-import { cache, getCacheKey, TTL } from '../cache/store';
+import { cache, TTL } from '../cache/store';
 import type {
   DiscoverCengageLinksInput,
   DiscoverCengageLinksResponse,
@@ -46,44 +49,24 @@ import {
   asDiscoverToolResponse,
   asListCoursesToolResponse,
 } from './cengage/responses';
+import {
+  CENGAGE_LIST_COURSES_TTL_MINUTES,
+  CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY,
+  getCengageAssignmentsForCourse,
+  getCengageDashboardInventory,
+} from './cengage/service';
 
 // Keep tool entry points centralized while pure helpers live under src/tools/cengage/.
 const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
-const CENGAGE_LIST_COURSES_TTL_MINUTES = TTL.CONTENT;
 const CENGAGE_ASSIGNMENTS_TTL_MINUTES = TTL.DEADLINES;
 const CENGAGE_ASSIGNMENT_DETAILS_TTL_MINUTES = TTL.DEADLINES;
 const CENGAGE_ALL_COURSES_DEFAULT_LIMIT = 5;
 const CENGAGE_ALL_COURSES_HARD_LIMIT = 10;
 const CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_DEFAULT = 10;
 const CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_HARD_LIMIT = 25;
-const CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY = '__dashboard_session__';
-const CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY = getCacheKey(
-  'cengage',
-  'dashboard_inventory',
-  'session'
-);
 
 export { discoverCengageLinksFromFileBlocks, discoverCengageLinksFromText };
 export type { DiscoverCengageLinksFromFileBlocksInput };
-
-async function getDashboardInventoryFromSessionCache(
-  scraper: CengageScraper
-): Promise<CengageDashboardCourse[]> {
-  const cached = cache.getWithMeta<CengageDashboardCourse[]>(
-    CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY
-  );
-  if (cached) {
-    return cached.data;
-  }
-
-  const courses = await scraper.listDashboardCoursesFromSavedSession();
-  cache.set(
-    CENGAGE_DASHBOARD_INVENTORY_CACHE_KEY,
-    courses,
-    CENGAGE_LIST_COURSES_TTL_MINUTES
-  );
-  return courses;
-}
 
 function clampPositiveInt(
   value: number | undefined,
@@ -121,6 +104,113 @@ function filterCoursesForAggregation(
   });
 }
 
+function mapAssignmentRows(
+  assignments: Awaited<ReturnType<CengageScraper['getAssignments']>>
+): GetCengageAssignmentsResponse['assignments'] {
+  return assignments.map((a) => ({
+    name: a.name,
+    dueDate: a.dueDate,
+    dueDateIso: a.dueDateIso,
+    courseId: a.courseId,
+    courseTitle: a.courseTitle,
+    status: normalizeAssignmentStatus(a.status),
+    score: a.score,
+    assignmentId: a.id,
+    url: a.url,
+    rawText: a.rawText,
+  }));
+}
+
+function activationFailurePayload(params: {
+  entryUrl?: string;
+  selectedCourse?: CengageDashboardCourse;
+  error: CengageCourseActivationError;
+  retryInput: Record<string, unknown>;
+}): GetCengageAssignmentsResponse {
+  return {
+    status: 'needs_course_activation',
+    code: 'COURSE_CONTEXT_MISMATCH',
+    entryUrl: params.entryUrl,
+    selectedCourse: params.selectedCourse
+      ? mapCourseSummary(params.selectedCourse)
+      : undefined,
+    assignments: [],
+    message:
+      'WebAssign opened a different active course than the selected Cengage course.',
+    retry: {
+      afterAuth: false,
+      reason: 'course_activation_required',
+      input: toRetryInputRecord(params.retryInput),
+    },
+    diagnostics: params.error.details,
+    nextActions: [
+      'Open Cengage dashboard and launch the intended WebAssign course, then retry.',
+      'If the problem persists, use get_cengage_assignments with allCourses=true to inspect available active contexts.',
+    ],
+  };
+}
+
+function activationDetailsFailurePayload(params: {
+  entryUrl?: string;
+  selectedCourse?: CengageDashboardCourse;
+  error: CengageCourseActivationError;
+  retryInput: Record<string, unknown>;
+}): GetCengageAssignmentDetailsResponse {
+  return {
+    status: 'needs_course_activation',
+    code: 'COURSE_CONTEXT_MISMATCH',
+    entryUrl: params.entryUrl,
+    selectedCourse: params.selectedCourse
+      ? mapCourseSummary(params.selectedCourse)
+      : undefined,
+    message:
+      'WebAssign opened a different active course than the selected Cengage course.',
+    retry: {
+      afterAuth: false,
+      reason: 'course_activation_required',
+      input: toRetryInputRecord(params.retryInput),
+    },
+    diagnostics: params.error.details,
+    nextActions: [
+      'Open Cengage dashboard and launch the intended WebAssign course, then retry.',
+      'If the problem persists, use get_cengage_assignments with allCourses=true to inspect available active contexts.',
+    ],
+  };
+}
+
+function explicitExpectedCourse(params: {
+  entryUrl: string;
+  courseKey?: string;
+  courseId?: string;
+  courseQuery?: string;
+}): CengageDashboardCourse {
+  const parsed = normalizeAndClassifyCengageEntry(params.entryUrl);
+  const url = new URL(parsed.normalizedUrl);
+  const courseKey =
+    (params.courseKey || url.searchParams.get('courseKey') || '').trim() ||
+    undefined;
+  const courseId = (params.courseId || '').trim() || undefined;
+  return {
+    courseId,
+    courseKey,
+    title: params.courseQuery || (courseKey ? `WebAssign ${courseKey}` : 'WebAssign'),
+    launchUrl: parsed.normalizedUrl,
+    platform: parsed.normalizedUrl.includes('webassign.net')
+      ? 'webassign'
+      : 'cengage',
+    confidence: 0.99,
+  };
+}
+
+function shouldTryExplicitDirectLink(entryUrl: string | undefined): boolean {
+  if (!entryUrl) return false;
+  const classification = normalizeAndClassifyCengageEntry(entryUrl);
+  return (
+    classification.linkType === 'webassign_course' ||
+    classification.linkType === 'eclass_lti'
+  );
+}
+
 export async function listCengageCourses(input: ListCengageCoursesInput) {
   const entryUrl = resolveListingEntryUrl(input);
   const cacheKey = cengageCacheKey('list_courses', {
@@ -145,7 +235,7 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
     scraper = new CengageScraper();
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
-      : await getDashboardInventoryFromSessionCache(scraper);
+      : await getCengageDashboardInventory({ scraper });
 
     if (courses.length === 0) {
       const payload: ListCengageCoursesResponse = {
@@ -410,13 +500,14 @@ export async function getCengageAssignmentDetails(
   }
 
   let scraper: CengageScraper | null = null;
+  let selectedCourseForResponse: CengageDashboardCourse | undefined;
 
   try {
     scraper = new CengageScraper();
 
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
-      : await getDashboardInventoryFromSessionCache(scraper);
+      : await getCengageDashboardInventory({ scraper });
 
     const selection = resolveDashboardCourseSelection(courses, {
       courseId: args.courseId,
@@ -463,9 +554,12 @@ export async function getCengageAssignmentDetails(
     }
 
     const selectedCourse = selection.selectedCourse;
+    selectedCourseForResponse = selectedCourse;
     const detailResult = await scraper.getAssignmentDetails(
       selectedCourse.launchUrl,
       {
+        expectedCourse: selectedCourse,
+        expectedCourseTitle: args.courseQuery,
         assignmentUrl: args.assignmentUrl,
         assignmentId: args.assignmentId,
         assignmentQuery: args.assignmentQuery,
@@ -562,6 +656,26 @@ export async function getCengageAssignmentDetails(
       });
     }
 
+    if (error instanceof CengageCourseActivationError) {
+      return asAssignmentDetailsToolResponse(
+        activationDetailsFailurePayload({
+          entryUrl,
+          selectedCourse: selectedCourseForResponse,
+          error,
+          retryInput: {
+            entryUrl: args.entryUrl,
+            ssoUrl: args.ssoUrl,
+            courseId: args.courseId,
+            courseKey: args.courseKey || selectedCourseForResponse?.courseKey,
+            courseQuery: args.courseQuery || selectedCourseForResponse?.title,
+            assignmentUrl: args.assignmentUrl,
+            assignmentId: args.assignmentId,
+            assignmentQuery: args.assignmentQuery,
+          },
+        })
+      );
+    }
+
     if (error instanceof CengageError) {
       const availableAssignments = coerceAvailableAssignments(
         error.details?.availableAssignments
@@ -629,13 +743,82 @@ export async function getCengageAssignments(
   }
 
   let scraper: CengageScraper | null = null;
+  let selectedCourseForResponse: CengageDashboardCourse | undefined;
 
   try {
     scraper = new CengageScraper();
 
+    if (!args.allCourses && shouldTryExplicitDirectLink(entryUrl)) {
+      const expectedCourse = explicitExpectedCourse({
+        entryUrl: entryUrl as string,
+        courseId: args.courseId,
+        courseKey: args.courseKey,
+        courseQuery: args.courseQuery,
+      });
+      selectedCourseForResponse = expectedCourse;
+
+      try {
+        const directResult = await scraper.getAssignmentsWithContext(
+          entryUrl as string,
+          {
+            expectedCourse,
+            expectedCourseTitle: args.courseQuery,
+          }
+        );
+        const assignmentRows = mapAssignmentRows(directResult.assignments);
+        const payload: GetCengageAssignmentsResponse = {
+          status: directResult.assignments.length > 0 ? 'ok' : 'no_data',
+          entryUrl,
+          selectedCourse: mapCourseSummary(expectedCourse),
+          assignments: assignmentRows,
+          ...(directResult.assignments.length === 0
+            ? {
+                message:
+                  'No assignments were found in the verified WebAssign course context.',
+              }
+            : {}),
+        };
+        cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+        return asAssignmentsToolResponse(
+          withCacheMeta(
+            payload,
+            toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES)
+          )
+        );
+      } catch (error: unknown) {
+        if (error instanceof CengageCourseActivationError) {
+          const payload = activationFailurePayload({
+            entryUrl,
+            selectedCourse: expectedCourse,
+            error,
+            retryInput: {
+              entryUrl: args.entryUrl,
+              ssoUrl: args.ssoUrl,
+              courseId: args.courseId,
+              courseKey: args.courseKey || expectedCourse.courseKey,
+              courseQuery: args.courseQuery,
+            },
+          });
+          return asAssignmentsToolResponse(
+            withCacheMeta(
+              payload,
+              toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES)
+            )
+          );
+        }
+
+        const canFallBackToDashboardSelection =
+          error instanceof CengageNavigationError &&
+          String(error.message).includes('Cengage dashboard');
+        if (!canFallBackToDashboardSelection) {
+          throw error;
+        }
+      }
+    }
+
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
-      : await getDashboardInventoryFromSessionCache(scraper);
+      : await getCengageDashboardInventory({ scraper });
 
     if (args.allCourses) {
       const filteredCourses = filterCoursesForAggregation(
@@ -693,7 +876,10 @@ export async function getCengageAssignments(
 
       for (const course of selectedCourses) {
         try {
-          const assignments = await scraper.getAssignments(course.launchUrl);
+          const { assignments } = await getCengageAssignmentsForCourse(
+            course,
+            { scraper }
+          );
           const limitedAssignments = assignments.slice(
             0,
             maxAssignmentsPerCourse
@@ -826,20 +1012,16 @@ export async function getCengageAssignments(
     }
 
     const selectedCourse = selection.selectedCourse;
-    const assignments = await scraper.getAssignments(selectedCourse.launchUrl);
+    selectedCourseForResponse = selectedCourse;
+    const { assignments } = await getCengageAssignmentsForCourse(
+      selectedCourse,
+      {
+        scraper,
+        expectedCourseTitle: args.courseQuery,
+      }
+    );
 
-    const assignmentRows = assignments.map((a) => ({
-      name: a.name,
-      dueDate: a.dueDate,
-      dueDateIso: a.dueDateIso,
-      courseId: a.courseId,
-      courseTitle: a.courseTitle,
-      status: normalizeAssignmentStatus(a.status),
-      score: a.score,
-      assignmentId: a.id,
-      url: a.url,
-      rawText: a.rawText,
-    }));
+    const assignmentRows = mapAssignmentRows(assignments);
 
     if (assignments.length === 0) {
       const payload: GetCengageAssignmentsResponse = {
@@ -895,6 +1077,26 @@ export async function getCengageAssignments(
           }),
         },
       });
+    }
+
+    if (error instanceof CengageCourseActivationError) {
+      return asAssignmentsToolResponse(
+        activationFailurePayload({
+          entryUrl,
+          selectedCourse: selectedCourseForResponse,
+          error,
+          retryInput: {
+            entryUrl: args.entryUrl,
+            ssoUrl: args.ssoUrl,
+            courseId: args.courseId,
+            courseKey: args.courseKey || selectedCourseForResponse?.courseKey,
+            courseQuery: args.courseQuery || selectedCourseForResponse?.title,
+            allCourses: args.allCourses,
+            maxCourses: args.maxCourses,
+            maxAssignmentsPerCourse: args.maxAssignmentsPerCourse,
+          },
+        })
+      );
     }
 
     if (error instanceof CengageError) {
