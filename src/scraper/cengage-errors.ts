@@ -2,8 +2,7 @@ export type CengageErrorCode =
   | 'auth_required'
   | 'invalid_input'
   | 'navigation_failed'
-  | 'parse_failed'
-  | 'course_context_mismatch';
+  | 'parse_failed';
 
 export class CengageError extends Error {
   readonly code: CengageErrorCode;
@@ -46,12 +45,5 @@ export class CengageParseError extends CengageError {
   constructor(message: string, details?: Record<string, unknown>) {
     super('parse_failed', message, details);
     this.name = 'CengageParseError';
-  }
-}
-
-export class CengageCourseActivationError extends CengageError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super('course_context_mismatch', message, details);
-    this.name = 'CengageCourseActivationError';
   }
 }

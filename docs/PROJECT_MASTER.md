@@ -59,8 +59,6 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                |
 | **T36**     | [x] Auth blocking poll retrofit — eClass + SIS tools open `/auth`, wait briefly for login, and retry once before returning `auth_required` — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                  |
 | **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                            |
-| **T41**     | [x] Cross-platform assignment resolver - canonical `get_assignments` tool checks eClass plus Cengage/WebAssign, with durable course-platform index outside TTL cache - see [2.15](#215-detailed-plan--t41-cross-platform-assignment-resolver)                                                             |
-| **T42**     | [x] Cengage/WebAssign course activation hardening - verifies active WebAssign course context, restores direct-link-first assignment behavior, and returns `needs_course_activation` for wrong-course landings - see [2.16](#216-detailed-plan--t42-cengagewebassign-course-activation-hardening)            |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D)                                                                                                                                                                                                                            |
 | **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                   |
 
@@ -183,7 +181,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - [x] **T05** ? eClass scraper core (`src/scraper/eclass.ts`, `SessionExpiredError`, real scraping APIs; evolved well beyond original mock stage).
 - [x] **T06** ? File parsers (`src/parser/pdf.ts`, `docx.ts`, `pptx.ts`; PDF path later upgraded ? see file-tool docs).
 - [x] **T07** ? MCP tool modules (`src/tools/*.ts`, cache + session error handling).
-- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **24 tools** today vs original 6).
+- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **23 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** ??? **Formal Claude Desktop E2E verification** ??? **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
@@ -206,11 +204,9 @@ Execute **in order**; do not skip inspect/research tasks.
 
 ---
 
-### 2.4 Tracker ??? engine polish / post-beta (T21-T42)
+### 2.4 Tracker ??? engine polish / post-beta (T21-T36)
 
 Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retry work is tracked in T28-T36** (see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry)); **future write tools are T37-T40** and are gated by **E20-E21** (see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)).
-
-T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cengage/WebAssign activation path after the MATH 1014 -> PHYS 1800 wrong-course landing regression.
 
 #### 2.4.1 Automation, scraper, cache (T21-T27)
 
@@ -239,11 +235,6 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 - [ ] **T38** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`**; tool registered **only** when opt-in env is set (see **E20**). Depends on **T37** for validation path reuse.
 - [ ] **T39** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **confirm** + env gate as T38. Inspect script + selectors before implementation.
 - [ ] **T40** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T37-T39** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
-
-#### 2.4.4 Cross-platform assignment resolver (T41)
-
-- [x] **T41** - `get_assignments` is the default assignment/homework/deadline resolver. It checks eClass first, then uses the permanent course-platform index and Cengage/WebAssign dashboard inventory when eClass is empty, a linked mapping exists, auth is already available, or `includeExternal="always"` is requested. **Completed 2026-05-04**.
-- [x] **T42** - Cengage/WebAssign course activation hardening. `get_cengage_assignments` now treats explicit WebAssign/LTI URLs as direct activation hints, verifies active WebAssign course context before returning rows, preserves linked platform-index mappings on activation failure, and returns `needs_course_activation` with `COURSE_CONTEXT_MISMATCH` instead of misleading auth retry or no-data. **Completed 2026-05-08**.
 
 ---
 
@@ -715,58 +706,9 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 ---
 
-### 2.15 Detailed plan - T41 Cross-Platform Assignment Resolver
-
-**Goal:** Make `get_assignments` the default read-only assignment resolver so Claude does not conclude "no assignments" after checking only eClass. The resolver combines eClass deadlines with Cengage/WebAssign assignments when required, remembers course mappings across the academic term, and returns explicit next-action statuses for auth or course selection.
-
-#### Implemented scope
-
-- Added `get_assignments` with normalized eClass + Cengage/WebAssign assignment rows and statuses: `ok`, `partial`, `needs_external_auth`, `needs_course_selection`, `no_data`, and `error`.
-- Extracted typed eClass services so the resolver can reuse course/deadline logic without parsing MCP text payloads.
-- Extracted typed Cengage services for dashboard inventory and per-course assignment loading while preserving existing Cengage tool responses.
-- Added Cengage blocking auth wait (`ECLASS_MCP_CENGAGE_AUTH_WAIT_MS`, falling back to `ECLASS_MCP_AUTH_WAIT_MS`) for the resolver path.
-- Added `.eclass-mcp/course-platform-index.json` as permanent user state outside `.eclass-mcp/cache/`; `clear_cache` does not delete it.
-- Added compact/spaced course-code matching so eClass selectors like `MATH1014` can map to Cengage dashboard titles like `MATH 1014 O`.
-- Updated eClass-only deadline tools to return a clear `recommendedTool: "get_assignments"` hint when eClass has no rows.
-- Fixed Cengage registration pass-through for aggregation and assignment-details schema fields.
-
-#### Verification
-
-- `tests/course-platform-index.test.ts`
-- `tests/course-platform-matcher.test.ts`
-- `tests/get-assignments-tool.test.ts`
-- Existing deadline, auth wait, and E11 contract tests updated for the new resolver contract.
-
----
-
-### 2.16 Detailed plan - T42 Cengage/WebAssign Course Activation Hardening
-
-**Goal:** Prevent WebAssign from returning assignments for a different active course than the selected Cengage dashboard course. This specifically covers the observed MATH 1014 launch path where the dashboard mapping and `courseKey` were correct, but WebAssign's active DOM context reported PHYS 1800.
-
-#### Implemented scope
-
-- Added `src/scraper/cengage/course-context.ts` to collect WebAssign active-course signals from page URL, page title, `data-current-selected`, `data-courses`, current-course text, and course-menu links.
-- Added page-level course verification before assignment parsing. A URL containing the expected `courseKey` is not trusted unless the active WebAssign course context also matches.
-- Restored direct-link-first behavior for explicit WebAssign/eClass LTI `entryUrl` and legacy `ssoUrl` inputs in `get_cengage_assignments`.
-- Added dashboard-card activation via `CengageScraper.getAssignmentsForDashboardCourse()`, with static launch URL kept only as a fallback.
-- Added `CengageCourseActivationError`, machine code `COURSE_CONTEXT_MISMATCH`, and structured `needs_course_activation` responses with `retry.afterAuth=false`.
-- Updated `get_assignments` so a wrong active WebAssign course becomes `needs_course_activation` or `partial`, not a misleading auth retry or final no-data.
-- Extended the permanent course-platform index with activation diagnostics. A correct linked mapping remains linked when activation fails.
-- Extended Cengage assignment-details context verification so detail extraction does not proceed from the wrong active course.
-
-#### Verification
-
-- `tests/webassign-course-context.test.ts`
-- `tests/cengage-assignments-tool.test.ts`
-- `tests/cengage-e2e-scenarios.test.ts`
-- `tests/get-assignments-tool.test.ts`
-- TypeScript source and test typechecks.
-
----
-
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (24)
+### 3.1 MCP tools currently registered (23)
 
 | Tool                             | Purpose                                                                                                                              |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -774,9 +716,8 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 | `get_course_content`             | Sections, files, links, activities for one course                                                                                    |
 | `get_section_text`               | Paragraph text, links, and tabbed content for a section URL                                                                          |
 | `get_file_text`                  | PDF / DOCX / PPTX extraction (hybrid text + rendered pages where applicable)                                                         |
-| `get_assignments`                | Canonical cross-platform assignment resolver for eClass + Cengage/WebAssign with active-course verification                         |
-| `get_upcoming_deadlines`         | eClass-only assignments due within N days (default 14); use `get_assignments` for external-platform coverage                         |
-| `get_deadlines`                  | eClass-only deadlines by scope: `upcoming` \| `month` \| `range`                                                                     |
+| `get_upcoming_deadlines`         | Assignments due within N days (default 14)                                                                                           |
+| `get_deadlines`                  | Deadlines by scope: `upcoming` \| `month` \| `range`                                                                                 |
 | `get_item_details`               | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining)                                                        |
 | `get_grades`                     | Grade report                                                                                                                         |
 | `get_announcements`              | Recent announcements                                                                                                                 |
@@ -786,8 +727,8 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 | `get_professor_details`          | RateMyProfessors deep ratings, comments, and student tags                                                                            |
 | `discover_cengage_links`         | Detect and classify Cengage/WebAssign candidates from text as bootstrap/fallback inputs                                              |
 | `list_cengage_courses`           | Enumerate Cengage/WebAssign courses from saved-session dashboard inventory (optional link fallback)                                  |
-| `get_cengage_assignments`        | Retrieve Cengage/WebAssign assignment lists with direct-link-first compatibility, dashboard activation, and context guard             |
-| `get_cengage_assignment_details` | Retrieve question-level Cengage/WebAssign assignment details with active-course verification and rendered-media metadata             |
+| `get_cengage_assignments`        | Retrieve Cengage/WebAssign assignment lists from dashboard-first flow with explicit-link compatibility                               |
+| `get_cengage_assignment_details` | Retrieve question-level Cengage/WebAssign assignment details, structured prompt sections, and additive rendered-media/asset metadata |
 | `clear_cache`                    | Clear **non-pinned** cache by scope; pinned entries unchanged                                                                        |
 | `cache_pin`                      | Pin file / section / course content cache entry (quota-limited)                                                                      |
 | `cache_unpin`                    | Remove pin from registry (does not delete cache file)                                                                                |
@@ -1068,7 +1009,7 @@ The project scores roughly **7.4/10** on engineering maturity; largest gaps are 
 | ----------------------------------------- | ---------------------------------------------------------- |
 | **This master plan**                      | `docs/PROJECT_MASTER.md`                                   |
 | Engine versioning policy                  | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (24 tools)        | `docs/tools/README.md`                                     |
+| Tool-by-tool docs index (23 tools)        | `docs/tools/README.md`                                     |
 | T11 / T20 ? Claude Desktop E2E procedure  | `docs/t11-e2e-handbook.md`                                 |
 | E2E run log (create when running T11)     | `docs/e2e-run-log.md`                                      |
 | Deadlines tool ? roadmap & testing        | `docs/tools/deadlines/roadmap.md`                          |

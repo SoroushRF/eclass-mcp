@@ -2,10 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as authServer from '../src/auth/server';
 import { CACHE_SCHEMA_VERSION, cache, getCacheKey } from '../src/cache/store';
 import { CengageScraper } from '../src/scraper/cengage';
-import {
-  CengageAuthRequiredError,
-  CengageCourseActivationError,
-} from '../src/scraper/cengage-errors';
+import { CengageAuthRequiredError } from '../src/scraper/cengage-errors';
 import { getCengageAssignments } from '../src/tools/cengage';
 
 const SAMPLE_COURSE = {
@@ -20,23 +17,6 @@ const SAMPLE_COURSE = {
 
 function uniqueEntryUrl(tag: string): string {
   return `https://www.cengage.com/dashboard/home?test=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function uniqueWebAssignUrl(tag: string): string {
-  return `https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1001&test=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function withContext(assignments: any[]) {
-  return {
-    assignments,
-    context: {
-      pageUrl: 'https://www.webassign.net/v4cgi/student.pl?course=math',
-      pageTitle: 'MATH 1010 - Calculus I - My Assignments | WebAssign',
-      currentSelected: 'math-1010',
-      currentCourseTitle: 'MATH 1010 - Calculus I',
-      courseMenuLinks: [],
-    },
-  };
 }
 
 function isolateDashboardInventoryCache() {
@@ -97,8 +77,8 @@ describe('get cengage assignments tool on new core', () => {
       .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([uniqueCourse]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
@@ -111,35 +91,30 @@ describe('get cengage assignments tool on new core', () => {
     expect(payload.assignments).toHaveLength(0);
     expect(sessionListSpy).toHaveBeenCalledTimes(1);
     expect(entryListSpy).not.toHaveBeenCalled();
-    expect(assignmentsSpy).toHaveBeenCalledWith(
-      uniqueCourse,
-      expect.objectContaining({ expectedCourseTitle: uniqueCourse.title })
-    );
+    expect(assignmentsSpy).toHaveBeenCalledWith(uniqueCourse.launchUrl);
   });
 
   it('supports legacy string input and returns selected course assignments', async () => {
-    const entryUrl = uniqueWebAssignUrl('legacy');
+    const entryUrl = uniqueEntryUrl('legacy');
     const listSpy = vi
       .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([SAMPLE_COURSE]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsWithContext')
-      .mockResolvedValue(
-        withContext([
-          {
-            id: 'asg-1001',
-            name: 'Homework 1',
-            dueDate: '2026-04-15 23:59',
-            dueDateIso: '2026-04-15T23:59:00',
-            status: 'Pending',
-            score: undefined,
-            courseId: 'math-1010',
-            courseTitle: 'MATH 1010 - Calculus I',
-            url: '/assignment/1001',
-            rawText: 'Homework 1 Due Date Apr 15, 2026 11:59 PM',
-          },
-        ])
-      );
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([
+        {
+          id: 'asg-1001',
+          name: 'Homework 1',
+          dueDate: '2026-04-15 23:59',
+          dueDateIso: '2026-04-15T23:59:00',
+          status: 'Pending',
+          score: undefined,
+          courseId: 'math-1010',
+          courseTitle: 'MATH 1010 - Calculus I',
+          url: '/assignment/1001',
+          rawText: 'Homework 1 Due Date Apr 15, 2026 11:59 PM',
+        },
+      ]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments(entryUrl);
@@ -148,86 +123,12 @@ describe('get cengage assignments tool on new core', () => {
     expect(payload.status).toBe('ok');
     expect(payload._cache).toBeDefined();
     expect(payload._cache.hit).toBe(false);
-    expect(payload.selectedCourse.courseKey).toBe('WA-production-1001');
+    expect(payload.selectedCourse.title).toBe('MATH 1010 - Calculus I');
     expect(payload.assignments).toHaveLength(1);
     expect(payload.assignments[0].status).toBe('pending');
 
-    expect(listSpy).not.toHaveBeenCalled();
-    expect(assignmentsSpy).toHaveBeenCalledWith(
-      entryUrl,
-      expect.objectContaining({
-        expectedCourse: expect.objectContaining({
-          courseKey: 'WA-production-1001',
-        }),
-      })
-    );
-  });
-
-  it('refuses assignments when WebAssign lands in a different selected course context', async () => {
-    const entryUrl = uniqueEntryUrl('course-context-mismatch');
-    vi.spyOn(
-      CengageScraper.prototype,
-      'listDashboardCoursesFromEntryLink'
-    ).mockResolvedValue([SAMPLE_COURSE]);
-    vi.spyOn(
-      CengageScraper.prototype,
-      'getAssignmentsForDashboardCourse'
-    ).mockRejectedValue(
-      new CengageCourseActivationError(
-        'WebAssign opened a different active course than the selected Cengage course.',
-        {
-          actualCourseTitle: 'PHYS 1800 Fall 2025 Final, Fall 2025',
-          actualCurrentSelected: '1199639,1577413',
-        }
-      )
-    );
-    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
-
-    const result = await getCengageAssignments({
-      entryUrl,
-      courseQuery: 'MATH 1010',
-    });
-    const payload = JSON.parse(result.content[0].text);
-
-    expect(payload.status).toBe('needs_course_activation');
-    expect(payload.code).toBe('COURSE_CONTEXT_MISMATCH');
-    expect(payload.assignments).toHaveLength(0);
-    expect(payload.message).toContain('different active course');
-    expect(payload.retry.afterAuth).toBe(false);
-    expect(payload.retry.reason).toBe('course_activation_required');
-  });
-
-  it('refuses generic entry-url course context when returned rows reveal another course', async () => {
-    const entryUrl =
-      'https://www.webassign.net/v4cgi/login.pl?pid=571417&eISBN=9780357128992&courseKey=WA-production-1607530&titleIsbn=9781337613927' +
-      `&test=${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    vi.spyOn(
-      CengageScraper.prototype,
-      'getAssignmentsWithContext'
-    ).mockRejectedValue(
-      new CengageCourseActivationError(
-        'WebAssign opened a different active course than the selected Cengage course.',
-        {
-          actualCourseTitle: 'PHYS 1800 Fall 2025 Final, Fall 2025',
-          actualCurrentSelected: '1199639,1577413',
-        }
-      )
-    );
-    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
-
-    const result = await getCengageAssignments({
-      entryUrl,
-      courseKey: 'WA-production-1607530',
-    });
-    const payload = JSON.parse(result.content[0].text);
-
-    expect(payload.status).toBe('needs_course_activation');
-    expect(payload.code).toBe('COURSE_CONTEXT_MISMATCH');
-    expect(payload.selectedCourse.courseKey).toBe('WA-production-1607530');
-    expect(payload.assignments).toHaveLength(0);
-    expect(payload.message).toContain('different active course');
-    expect(payload.retry.input.courseKey).toBe('WA-production-1607530');
-    expect(payload.retry.afterAuth).toBe(false);
+    expect(listSpy).toHaveBeenCalledWith(entryUrl);
+    expect(assignmentsSpy).toHaveBeenCalledWith(SAMPLE_COURSE.launchUrl);
   });
 
   it('returns needs_course_selection when multiple courses exist without selector', async () => {
@@ -248,8 +149,8 @@ describe('get cengage assignments tool on new core', () => {
       },
     ]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
@@ -280,8 +181,8 @@ describe('get cengage assignments tool on new core', () => {
       },
     ]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
@@ -293,11 +194,7 @@ describe('get cengage assignments tool on new core', () => {
     expect(payload.status).toBe('no_data');
     expect(payload.selectedCourse.title).toBe('MATH 1010 - Calculus II');
     expect(assignmentsSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        launchUrl:
-          'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1002',
-      }),
-      expect.objectContaining({ expectedCourseTitle: 'MATH 1010 - Calculus II' })
+      'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1002'
     );
   });
 
@@ -308,8 +205,8 @@ describe('get cengage assignments tool on new core', () => {
       'listDashboardCoursesFromEntryLink'
     ).mockResolvedValue([SAMPLE_COURSE]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const result = await getCengageAssignments({
@@ -353,8 +250,8 @@ describe('get cengage assignments tool on new core', () => {
       .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([SAMPLE_COURSE]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const first = await getCengageAssignments({ entryUrl });
@@ -393,8 +290,8 @@ describe('get cengage assignments tool on new core', () => {
       .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
       .mockResolvedValue([courseA, courseB]);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const first = await getCengageAssignments({ courseQuery: courseA.title });
@@ -437,10 +334,10 @@ describe('get cengage assignments tool on new core', () => {
     ).mockResolvedValue([courseA, courseB]);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockImplementation(async (course: any) => {
-        if (course.launchUrl === courseA.launchUrl) {
-          return withContext([
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockImplementation(async (launchUrl: string) => {
+        if (launchUrl === courseA.launchUrl) {
+          return [
             {
               id: 'asg-a-1',
               name: 'A1',
@@ -450,10 +347,10 @@ describe('get cengage assignments tool on new core', () => {
               courseTitle: courseA.title,
               rawText: 'A1 Due Date',
             } as any,
-          ]);
+          ];
         }
 
-        return withContext([
+        return [
           {
             id: 'asg-b-1',
             name: 'B1',
@@ -463,7 +360,7 @@ describe('get cengage assignments tool on new core', () => {
             courseTitle: courseB.title,
             rawText: 'B1 Due Date',
           } as any,
-        ]);
+        ];
       });
 
     const result = await getCengageAssignments({
@@ -515,25 +412,23 @@ describe('get cengage assignments tool on new core', () => {
     ).mockResolvedValue(courses);
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(
-        withContext([
-          {
-            id: 'asg-1',
-            name: 'First',
-            dueDate: '2026-04-20 23:59',
-            status: 'Pending',
-            rawText: 'First Due Date',
-          } as any,
-          {
-            id: 'asg-2',
-            name: 'Second',
-            dueDate: '2026-04-21 23:59',
-            status: 'Pending',
-            rawText: 'Second Due Date',
-          } as any,
-        ])
-      );
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([
+        {
+          id: 'asg-1',
+          name: 'First',
+          dueDate: '2026-04-20 23:59',
+          status: 'Pending',
+          rawText: 'First Due Date',
+        } as any,
+        {
+          id: 'asg-2',
+          name: 'Second',
+          dueDate: '2026-04-21 23:59',
+          status: 'Pending',
+          rawText: 'Second Due Date',
+        } as any,
+      ]);
 
     const result = await getCengageAssignments({
       allCourses: true,

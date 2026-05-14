@@ -1,7 +1,5 @@
 # `get_deadlines`
 
-`get_deadlines` is eClass-only. For user-facing assignment/homework/deadline questions where Cengage/WebAssign may matter, prefer `get_assignments`.
-
 ## Features
 
 - Unified deadlines query tool with scopes:
@@ -10,13 +8,11 @@
   - `range` (`from`, `to`)
 - Optional detail expansion: `includeDetails`, `maxDetails`.
 - Returns typed list with inferred `type` (`assign`/`quiz`/`other`).
-- Empty course-specific eClass results include `recommendedTool: "get_assignments"` so clients do not treat "no eClass deadlines" as final.
 
 ## Known Problems
 
 - Date parsing relies on Moodle date string consistency.
 - Month/range quality depends on assignment-index coverage in source pages.
-- This tool does not inspect Cengage/WebAssign. Empty `items` can still mean assignments exist externally.
 
 ## Tests
 

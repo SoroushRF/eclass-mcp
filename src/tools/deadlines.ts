@@ -3,7 +3,7 @@ import { getAuthUrl } from '../auth/server';
 import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
 import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
-import { ItemDetails } from '../types/deadlines';
+import { DeadlineItem, ItemDetails } from '../types/deadlines';
 import {
   EclassToolErrorResponseSchema,
   EclassToolJsonPayloadSchema,
@@ -11,36 +11,50 @@ import {
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { handleEclassSessionExpired } from './auth-retry';
-import {
-  getEclassDeadlineItems,
-  type DeadlineScope,
-} from './eclass-service';
 
-function attachEclassDeadlinePayload(
-  items: unknown[],
-  cacheMeta: any,
-  context: {
-    scope: string;
-    courseId?: string;
-  }
-) {
-  if (items.length > 0) {
-    return attachCacheMeta(items, cacheMeta);
+type DeadlineScope = 'upcoming' | 'month' | 'range';
+
+function parseEClassDate(dateStr: string): Date | null {
+  if (!dateStr) return null;
+  const raw = dateStr.trim();
+
+  // If it's an ISO-ish datetime, Date can parse it.
+  let d = new Date(raw);
+  if (!isNaN(d.getTime())) return d;
+
+  // Moodle strings like "Tuesday, 31 March" or "31 March, 11:59 PM"
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const match = raw.match(/(\d{1,2})\s+([A-Za-z]+)/);
+  if (match) {
+    const day = match[1];
+    const month = match[2];
+    d = new Date(`${month} ${day}, ${currentYear}`);
+    if (!isNaN(d.getTime())) return d;
   }
 
-  return attachCacheMeta(
-    {
-      items,
-      status: 'no_eclass_assignments',
-      scope: context.scope,
-      courseId: context.courseId,
-      external_check_recommended: true,
-      recommendedTool: 'get_assignments',
-      message:
-        'No eClass assignment/quiz deadlines were found. This is not final for courses that may use Cengage/WebAssign; call get_assignments to check external platforms.',
-    },
-    cacheMeta
-  );
+  return null;
+}
+
+function isSameMonthYear(date: Date, month: number, year: number): boolean {
+  return date.getMonth() + 1 === month && date.getFullYear() === year;
+}
+
+function parseBoundaryDate(raw: string, isEndBoundary: boolean): Date {
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) {
+    throw new ValidationError('Invalid date boundary', { value: raw });
+  }
+
+  // If user passed YYYY-MM-DD, normalize to whole-day boundaries.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw.trim())) {
+    if (isEndBoundary) {
+      d.setHours(23, 59, 59, 999);
+    } else {
+      d.setHours(0, 0, 0, 0);
+    }
+  }
+  return d;
 }
 
 export async function getUpcomingDeadlines(
@@ -53,14 +67,10 @@ export async function getUpcomingDeadlines(
     const cached = cache.getWithMeta<Assignment[]>(cacheKey);
 
     if (cached) {
-      const cacheMeta = {
+      const resp = attachCacheMeta(cached.data, {
         hit: true,
         fetched_at: cached.fetched_at,
         expires_at: cached.expires_at,
-      };
-      const resp = attachEclassDeadlinePayload(cached.data, cacheMeta, {
-        scope: 'upcoming',
-        courseId,
       });
       return asValidatedMcpText(
         'get_upcoming_deadlines',
@@ -74,14 +84,10 @@ export async function getUpcomingDeadlines(
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.DEADLINES * 60000);
-    const cacheMeta = {
+    const resp = attachCacheMeta(deadlines, {
       hit: false,
       fetched_at: now.toISOString(),
       expires_at: expiresAt.toISOString(),
-    };
-    const resp = attachEclassDeadlinePayload(deadlines, cacheMeta, {
-      scope: 'upcoming',
-      courseId,
     });
 
     return asValidatedMcpText(
@@ -120,10 +126,36 @@ export async function getUpcomingDeadlines(
   }
 }
 
+function deadlineCacheKey(
+  scope: DeadlineScope,
+  courseId?: string,
+  extra?: string
+) {
+  const coursePart = courseId || 'all';
+  return getCacheKey('deadlines', scope, coursePart, extra || '');
+}
+
+function hasUsableItems<T>(value: T[] | null): value is T[] {
+  return Array.isArray(value) && value.length > 0;
+}
+
 function detailsCacheKey(url: string) {
   // Use a hash or shortened URL for the key segment
   const shortened = url.length > 150 ? url.slice(-150) : url;
   return getCacheKey('details', 'v2', shortened);
+}
+
+function inferTypeFromUrl(url: string): 'assign' | 'quiz' | 'other' {
+  const u = (url || '').toLowerCase();
+  if (u.includes('/mod/assign/')) return 'assign';
+  if (u.includes('/mod/quiz/')) return 'quiz';
+  if (u.includes('assign')) return 'assign';
+  if (u.includes('quiz')) return 'quiz';
+  return 'other';
+}
+
+function toDeadlineItems(assignments: Assignment[]): DeadlineItem[] {
+  return assignments.map((a) => ({ ...a, type: inferTypeFromUrl(a.url) }));
 }
 
 async function getDetailsWithMeta(
@@ -183,16 +215,119 @@ export async function getDeadlines(
   } = params || {};
 
   try {
-    const deadlineResult = await getEclassDeadlineItems({
-      courseId,
-      scope,
-      month,
-      year,
-      from,
-      to,
-    });
-    let items = deadlineResult.items;
-    const { cacheMeta } = deadlineResult;
+    let items: DeadlineItem[] = [];
+    let cacheMeta: any = null;
+
+    if (scope === 'upcoming') {
+      const key = deadlineCacheKey('upcoming', courseId);
+      const cached = cache.getWithMeta<Assignment[]>(key);
+      if (cached && hasUsableItems(cached.data)) {
+        items = toDeadlineItems(cached.data);
+        cacheMeta = {
+          hit: true,
+          fetched_at: cached.fetched_at,
+          expires_at: cached.expires_at,
+        };
+      } else {
+        const deadlines = await scraper.getDeadlines(courseId);
+        cache.set(key, deadlines, TTL.DEADLINES);
+        items = toDeadlineItems(deadlines);
+        const now = new Date();
+        cacheMeta = {
+          hit: false,
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + TTL.DEADLINES * 60000
+          ).toISOString(),
+        };
+      }
+    } else if (scope === 'month') {
+      const m = month ?? new Date().getMonth() + 1;
+      const y = year ?? new Date().getFullYear();
+      const extra = `${y}_${m}`;
+      const key = deadlineCacheKey('month', courseId, extra);
+      const cached = cache.getWithMeta<DeadlineItem[]>(key);
+      if (cached && hasUsableItems(cached.data)) {
+        items = cached.data;
+        cacheMeta = {
+          hit: true,
+          fetched_at: cached.fetched_at,
+          expires_at: cached.expires_at,
+        };
+      } else {
+        const allAssignments =
+          await scraper.getAllAssignmentDeadlines(courseId);
+        items = allAssignments.filter((it) => {
+          const d = parseEClassDate(it.dueDate);
+          return d ? isSameMonthYear(d, m, y) : false;
+        });
+        cache.set(key, items, TTL.DEADLINES);
+        const now = new Date();
+        cacheMeta = {
+          hit: false,
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + TTL.DEADLINES * 60000
+          ).toISOString(),
+        };
+      }
+    } else if (scope === 'range') {
+      if (!from || !to) {
+        const missing: string[] = [];
+        if (!from) missing.push('from');
+        if (!to) missing.push('to');
+        throw new ValidationError('scope=range requires both from and to', {
+          scope: 'range',
+          missing,
+        });
+      }
+      const fromDate = parseBoundaryDate(from, false);
+      const toDate = parseBoundaryDate(to, true);
+      if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
+        throw new ValidationError(
+          'Invalid from/to date. Use ISO or YYYY-MM-DD.',
+          { from, to }
+        );
+      }
+      const extra = `${fromDate.toISOString().slice(0, 10)}_${toDate.toISOString().slice(0, 10)}`;
+      const key = deadlineCacheKey('range', courseId, extra);
+      const cached = cache.getWithMeta<DeadlineItem[]>(key);
+      if (cached && hasUsableItems(cached.data)) {
+        items = cached.data;
+        cacheMeta = {
+          hit: true,
+          fetched_at: cached.fetched_at,
+          expires_at: cached.expires_at,
+        };
+      } else {
+        const allAssignments =
+          await scraper.getAllAssignmentDeadlines(courseId);
+        const filtered = allAssignments.filter((it) => {
+          const d = parseEClassDate(it.dueDate);
+          if (!d) return false;
+          return d >= fromDate && d <= toDate;
+        });
+
+        // Dedup by url if possible
+        const seen = new Set<string>();
+        items = filtered.filter((it) => {
+          const k = it.url || it.id;
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        });
+
+        cache.set(key, items, TTL.DEADLINES);
+        const now = new Date();
+        cacheMeta = {
+          hit: false,
+          fetched_at: now.toISOString(),
+          expires_at: new Date(
+            now.getTime() + TTL.DEADLINES * 60000
+          ).toISOString(),
+        };
+      }
+    }
 
     if (includeDetails && items.length) {
       const n = Math.max(0, Math.min(items.length, maxDetails));
@@ -209,10 +344,7 @@ export async function getDeadlines(
       items = [...withDetails, ...items.slice(n)];
     }
 
-    const resp = attachEclassDeadlinePayload(items, cacheMeta, {
-      scope,
-      courseId,
-    });
+    const resp = attachCacheMeta(items, cacheMeta);
     return asValidatedMcpText(
       'get_deadlines',
       EclassToolJsonPayloadSchema,

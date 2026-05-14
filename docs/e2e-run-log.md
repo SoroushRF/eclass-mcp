@@ -1,11 +1,11 @@
 # E2E Run Log
 
-Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows. **P11b (Cengage live-like coverage expansion)** is complete as of **2026-04-11** with dedicated fixture/navigation semantics coverage and explicit mocked-vs-live-like naming split. **T41 (cross-platform assignment resolver)** landed on **2026-05-04** and should be the default assignment/deadline E2E path going forward. **T42 (Cengage/WebAssign activation hardening)** landed on **2026-05-08**; wrong active WebAssign course must now return `needs_course_activation` / `COURSE_CONTEXT_MISMATCH`, not auth retry or no-data.
+Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows. **P11b (Cengage live-like coverage expansion)** is complete as of **2026-04-11** with dedicated fixture/navigation semantics coverage and explicit mocked-vs-live-like naming split.
 
 ## P00 Baseline Snapshot - 2026-04-10 (Pre Dashboard-First Runtime Pivot)
 
-- Historical pre-pivot baseline: `list_cengage_courses` was explicit-link driven in runtime behavior.
-- Historical pre-pivot baseline: `get_cengage_assignments` was explicit-link driven and returned `status="error"` when neither `entryUrl` nor `ssoUrl` was provided.
+- `list_cengage_courses` remains explicit-link driven in runtime behavior.
+- `get_cengage_assignments` remains explicit-link driven and returns `status="error"` when neither `entryUrl` nor `ssoUrl` is provided.
 - Current scenario coverage remains validated at the tool-contract level (direct dashboard link, direct course link, auth-expired recovery).
 - Cengage fixture tests were hardened to resolve fixtures relative to the test file path instead of `process.cwd()`, so runs are stable across workspace/repo working directories.
 
@@ -283,9 +283,9 @@ Result summary:
 | 2   | List sections and files for course <ID>                     | `get_course_content`              |        |          |         |       |
 | 3   | Open this section URL and summarize the text: <section URL> | `get_section_text`                |        |          |         |       |
 | 4   | Read this file: <fileUrl from content>                      | `get_file_text`                   |        |          |         |       |
-| 5   | What is due in the next two weeks?                           | `get_assignments`                 |        |          |         |       |
-| 6   | What deadlines are in March 2026?                           | `get_assignments`                 |        |          |         |       |
-| 7   | Assignments due between <start> and <end>                   | `get_assignments`                 |        |          |         |       |
+| 5   | What’s due in the next two weeks?                           | `get_upcoming_deadlines`          |        |          |         |       |
+| 6   | What deadlines are in March 2026?                           | `get_deadlines`                   |        |          |         |       |
+| 7   | Assignments due between <start> and <end>                   | `get_deadlines`                   |        |          |         |       |
 | 8   | Get full details for this assignment URL <url>              | `get_item_details`                |        |          |         |       |
 | 9   | What are my grades?                                         | `get_grades`                      |        |          |         |       |
 | 10  | Recent announcements                                        | `get_announcements`               |        |          |         |       |
@@ -300,28 +300,3 @@ Result summary:
 - Use a cold cache for the first pass after the refactor.
 - Prefer the same known-good course IDs used in earlier runs if they still exist.
 - Record a failure issue for any row that changes shape, breaks import/export, or causes a tool regression.
-
-## T41 Cross-Platform Assignment Resolver - 2026-05-04
-
-### Automated Verification
-
-| Command | Result | Notes |
-| ------- | ------ | ----- |
-| `npm.cmd run test` | Pass | 47 files, 325 tests passed, 1 skipped |
-| `npm.cmd run typecheck` | Pass | Production TypeScript check |
-| `npm.cmd run typecheck:tests` | Pass | Test TypeScript check |
-| `npm.cmd run build` | Pass | `tsc` build |
-
-### Inspector / Claude Desktop Rows To Record
-
-| #      | Prompt / Tool input                                                                     | Expected tool      | Result | Evidence | Notes |
-| ------ | --------------------------------------------------------------------------------------- | ------------------ | ------ | -------- | ----- |
-| T41-I1 | `{ courseCode: "MATH1014", scope: "upcoming" }`                                         | `get_assignments`  |        |          | Confirm `sources` and `platformIndex` fields |
-| T41-I2 | `{ courseCode: "MATH1014", includeExternal: "always" }`                                 | `get_assignments`  |        |          | Confirm Cengage check, auth retry, or selected course |
-| T41-I3 | Retry with `platformSelection.cengage.courseKey` after ambiguous candidates             | `get_assignments`  |        |          | Confirm `.eclass-mcp/course-platform-index.json` persists |
-| T41-I4 | Course with no eClass deadline rows                                                     | `get_deadlines`    |        |          | Confirm `recommendedTool="get_assignments"` |
-| T41-C1 | What assignments do I have this week?                                                   | `get_assignments`  |        |          | Claude should not stop at eClass-only deadlines |
-| T41-C2 | Check MATH 1014 assignments across eClass and Cengage/WebAssign.                        | `get_assignments`  |        |          | Missing Cengage auth should surface `/auth-cengage` |
-| T42-I1 | `{ entryUrl: "<direct WebAssign URL>", courseKey: "<expected courseKey>" }`              | `get_cengage_assignments` |        |          | Direct URL tried first; wrong active course returns `needs_course_activation` |
-| T42-I2 | `{ courseCode: "MATH1014", includeExternal: "always" }`                                 | `get_assignments`  |        |          | Wrong active WebAssign course returns `needs_course_activation` or `partial` with `COURSE_CONTEXT_MISMATCH` |
-| T42-I3 | `{ courseKey: "<expected courseKey>", assignmentId: "<assignmentId>" }`                  | `get_cengage_assignment_details` |        |          | Detail extraction verifies active course context |

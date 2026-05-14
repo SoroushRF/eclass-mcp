@@ -4,7 +4,6 @@ import { saveSession, isSessionValid } from '../scraper/session';
 import {
   CENGAGE_STATE_PATH,
   ensureCengageSessionDir,
-  getCengageSessionValidity,
   saveCengageSessionMetadata,
 } from '../scraper/cengage-session';
 import url from 'url';
@@ -48,17 +47,6 @@ export function resolveAuthWaitMs(
   return parsed;
 }
 
-export function resolveCengageAuthWaitMs(
-  value: string | undefined = process.env.ECLASS_MCP_CENGAGE_AUTH_WAIT_MS
-): number {
-  if (!value) return resolveAuthWaitMs();
-  const parsed = Number.parseInt(value, 10);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return resolveAuthWaitMs();
-  }
-  return parsed;
-}
-
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -85,30 +73,6 @@ export async function waitForAuthSession(options?: {
   }
 
   return isSessionValid();
-}
-
-export async function waitForCengageAuthSession(options?: {
-  timeoutMs?: number;
-  pollIntervalMs?: number;
-}): Promise<boolean> {
-  const timeoutMs = options?.timeoutMs ?? resolveCengageAuthWaitMs();
-  const pollIntervalMs =
-    options?.pollIntervalMs ?? DEFAULT_AUTH_POLL_INTERVAL_MS;
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() <= deadline) {
-    if (getCengageSessionValidity().valid) {
-      return true;
-    }
-
-    const remainingMs = deadline - Date.now();
-    if (remainingMs <= 0) {
-      break;
-    }
-    await wait(Math.min(pollIntervalMs, remainingMs));
-  }
-
-  return getCengageSessionValidity().valid;
 }
 
 function listenOnPort(server: http.Server, port: number): Promise<number> {

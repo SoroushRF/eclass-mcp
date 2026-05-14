@@ -17,7 +17,6 @@ import {
   getDeadlines,
   getItemDetails,
 } from './tools/deadlines';
-import { getAssignments } from './tools/assignments';
 import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 import { getExamSchedule, getClassTimetable } from './tools/sis';
@@ -42,7 +41,6 @@ import {
   GetCengageAssignmentsInputSchema,
   ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
-import { GetAssignmentsInputSchema } from './tools/assignment-contracts';
 import { rootLogger } from './logging/logger';
 import { runWithToolContext } from './logging/context';
 
@@ -113,18 +111,8 @@ server.tool(
 );
 
 server.tool(
-  'get_assignments',
-  'Canonical assignment resolver. Use this first for homework, assignments, due dates, or deadlines because it checks eClass and, when needed, Cengage/WebAssign via the permanent course-platform index. It verifies active WebAssign course context and may return needs_course_activation instead of treating wrong-course landing as no assignments or auth expiry.',
-  GetAssignmentsInputSchema.shape,
-  (async (args: any) =>
-    await runWithToolContext('get_assignments', () =>
-      getAssignments(args)
-    )) as any
-);
-
-server.tool(
   'get_upcoming_deadlines',
-  'Returns upcoming eClass-only assignment/quiz deadlines. If this is empty for a course, call get_assignments before concluding there are no assignments.',
+  'Returns upcoming assignment deadlines.',
   {
     daysAhead: z.number().optional().describe('Days ahead (default 14)'),
     courseId: z.string().optional().describe('Filter by course ID'),
@@ -137,7 +125,7 @@ server.tool(
 
 server.tool(
   'get_deadlines',
-  'Returns eClass-only assignment/quiz deadlines for upcoming, month, or date range scopes. For complete cross-platform answers, use get_assignments.',
+  'Returns assignment/quiz deadlines for upcoming, month, or date range scopes.',
   {
     courseId: z.string().optional().describe('Filter by course ID'),
     scope: z
@@ -354,18 +342,9 @@ server.tool(
 
 server.tool(
   'get_cengage_assignments',
-  'Fetches assignment list and deadlines from Cengage/WebAssign using direct course/LTI links first when provided, otherwise dashboard/index selection. Verifies the active WebAssign course context before returning rows; needs_course_activation means do not claim no assignments and do not retry eClass-only deadlines as final proof.',
+  'Fetches assignment list and deadlines from Cengage/WebAssign using dashboard-first saved-session flow or explicit direct course/dashboard/legacy SSO links. Supports optional course selection inputs when multiple courses are present.',
   GetCengageAssignmentsInputSchema.shape,
-  (async ({
-    entryUrl,
-    ssoUrl,
-    courseId,
-    courseKey,
-    courseQuery,
-    allCourses,
-    maxCourses,
-    maxAssignmentsPerCourse,
-  }: any) =>
+  (async ({ entryUrl, ssoUrl, courseId, courseKey, courseQuery }: any) =>
     await runWithToolContext('get_cengage_assignments', () =>
       getCengageAssignments({
         entryUrl,
@@ -373,16 +352,13 @@ server.tool(
         courseId,
         courseKey,
         courseQuery,
-        allCourses,
-        maxCourses,
-        maxAssignmentsPerCourse,
       })
     )) as any
 );
 
 server.tool(
   'get_cengage_assignment_details',
-  'Opens a specific Cengage/WebAssign assignment and extracts question-level prompts, scoring hints, answers, and resource links. Verifies active WebAssign course context before selecting details; needs_course_activation means WebAssign landed in the wrong course.',
+  'Opens a specific Cengage/WebAssign assignment and extracts question-level prompts, scoring hints, answers, and resource links (similar to deep item details on eClass).',
   GetCengageAssignmentDetailsInputSchema.shape,
   (async ({
     entryUrl,
@@ -395,16 +371,6 @@ server.tool(
     assignmentQuery,
     includeAnswers,
     includeResources,
-    includeAssetInventory,
-    includeRenderedMedia,
-    maxRenderedImages,
-    maxCaptureUnits,
-    maxCapturePerQuestion,
-    maxInteractiveAssets,
-    maxMediaAssets,
-    maxMediaPayloadBytes,
-    minTextForSafeText,
-    captureDpi,
     maxQuestions,
     maxQuestionTextChars,
     maxAnswerTextChars,
@@ -421,16 +387,6 @@ server.tool(
         assignmentQuery,
         includeAnswers,
         includeResources,
-        includeAssetInventory,
-        includeRenderedMedia,
-        maxRenderedImages,
-        maxCaptureUnits,
-        maxCapturePerQuestion,
-        maxInteractiveAssets,
-        maxMediaAssets,
-        maxMediaPayloadBytes,
-        minTextForSafeText,
-        captureDpi,
         maxQuestions,
         maxQuestionTextChars,
         maxAnswerTextChars,
