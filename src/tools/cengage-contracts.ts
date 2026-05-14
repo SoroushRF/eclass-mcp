@@ -109,7 +109,8 @@ export const CengageCourseSummarySchema = z.object({
   courseKey: z.string().optional(),
   title: z.string(),
   launchUrl: z.string(),
-  platform: z.enum(['webassign', 'cengage']).optional(),
+  platform: z.enum(['webassign', 'cengage', 'owlv2']).optional(),
+  assignmentsSupported: z.boolean().optional(),
   confidence: z.number().min(0).max(1).optional(),
 });
 

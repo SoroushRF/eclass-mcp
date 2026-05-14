@@ -198,6 +198,46 @@ describe('get cengage assignments tool on new core', () => {
     );
   });
 
+  it('does not try to scrape assignments from OWLv2 courses', async () => {
+    const entryUrl = uniqueEntryUrl('owlv2-assignments');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([
+      {
+        courseId: 'chem-1100',
+        courseKey: 'E-KY652BRRTNJRY',
+        title: 'Winter 2026: CHEM 1100 Sec N',
+        launchUrl:
+          'https://prod01-cnow-owl.cengagenow.com/ilrn/authentication.do?courseKey=E-KY652BRRTNJRY',
+        platform: 'owlv2' as const,
+        assignmentsSupported: false,
+        confidence: 0.9,
+      },
+    ]);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignments')
+      .mockResolvedValue([]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      entryUrl,
+      courseQuery: 'CHEM 1100',
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('no_data');
+    expect(payload.selectedCourse).toEqual(
+      expect.objectContaining({
+        title: 'Winter 2026: CHEM 1100 Sec N',
+        platform: 'owlv2',
+        assignmentsSupported: false,
+      })
+    );
+    expect(payload.message).toContain('assignment extraction is not supported');
+    expect(assignmentsSpy).not.toHaveBeenCalled();
+  });
+
   it('returns no_data when selectors do not match any course', async () => {
     const entryUrl = uniqueEntryUrl('not-found');
     vi.spyOn(

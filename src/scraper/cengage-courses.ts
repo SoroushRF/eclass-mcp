@@ -23,7 +23,8 @@ export interface CengageDashboardCourse {
   courseKey?: string;
   title: string;
   launchUrl: string;
-  platform: 'webassign' | 'cengage';
+  platform: 'webassign' | 'cengage' | 'owlv2';
+  assignmentsSupported?: boolean;
   confidence: number;
 }
 
@@ -101,11 +102,13 @@ function isKnownPlatformHost(host: string): boolean {
   return (
     host.includes('webassign.net') ||
     host.includes('cengage.com') ||
-    host.includes('cengage.ca')
+    host.includes('cengage.ca') ||
+    host.includes('cengagenow.com')
   );
 }
 
-function inferPlatform(host: string): 'webassign' | 'cengage' {
+function inferPlatform(host: string): CengageDashboardCourse['platform'] {
+  if (host.includes('cengagenow.com')) return 'owlv2';
   return host.includes('cengage.') ? 'cengage' : 'webassign';
 }
 
@@ -169,6 +172,8 @@ function looksLikeCourseLaunch(
 
   return (
     path.includes('/mindtap') ||
+    path.includes('/ilrn') ||
+    path.includes('/owl') ||
     path.includes('/nglms') ||
     path.includes('/dashboard/course') ||
     path.includes('/course/')
@@ -257,7 +262,7 @@ function clampConfidence(value: number): number {
 }
 
 function scoreCourseConfidence(params: {
-  platform: 'webassign' | 'cengage';
+  platform: CengageDashboardCourse['platform'];
   hasCourseId: boolean;
   hasCourseKey: boolean;
   hasMeaningfulTitle: boolean;
@@ -655,6 +660,7 @@ export function extractDashboardCourses(
       title: titleInfo.title,
       launchUrl,
       platform,
+      assignmentsSupported: platform === 'webassign',
       confidence: scoreCourseConfidence({
         platform,
         hasCourseId: !!courseId,
@@ -739,6 +745,7 @@ export function inferCourseFromCurrentPage(
     title: titleInfo.title,
     launchUrl: normalized.toString(),
     platform,
+    assignmentsSupported: platform === 'webassign',
     confidence: scoreCourseConfidence({
       platform,
       hasCourseId: !!courseId,

@@ -332,7 +332,7 @@ server.tool(
 
 server.tool(
   'list_cengage_courses',
-  'Lists available Cengage/WebAssign courses from saved session state (dashboard-first) or from a provided entry URL/discovered link, with optional query pre-filtering.',
+  'Lists visible Cengage dashboard course materials from saved session state or a provided entry URL, including WebAssign and OWLv2/CengageNOW cards. OWLv2 courses are reported but assignment scraping is currently WebAssign-only.',
   ListCengageCoursesInputSchema.shape,
   (async ({ entryUrl, discoveredLink, courseQuery }: any) =>
     await runWithToolContext('list_cengage_courses', () =>
@@ -342,7 +342,7 @@ server.tool(
 
 server.tool(
   'get_cengage_assignments',
-  'Fetches assignment list and deadlines from Cengage/WebAssign using dashboard-first saved-session flow or explicit direct course/dashboard/legacy SSO links. Supports optional course selection inputs when multiple courses are present.',
+  'Fetches assignment list and deadlines from WebAssign-backed Cengage courses using dashboard-first saved-session flow or explicit direct course/dashboard/legacy SSO links. OWLv2/CengageNOW courses can be listed, but this assignment scraper reports them as unsupported instead of hiding them.',
   GetCengageAssignmentsInputSchema.shape,
   (async ({ entryUrl, ssoUrl, courseId, courseKey, courseQuery }: any) =>
     await runWithToolContext('get_cengage_assignments', () =>

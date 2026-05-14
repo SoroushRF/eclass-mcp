@@ -123,6 +123,40 @@ describe('list cengage courses tool', () => {
     expect(closeSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('reports OWLv2 dashboard courses as visible but assignment-unsupported', async () => {
+    const entryUrl = uniqueEntryUrl('owlv2');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([
+      {
+        courseId: 'chem-1100',
+        courseKey: 'E-KY652BRRTNJRY',
+        title: 'Winter 2026: CHEM 1100 Sec N',
+        launchUrl:
+          'https://prod01-cnow-owl.cengagenow.com/ilrn/authentication.do?courseKey=E-KY652BRRTNJRY',
+        platform: 'owlv2' as const,
+        assignmentsSupported: false,
+        confidence: 0.9,
+      },
+    ]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await listCengageCourses({ entryUrl });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.courses).toHaveLength(1);
+    expect(payload.courses[0]).toEqual(
+      expect.objectContaining({
+        title: 'Winter 2026: CHEM 1100 Sec N',
+        courseKey: 'E-KY652BRRTNJRY',
+        platform: 'owlv2',
+        assignmentsSupported: false,
+      })
+    );
+  });
+
   it('uses discovered link normalized URL when provided', async () => {
     const entryUrl = uniqueEntryUrl('discovered');
     const discoveredCourseKey = `WA-production-discovered-${Date.now()}-${Math.random().toString(16).slice(2)}`;

@@ -38,6 +38,7 @@ export function mapCourseSummary(course: CengageDashboardCourse) {
     title: course.title,
     launchUrl: course.launchUrl,
     platform: course.platform,
+    assignmentsSupported: course.assignmentsSupported,
     confidence: course.confidence,
   };
 }

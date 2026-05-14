@@ -66,7 +66,8 @@ describe('cengage fixture snapshots', () => {
       Array<{
         title: string;
         launchUrl: string;
-        platform: 'webassign' | 'cengage';
+        platform: 'webassign' | 'cengage' | 'owlv2';
+        assignmentsSupported?: boolean;
         confidence: number;
         courseId?: string;
         courseKey?: string;
@@ -101,7 +102,8 @@ describe('cengage fixture snapshots', () => {
       Array<{
         title: string;
         launchUrl: string;
-        platform: 'webassign' | 'cengage';
+        platform: 'webassign' | 'cengage' | 'owlv2';
+        assignmentsSupported?: boolean;
         confidence: number;
         courseId?: string;
         courseKey?: string;

@@ -121,6 +121,26 @@ function filterCoursesForAggregation(
   });
 }
 
+function supportsWebAssignAssignments(course: CengageDashboardCourse): boolean {
+  return course.platform === 'webassign';
+}
+
+function unsupportedAssignmentPlatformMessage(
+  course: CengageDashboardCourse
+): string {
+  const platform =
+    course.platform === 'owlv2'
+      ? 'OWLv2/CengageNOW'
+      : course.platform === 'cengage'
+        ? 'Cengage'
+        : course.platform;
+
+  return (
+    `${course.title} is visible on the Cengage dashboard, but its launch platform is ${platform}. ` +
+    'This tool currently scrapes WebAssign assignments only, so the course is listed but assignment extraction is not supported for that platform yet.'
+  );
+}
+
 export async function listCengageCourses(input: ListCengageCoursesInput) {
   const entryUrl = resolveListingEntryUrl(input);
   const cacheKey = cengageCacheKey('list_courses', {
@@ -463,6 +483,22 @@ export async function getCengageAssignmentDetails(
     }
 
     const selectedCourse = selection.selectedCourse;
+    if (!supportsWebAssignAssignments(selectedCourse)) {
+      const payload: GetCengageAssignmentDetailsResponse = {
+        status: 'no_data',
+        entryUrl,
+        selectedCourse: mapCourseSummary(selectedCourse),
+        message: unsupportedAssignmentPlatformMessage(selectedCourse),
+      };
+      cache.set(cacheKey, payload, CENGAGE_ASSIGNMENT_DETAILS_TTL_MINUTES);
+      return asAssignmentDetailsToolResponse(
+        withCacheMeta(
+          payload,
+          toCacheMissMeta(CENGAGE_ASSIGNMENT_DETAILS_TTL_MINUTES)
+        )
+      );
+    }
+
     const detailResult = await scraper.getAssignmentDetails(
       selectedCourse.launchUrl,
       {
@@ -692,6 +728,17 @@ export async function getCengageAssignments(
       const assignmentRows: GetCengageAssignmentsResponse['assignments'] = [];
 
       for (const course of selectedCourses) {
+        if (!supportsWebAssignAssignments(course)) {
+          allCourseSummaries.push({
+            ...mapCourseSummary(course),
+            status: 'no_data',
+            assignmentCount: 0,
+            returnedAssignments: 0,
+            message: unsupportedAssignmentPlatformMessage(course),
+          });
+          continue;
+        }
+
         try {
           const assignments = await scraper.getAssignments(course.launchUrl);
           const limitedAssignments = assignments.slice(
@@ -826,6 +873,20 @@ export async function getCengageAssignments(
     }
 
     const selectedCourse = selection.selectedCourse;
+    if (!supportsWebAssignAssignments(selectedCourse)) {
+      const payload: GetCengageAssignmentsResponse = {
+        status: 'no_data',
+        entryUrl,
+        selectedCourse: mapCourseSummary(selectedCourse),
+        assignments: [],
+        message: unsupportedAssignmentPlatformMessage(selectedCourse),
+      };
+      cache.set(cacheKey, payload, CENGAGE_ASSIGNMENTS_TTL_MINUTES);
+      return asAssignmentsToolResponse(
+        withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
+      );
+    }
+
     const assignments = await scraper.getAssignments(selectedCourse.launchUrl);
 
     const assignmentRows = assignments.map((a) => ({

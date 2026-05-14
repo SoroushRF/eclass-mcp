@@ -24,7 +24,7 @@ export async function extractDashboardCourseInventory(
       ];
 
       const fallbackLaunchPattern =
-        /webassign|coursekey|mindtap|nglms|dashboard\/course|\/course\//i;
+        /webassign|owlv?2?|cengagenow|coursekey|mindtap|ilrn|nglms|dashboard\/course|\/course\//i;
 
       const cards = Array.from(
         document.querySelectorAll<HTMLElement>(

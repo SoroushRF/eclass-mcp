@@ -88,6 +88,44 @@ describe('cengage dashboard inventory extraction', () => {
     );
   });
 
+  it('extracts OWLv2 cards from the Cengage dashboard', async () => {
+    const html = `
+      <article id="home-page-entitlement-card-chem">
+        <h3 class="home-page-title">Winter 2026: CHEM 1100 Sec N</h3>
+        <a
+          data-testid="home-page-launch-course-link"
+          href="https://prod01-cnow-owl.cengagenow.com/ilrn/authentication.do?courseKey=E-KY652BRRTNJRY&titleIsbn=9781305264731"
+          aria-label="OPEN OWLV2 for Winter 2026: CHEM 1100 Sec N, Opens in a New Window"
+        >
+          OPEN OWLV2
+        </a>
+      </article>
+    `;
+
+    const page = {
+      url: () => 'https://www.cengage.ca/dashboard/home',
+      evaluate: async (callback: unknown, arg?: unknown) =>
+        runEvaluateInDom(
+          html,
+          'https://www.cengage.ca/dashboard/home',
+          callback as ((value: unknown) => unknown) | (() => unknown),
+          arg
+        ),
+    };
+
+    const courses = await extractDashboardCourseInventory(page as any);
+
+    expect(courses).toHaveLength(1);
+    expect(courses[0]).toEqual(
+      expect.objectContaining({
+        title: 'Winter 2026: CHEM 1100 Sec N',
+        courseKey: 'E-KY652BRRTNJRY',
+        platform: 'owlv2',
+        assignmentsSupported: false,
+      })
+    );
+  });
+
   it('falls back to all anchor candidates when no entitlement cards are found', async () => {
     const html = `
       <main>

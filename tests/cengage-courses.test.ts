@@ -180,6 +180,33 @@ describe('cengage dashboard course inventory extraction', () => {
     expect(courses[0].title).toBe('MATH 1014 O');
     expect(courses[0].confidence).toBeGreaterThan(0.8);
   });
+
+  it('keeps OWLv2 CengageNOW cards in dashboard course inventory', () => {
+    const courses = extractDashboardCoursesFromCardCandidates(
+      [
+        {
+          cardId: 'home-page-entitlement-card-chem',
+          cardTitle: 'Winter 2026: CHEM 1100 Sec N',
+          launchHref:
+            'https://prod01-cnow-owl.cengagenow.com/ilrn/authentication.do?courseKey=E-KY652BRRTNJRY&titleIsbn=9781305264731',
+          launchText: 'OPEN OWLV2',
+          launchAriaLabel:
+            'OPEN OWLV2 for Winter 2026: CHEM 1100 Sec N, Opens in a New Window',
+        },
+      ],
+      'https://www.cengage.ca/dashboard/home'
+    );
+
+    expect(courses).toHaveLength(1);
+    expect(courses[0]).toEqual(
+      expect.objectContaining({
+        title: 'Winter 2026: CHEM 1100 Sec N',
+        courseKey: 'E-KY652BRRTNJRY',
+        platform: 'owlv2',
+        assignmentsSupported: false,
+      })
+    );
+  });
 });
 
 describe('cengage current-page course inference', () => {
