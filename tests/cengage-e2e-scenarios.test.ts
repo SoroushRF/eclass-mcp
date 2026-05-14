@@ -21,6 +21,23 @@ function uniqueUrl(base: string, tag: string) {
   return `${base}?scenario=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function uniqueWebAssignUrl(tag: string) {
+  return `https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1001&scenario=${tag}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function withContext(assignments: any[]) {
+  return {
+    assignments,
+    context: {
+      pageUrl: 'https://www.webassign.net/v4cgi/student.pl?course=math',
+      pageTitle: 'MATH 1010 - Calculus I - My Assignments | WebAssign',
+      currentSelected: 'math-1010',
+      currentCourseTitle: 'MATH 1010 - Calculus I',
+      courseMenuLinks: [],
+    },
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -47,18 +64,15 @@ describe('cengage mocked tool-contract scenarios (T23 baseline)', () => {
   });
 
   it('mocked scenario: direct course link returns assignments', async () => {
-    const directCourseUrl = uniqueUrl(
-      'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1001',
-      'course'
+    const directCourseUrl = uniqueWebAssignUrl('course');
+    const listSpy = vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
     );
 
-    const listSpy = vi
-      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
-      .mockResolvedValue([{ ...SAMPLE_COURSE, launchUrl: directCourseUrl }]);
-
     const assignmentsSpy = vi
-      .spyOn(CengageScraper.prototype, 'getAssignments')
-      .mockResolvedValue([
+      .spyOn(CengageScraper.prototype, 'getAssignmentsWithContext')
+      .mockResolvedValue(withContext([
         {
           id: 'asg-1001',
           name: 'Homework 1',
@@ -71,7 +85,7 @@ describe('cengage mocked tool-contract scenarios (T23 baseline)', () => {
           url: '/assignment/1001',
           rawText: 'Homework 1 Due Date Apr 20, 2026 11:59 PM',
         },
-      ]);
+      ]));
 
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
@@ -79,11 +93,18 @@ describe('cengage mocked tool-contract scenarios (T23 baseline)', () => {
     const payload = JSON.parse(result.content[0].text);
 
     expect(payload.status).toBe('ok');
-    expect(payload.selectedCourse.launchUrl).toBe(directCourseUrl);
+    expect(payload.selectedCourse.courseKey).toBe(SAMPLE_COURSE.courseKey);
     expect(payload.assignments).toHaveLength(1);
     expect(payload.assignments[0].name).toBe('Homework 1');
-    expect(listSpy).toHaveBeenCalledWith(directCourseUrl);
-    expect(assignmentsSpy).toHaveBeenCalledWith(directCourseUrl);
+    expect(listSpy).not.toHaveBeenCalled();
+    expect(assignmentsSpy).toHaveBeenCalledWith(
+      directCourseUrl,
+      expect.objectContaining({
+        expectedCourse: expect.objectContaining({
+          courseKey: SAMPLE_COURSE.courseKey,
+        }),
+      })
+    );
   });
 
   it('mocked scenario: auth-expired recovery returns auth_required and retry guidance', async () => {

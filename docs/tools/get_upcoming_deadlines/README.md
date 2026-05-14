@@ -1,15 +1,19 @@
 # `get_upcoming_deadlines`
 
+`get_upcoming_deadlines` is eClass-only and kept for backward compatibility. For the complete assignment path across eClass and Cengage/WebAssign, prefer `get_assignments`.
+
 ## Features
 
 - Fast path for future deadlines from eClass upcoming timeline.
 - Optional `courseId` filter.
 - Backward-compatible legacy tool retained alongside `get_deadlines`.
+- Empty eClass results include `recommendedTool: "get_assignments"` so clients know to run the cross-platform resolver.
 
 ## Known Problems
 
 - `daysAhead` argument is currently not actively filtering server-side.
 - Depends on how eClass populates "upcoming" timeline.
+- Does not inspect Cengage/WebAssign; empty eClass timeline output is not final for courses using external platforms.
 
 ## Tests
 

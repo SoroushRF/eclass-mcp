@@ -1,36 +1,15 @@
-import { scraper, SessionExpiredError, Course } from '../scraper/eclass';
+import { SessionExpiredError } from '../scraper/eclass';
 import { getAuthUrl } from '../auth/server';
-import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { attachCacheMeta } from '../cache/store';
 import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { handleEclassSessionExpired } from './auth-retry';
+import { getEclassCoursesWithCache } from './eclass-service';
 
 export async function listCourses() {
   const run = async () => {
-    const cacheKey = getCacheKey('courses');
-    const cached = cache.getWithMeta<Course[]>(cacheKey);
-
-    if (cached) {
-      const resp = attachCacheMeta(cached.data, {
-        hit: true,
-        fetched_at: cached.fetched_at,
-        expires_at: cached.expires_at,
-      });
-      return asValidatedMcpText(
-        'list_courses',
-        EclassToolJsonPayloadSchema,
-        resp
-      );
-    }
-
-    const courses = await scraper.getCourses();
-    if (courses.length > 0) {
-      cache.set(cacheKey, courses, TTL.COURSES);
-    }
-
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + TTL.COURSES * 60000);
+    const { courses, cacheMeta } = await getEclassCoursesWithCache();
     const payload =
       courses.length === 0
         ? {
@@ -45,11 +24,7 @@ export async function listCourses() {
           }
         : { courses };
 
-    const resp = attachCacheMeta(payload, {
-      hit: false,
-      fetched_at: now.toISOString(),
-      expires_at: expiresAt.toISOString(),
-    });
+    const resp = attachCacheMeta(payload, cacheMeta);
 
     return asValidatedMcpText(
       'list_courses',

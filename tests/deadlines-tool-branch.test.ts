@@ -158,6 +158,22 @@ describe('deadlines tool branch behavior', () => {
     expect(deadlinesSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('getDeadlines empty eClass result recommends cross-platform resolver', async () => {
+    const courseId = nextCourseId('empty-hint');
+    rememberKey(getCacheKey('deadlines', 'upcoming', courseId, ''));
+
+    vi.spyOn(scraper, 'getDeadlines').mockResolvedValue([] as any);
+
+    const payload = parsePayload(
+      await getDeadlines({ scope: 'upcoming', courseId })
+    );
+
+    expect(payload.items).toEqual([]);
+    expect(payload.status).toBe('no_eclass_assignments');
+    expect(payload.external_check_recommended).toBe(true);
+    expect(payload.recommendedTool).toBe('get_assignments');
+  });
+
   it('getDeadlines month filters by month/year and caches result', async () => {
     const courseId = nextCourseId('month');
     const month = 3;

@@ -3,6 +3,7 @@ import path from 'path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   DEFAULT_AUTH_WAIT_MS,
+  resolveCengageAuthWaitMs,
   resolveAuthWaitMs,
   waitForAuthSession,
 } from '../src/auth/server';
@@ -11,6 +12,7 @@ import { getSessionFilePath } from '../src/scraper/session';
 const sessionFilePath = getSessionFilePath();
 let originalSessionFileContent: string | null = null;
 const originalAuthWaitEnv = process.env.ECLASS_MCP_AUTH_WAIT_MS;
+const originalCengageAuthWaitEnv = process.env.ECLASS_MCP_CENGAGE_AUTH_WAIT_MS;
 
 function removeSessionFile(): void {
   if (fs.existsSync(sessionFilePath)) {
@@ -43,6 +45,11 @@ afterEach(() => {
   } else {
     process.env.ECLASS_MCP_AUTH_WAIT_MS = originalAuthWaitEnv;
   }
+  if (originalCengageAuthWaitEnv === undefined) {
+    delete process.env.ECLASS_MCP_CENGAGE_AUTH_WAIT_MS;
+  } else {
+    process.env.ECLASS_MCP_CENGAGE_AUTH_WAIT_MS = originalCengageAuthWaitEnv;
+  }
 });
 
 afterAll(() => {
@@ -63,6 +70,13 @@ describe('auth session wait helper', () => {
 
   it('uses explicit env auth wait when valid', () => {
     expect(resolveAuthWaitMs('2500')).toBe(2500);
+  });
+
+  it('uses Cengage-specific auth wait when valid and falls back safely', () => {
+    process.env.ECLASS_MCP_AUTH_WAIT_MS = '3000';
+    expect(resolveCengageAuthWaitMs(undefined)).toBe(3000);
+    expect(resolveCengageAuthWaitMs('4500')).toBe(4500);
+    expect(resolveCengageAuthWaitMs('bad')).toBe(3000);
   });
 
   it('returns true when a fresh session is already present', async () => {

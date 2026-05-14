@@ -2,12 +2,13 @@
 
 This directory contains one folder per currently registered MCP tool in `src/index.ts`.
 
-## Current tools (23)
+## Current tools (24)
 
 - `list_courses` -> `docs/tools/list_courses/README.md`
 - `get_course_content` -> `docs/tools/get_course_content/README.md`
 - `get_section_text` -> `docs/tools/get_section_text/README.md`
 - `get_file_text` -> `docs/tools/get_file_text/README.md` (T22 complete)
+- `get_assignments` -> `docs/tools/get_assignments/README.md` (canonical cross-platform eClass + Cengage/WebAssign resolver with active WebAssign context verification)
 - `get_upcoming_deadlines` -> `docs/tools/get_upcoming_deadlines/README.md`
 - `get_deadlines` -> `docs/tools/get_deadlines/README.md`
 - `get_item_details` -> `docs/tools/get_item_details/README.md`
@@ -19,7 +20,7 @@ This directory contains one folder per currently registered MCP tool in `src/ind
 - `get_professor_details` -> `docs/tools/get_professor_details/README.md`
 - `discover_cengage_links` -> `docs/tools/discover_cengage_links/README.md`
 - `list_cengage_courses` -> `docs/tools/list_cengage_courses/README.md`
-- `get_cengage_assignments` -> `docs/tools/get_cengage_assignments/README.md` (dashboard-first by default; supports `entryUrl` and legacy `ssoUrl` for fallback compatibility)
+- `get_cengage_assignments` -> `docs/tools/get_cengage_assignments/README.md` (direct-link-first for WebAssign/LTI links, dashboard fallback, and `needs_course_activation` context guard)
 - `get_cengage_assignment_details` -> `docs/tools/get_cengage_assignment_details/README.md`
 - `clear_cache` — see [README.md](../../README.md) (T26; skips pinned entries)
 - `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, `cache_delete_pinned` — see [README.md](../../README.md) (T27 pinned cache)

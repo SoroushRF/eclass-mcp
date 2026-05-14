@@ -1,6 +1,7 @@
-import { chromium, type Browser, type Page } from 'playwright';
+import { chromium, type Browser, type Locator, type Page } from 'playwright';
 import {
   CengageAuthRequiredError,
+  CengageCourseActivationError,
   CengageNavigationError,
   CengageParseError,
 } from './cengage-errors';
@@ -29,6 +30,11 @@ import {
   normalizeAndClassifyCengageEntry,
   type CengageEntryLinkType,
 } from './cengage-url';
+import {
+  collectWebAssignCourseContext,
+  verifyWebAssignCourseContext,
+  type WebAssignCourseContext,
+} from './cengage/course-context';
 
 // Canonical homes are attempted in order when bootstrapping from a saved session.
 const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
@@ -77,7 +83,21 @@ export interface WebAssignAssignment {
   url?: string;
 }
 
+export interface WebAssignAssignmentsResult {
+  assignments: WebAssignAssignment[];
+  context: WebAssignCourseContext;
+}
+
+export interface GetWebAssignAssignmentsOptions {
+  expectedCourse?: CengageDashboardCourse;
+  expectedCourseTitle?: string;
+  expectedCourseCode?: string;
+}
+
 export interface GetWebAssignAssignmentDetailsOptions extends ExtractAssignmentDetailsOptions {
+  expectedCourse?: CengageDashboardCourse;
+  expectedCourseTitle?: string;
+  expectedCourseCode?: string;
   assignmentUrl?: string;
   assignmentId?: string;
   assignmentQuery?: string;
@@ -388,6 +408,259 @@ export class CengageScraper {
     return this.browser;
   }
 
+  private selectorLiteral(value: string): string {
+    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  }
+
+  private async revealWebAssignCourseMenu(page: Page): Promise<void> {
+    const selectors = [
+      'button[aria-label="COURSES"]',
+      'button[aria-label*="COURSES"]',
+      'button:has-text("COURSES")',
+    ];
+
+    for (const selector of selectors) {
+      const locator = page.locator(selector).first();
+      const count = await locator.count().catch(() => 0);
+      if (count === 0) continue;
+
+      const visible = await locator.isVisible().catch(() => false);
+      if (!visible) continue;
+
+      await locator.click({ timeout: 3000 }).catch(() => null);
+      await page.waitForTimeout(500).catch(() => null);
+      return;
+    }
+  }
+
+  private assertExpectedCourseContext(
+    context: WebAssignCourseContext,
+    options: GetWebAssignAssignmentsOptions
+  ): void {
+    if (!options.expectedCourse) return;
+
+    const verification = verifyWebAssignCourseContext({
+      expectedCourse: options.expectedCourse,
+      expectedCourseTitle: options.expectedCourseTitle,
+      expectedCourseCode: options.expectedCourseCode,
+      actual: context,
+    });
+
+    if (verification.ok) return;
+
+    throw new CengageCourseActivationError(
+      'WebAssign opened a different active course than the selected Cengage course.',
+      {
+        ...verification.diagnostics,
+        actualCourseTitle: context.currentCourseTitle || context.pageTitle,
+        actualCourseId: context.currentSelected,
+        actualCurrentSelected: context.currentSelected,
+        actualPageUrl: context.pageUrl,
+        actualPageTitle: context.pageTitle,
+      }
+    );
+  }
+
+  private async waitForAssignmentSourceUrl(
+    page: Page,
+    context: {
+      entryUrl: string;
+      linkType: CengageEntryLinkType;
+      authMessage: string;
+      dashboardMessage: string;
+    }
+  ): Promise<void> {
+    let continueAfterStateFallback = false;
+    try {
+      await page.waitForURL(
+        /(.*webassign\.net\/web\/Student.*|.*webassign\.net\/v4cgi\/student.*)/i,
+        {
+          timeout: 30000,
+        }
+      );
+    } catch (error) {
+      const currentState = await waitForCengagePageState(page, {
+        timeoutMs: 7000,
+        pollIntervalMs: 300,
+        stableReadings: 1,
+      });
+
+      if (currentState.state === 'login') {
+        throw new CengageAuthRequiredError(context.authMessage, {
+          entryUrl: context.entryUrl,
+          linkType: context.linkType,
+          pageState: currentState,
+        });
+      }
+
+      if (currentState.state === 'dashboard') {
+        const dashboardCourses = await extractDashboardCourseInventory(page);
+
+        throw new CengageNavigationError(
+          dashboardCourses.length > 0
+            ? context.dashboardMessage
+            : 'Reached Cengage dashboard but no course links were detected.',
+          {
+            entryUrl: context.entryUrl,
+            linkType: context.linkType,
+            pageState: currentState,
+            courses: dashboardCourses,
+            cause: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
+
+      if (
+        currentState.state === 'assignments' ||
+        currentState.state === 'student_home' ||
+        currentState.state === 'course'
+      ) {
+        continueAfterStateFallback = true;
+      }
+
+      if (continueAfterStateFallback) {
+        console.error(
+          `[Cengage] waitForURL timeout recovered via state detection: ${currentState.state}`
+        );
+      }
+
+      if (!continueAfterStateFallback) {
+        throw new CengageNavigationError(
+          'Could not reach a WebAssign student page from the provided URL.',
+          {
+            entryUrl: context.entryUrl,
+            linkType: context.linkType,
+            pageState: currentState,
+            cause: error instanceof Error ? error.message : 'Unknown error',
+          }
+        );
+      }
+    }
+  }
+
+  private async extractAssignmentsFromPage(
+    page: Page,
+    context: {
+      entryUrl: string;
+      linkType: CengageEntryLinkType;
+      options?: GetWebAssignAssignmentsOptions;
+    }
+  ): Promise<WebAssignAssignmentsResult> {
+    await this.revealWebAssignCourseMenu(page);
+    const activeCourseContext = await collectWebAssignCourseContext(page);
+    this.assertExpectedCourseContext(
+      activeCourseContext,
+      context.options || {}
+    );
+
+    const rowCandidates = await this.collectAssignmentRowsWithTabFallback(page);
+    if (!Array.isArray(rowCandidates)) {
+      throw new CengageParseError(
+        'Unexpected assignment extraction payload type.',
+        {
+          entryUrl: context.entryUrl,
+          linkType: context.linkType,
+        }
+      );
+    }
+
+    const inferredCourse = inferCourseFromCurrentPage(
+      page.url(),
+      activeCourseContext.currentCourseTitle || (await page.title())
+    );
+
+    return {
+      context: activeCourseContext,
+      assignments: parseWebAssignAssignments(rowCandidates, {
+        courseId: activeCourseContext.currentSelected || inferredCourse?.courseId,
+        courseKey: inferredCourse?.courseKey,
+        courseTitle:
+          activeCourseContext.currentCourseTitle || inferredCourse?.title,
+      }),
+    };
+  }
+
+  private async activateLink(page: Page, locator: Locator): Promise<Page> {
+    const popupPromise = page
+      .context()
+      .waitForEvent('page', { timeout: 10000 })
+      .catch(() => null);
+    const href = await locator.getAttribute('href').catch(() => null);
+
+    await locator.click({ timeout: 10000 });
+    const popup = await popupPromise;
+    const targetPage = popup || page;
+    await targetPage
+      .waitForLoadState('domcontentloaded', { timeout: 45000 })
+      .catch(() => null);
+
+    if (
+      !popup &&
+      href &&
+      !/webassign\.net/i.test(targetPage.url()) &&
+      /webassign\.net/i.test(href)
+    ) {
+      await targetPage.goto(href, { waitUntil: 'load', timeout: 45000 });
+    }
+
+    return targetPage;
+  }
+
+  private async findCourseLaunchLink(
+    page: Page,
+    course: CengageDashboardCourse
+  ): Promise<Locator | null> {
+    const selectors: string[] = [];
+    if (course.courseKey) {
+      selectors.push(
+        `a[href*="${this.selectorLiteral(course.courseKey)}"][href]`
+      );
+    }
+
+    selectors.push(
+      `a[aria-label*="${this.selectorLiteral(course.title)}"][href]`,
+      `a:has-text("${this.selectorLiteral(course.title)}")`
+    );
+
+    for (const selector of selectors) {
+      const locator = page.locator(selector).first();
+      const count = await locator.count().catch(() => 0);
+      if (count === 0) continue;
+
+      const visible = await locator.isVisible().catch(() => false);
+      if (!visible) continue;
+
+      return locator;
+    }
+
+    return null;
+  }
+
+  private async tryRepairViaCourseMenu(
+    page: Page,
+    course: CengageDashboardCourse,
+    options: GetWebAssignAssignmentsOptions
+  ): Promise<WebAssignAssignmentsResult | null> {
+    await this.revealWebAssignCourseMenu(page);
+    const link = await this.findCourseLaunchLink(page, course);
+    if (!link) return null;
+
+    const targetPage = await this.activateLink(page, link);
+    await this.waitForAssignmentSourceUrl(targetPage, {
+      entryUrl: targetPage.url(),
+      linkType: 'webassign_course',
+      authMessage:
+        'Cengage authentication is required before assignment extraction.',
+      dashboardMessage:
+        'Reached Cengage dashboard. A specific course selection is required before assignment extraction.',
+    });
+    return this.extractAssignmentsFromPage(targetPage, {
+      entryUrl: targetPage.url(),
+      linkType: 'webassign_course',
+      options,
+    });
+  }
+
   private async discoverCoursesFromCurrentPage(
     page: Page,
     context: {
@@ -549,7 +822,10 @@ export class CengageScraper {
     });
   }
 
-  async getAssignments(ssoUrl: string): Promise<WebAssignAssignment[]> {
+  async getAssignmentsWithContext(
+    ssoUrl: string,
+    options: GetWebAssignAssignmentsOptions = {}
+  ): Promise<WebAssignAssignmentsResult> {
     const entry = normalizeAndClassifyCengageEntry(ssoUrl);
     const entryUrl = entry.normalizedUrl;
 
@@ -599,101 +875,102 @@ export class CengageScraper {
         );
       }
 
-      // Wait for the specific WebAssign student home URL or dashboard indicators
-      let continueAfterStateFallback = false;
-      try {
-        await page.waitForURL(
-          /(.*webassign\.net\/web\/Student.*|.*webassign\.net\/v4cgi\/student.*)/i,
-          {
-            timeout: 30000,
-          }
-        );
-      } catch (error) {
-        const currentState = await waitForCengagePageState(page, {
-          timeoutMs: 7000,
-          pollIntervalMs: 300,
-          stableReadings: 1,
-        });
-
-        if (currentState.state === 'login') {
-          throw new CengageAuthRequiredError(
-            'Cengage authentication is required before assignment extraction.',
-            {
-              entryUrl,
-              linkType: entry.linkType,
-              pageState: currentState,
-            }
-          );
-        }
-
-        if (currentState.state === 'dashboard') {
-          const dashboardCourses = await extractDashboardCourseInventory(page);
-
-          throw new CengageNavigationError(
-            dashboardCourses.length > 0
-              ? 'Reached Cengage dashboard. A specific course selection is required before assignment extraction.'
-              : 'Reached Cengage dashboard but no course links were detected.',
-            {
-              entryUrl,
-              linkType: entry.linkType,
-              pageState: currentState,
-              courses: dashboardCourses,
-              cause: error instanceof Error ? error.message : 'Unknown error',
-            }
-          );
-        }
-
-        if (
-          currentState.state === 'assignments' ||
-          currentState.state === 'student_home' ||
-          currentState.state === 'course'
-        ) {
-          continueAfterStateFallback = true;
-        }
-
-        if (continueAfterStateFallback) {
-          console.error(
-            `[Cengage] waitForURL timeout recovered via state detection: ${currentState.state}`
-          );
-        }
-
-        if (!continueAfterStateFallback) {
-          throw new CengageNavigationError(
-            'Could not reach a WebAssign student page from the provided URL.',
-            {
-              entryUrl,
-              linkType: entry.linkType,
-              pageState: currentState,
-              cause: error instanceof Error ? error.message : 'Unknown error',
-            }
-          );
-        }
-      }
-
-      const rowCandidates =
-        await this.collectAssignmentRowsWithTabFallback(page);
-      if (!Array.isArray(rowCandidates)) {
-        throw new CengageParseError(
-          'Unexpected assignment extraction payload type.',
-          {
-            entryUrl,
-            linkType: entry.linkType,
-          }
-        );
-      }
-
-      const inferredCourse = inferCourseFromCurrentPage(
-        page.url(),
-        await page.title()
-      );
-
-      return parseWebAssignAssignments(rowCandidates, {
-        courseId: inferredCourse?.courseId,
-        courseKey: inferredCourse?.courseKey,
-        courseTitle: inferredCourse?.title,
+      await this.waitForAssignmentSourceUrl(page, {
+        entryUrl,
+        linkType: entry.linkType,
+        authMessage:
+          'Cengage authentication is required before assignment extraction.',
+        dashboardMessage:
+          'Reached Cengage dashboard. A specific course selection is required before assignment extraction.',
+      });
+      return this.extractAssignmentsFromPage(page, {
+        entryUrl,
+        linkType: entry.linkType,
+        options,
       });
     } finally {
       await context.close();
+    }
+  }
+
+  async getAssignments(
+    ssoUrl: string,
+    options: GetWebAssignAssignmentsOptions = {}
+  ): Promise<WebAssignAssignment[]> {
+    const result = await this.getAssignmentsWithContext(ssoUrl, options);
+    return result.assignments;
+  }
+
+  async getAssignmentsForDashboardCourse(
+    course: CengageDashboardCourse,
+    options: Omit<GetWebAssignAssignmentsOptions, 'expectedCourse'> = {}
+  ): Promise<WebAssignAssignmentsResult> {
+    const entryUrl = CENGAGE_CANONICAL_HOME_URLS[0];
+    const mergedOptions: GetWebAssignAssignmentsOptions = {
+      ...options,
+      expectedCourse: course,
+    };
+
+    try {
+      return await withAuthenticatedPage({
+        entryUrl,
+        linkType: 'cengage_dashboard',
+        getBrowser: () => this.getBrowser(),
+        callback: async (page) => {
+          await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+          await waitForCengagePageState(page, {
+            timeoutMs: 9000,
+            pollIntervalMs: 300,
+            stableReadings: 1,
+          });
+
+          const link = await this.findCourseLaunchLink(page, course);
+          if (!link) {
+            throw new CengageNavigationError(
+              'Could not find the selected course launch link on the Cengage dashboard.',
+              {
+                entryUrl,
+                linkType: 'cengage_dashboard',
+                expectedCourse: course,
+              }
+            );
+          }
+
+          const targetPage = await this.activateLink(page, link);
+          await this.waitForAssignmentSourceUrl(targetPage, {
+            entryUrl: targetPage.url(),
+            linkType: 'webassign_course',
+            authMessage:
+              'Cengage authentication is required before assignment extraction.',
+            dashboardMessage:
+              'Reached Cengage dashboard. A specific course selection is required before assignment extraction.',
+          });
+
+          try {
+            return await this.extractAssignmentsFromPage(targetPage, {
+              entryUrl: targetPage.url(),
+              linkType: 'webassign_course',
+              options: mergedOptions,
+            });
+          } catch (error) {
+            if (error instanceof CengageCourseActivationError) {
+              const repaired = await this.tryRepairViaCourseMenu(
+                targetPage,
+                course,
+                mergedOptions
+              );
+              if (repaired) return repaired;
+            }
+            throw error;
+          }
+        },
+      });
+    } catch (error) {
+      if (error instanceof CengageCourseActivationError) {
+        throw error;
+      }
+
+      return this.getAssignmentsWithContext(course.launchUrl, mergedOptions);
     }
   }
 
@@ -819,6 +1096,10 @@ export class CengageScraper {
         }
       }
 
+      await this.revealWebAssignCourseMenu(page);
+      const activeCourseContext = await collectWebAssignCourseContext(page);
+      this.assertExpectedCourseContext(activeCourseContext, options);
+
       const rowCandidates =
         await this.collectAssignmentRowsWithTabFallback(page);
       if (!Array.isArray(rowCandidates)) {
@@ -833,13 +1114,14 @@ export class CengageScraper {
 
       const inferredCourse = inferCourseFromCurrentPage(
         page.url(),
-        await page.title()
+        activeCourseContext.currentCourseTitle || (await page.title())
       );
 
       const assignments = parseWebAssignAssignments(rowCandidates, {
-        courseId: inferredCourse?.courseId,
+        courseId: activeCourseContext.currentSelected || inferredCourse?.courseId,
         courseKey: inferredCourse?.courseKey,
-        courseTitle: inferredCourse?.title,
+        courseTitle:
+          activeCourseContext.currentCourseTitle || inferredCourse?.title,
       });
 
       if (assignments.length === 0) {

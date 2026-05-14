@@ -39,6 +39,8 @@
 - 🧹 **Granular Invalidation** — manual `clear_cache` clears **default** TTL cache only; **user-pinned** entries stay until you `cache_delete_pinned` or `cache_unpin`; automatic volatile clearing on re-auth
 - 📌 **Pinned cache (T27)** — pin files, section text, or course content to keep past TTL; on-disk quota via `ECLASS_MCP_PIN_QUOTA_BYTES` (default 300 MiB)
 
+- **Cross-platform assignments** - `get_assignments` is the default resolver for assignment/homework/deadline questions. It checks eClass first, then uses the permanent course-platform index and Cengage/WebAssign dashboard inventory when eClass is empty, a mapping exists, or external lookup is requested. WebAssign rows are only returned after the active course context is verified.
+
 ### Tool output contracts (E11)
 
 Tool responses are validated with **Zod** before serialization (`src/tools/eclass-contracts.ts`, `src/tools/mcp-validated-response.ts`). By default validation is **non-fatal**: `safeParse` runs, unknown/extra keys are allowed via `.passthrough()`, and on mismatch the server logs a warning and still returns the payload JSON. Set **`ECLASS_MCP_STRICT_TOOL_OUTPUT=1`** in `.env` only when you want validation to throw (local debugging). Cengage tools keep their own schema boundary in `src/tools/cengage/responses.ts`.
@@ -87,8 +89,9 @@ flowchart LR
 | `list_courses`            | List enrolled courses                                                                                  | —                                                                                                                                                                 |
 | `get_course_content`      | Sections, files, assignments for one course                                                            | `courseId`                                                                                                                                                        |
 | `get_section_text`        | Section page text, links, and tabbed content                                                           | `url`                                                                                                                                                             |
-| `get_upcoming_deadlines`  | Assignments due in the next N days                                                                     | `daysAhead?`, `courseId?`                                                                                                                                         |
-| `get_deadlines`           | Deadlines by scope: upcoming / month / range                                                           | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?`                                                                                      |
+| `get_assignments`         | Canonical cross-platform resolver for eClass + Cengage/WebAssign assignments                           | `courseId?`, `courseCode?`, `courseQuery?`, `scope?`, `month?`, `year?`, `from?`, `to?`, `includeExternal?`, `platformSelection?`                                 |
+| `get_upcoming_deadlines`  | eClass-only assignments due in the next N days; use `get_assignments` for external-platform coverage   | `daysAhead?`, `courseId?`                                                                                                                                         |
+| `get_deadlines`           | eClass-only deadlines by scope: upcoming / month / range                                               | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?`                                                                                      |
 | `get_item_details`        | Full instructions + status + grade for one assignment or quiz URL                                      | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?` |
 | `get_file_text`           | Extract text (and rendered images) from PDF, DOCX, or PPTX                                             | `courseId`, `fileUrl`, `startPage?`, `endPage?`                                                                                                                   |
 | `get_grades`              | Grade report (all courses or one)                                                                      | `courseId?`                                                                                                                                                       |
@@ -99,7 +102,7 @@ flowchart LR
 | `get_professor_details`   | Fetches detailed ratings, difficulty, and comments for a professor                                     | `teacherId`                                                                                                                                                       |
 | `discover_cengage_links`  | Detect and classify Cengage/WebAssign links from pasted text or extracted content                      | `text`, `source?`, `courseId?`, `sectionUrl?`, `sourceFile?`                                                                                                      |
 | `list_cengage_courses`    | List visible Cengage dashboard course materials, including WebAssign and OWLv2/CengageNOW cards        | `entryUrl?`, `discoveredLink?`, `courseQuery?`                                                                                                                    |
-| `get_cengage_assignments` | Fetch WebAssign-backed Cengage assignments from saved-session dashboard flow with bounded aggregation support; OWLv2/CengageNOW courses are listed but not scraped yet | `courseId?`, `courseKey?`, `courseQuery?`, `allCourses?`, `maxCourses?`, `maxAssignmentsPerCourse?`, `entryUrl?`, `ssoUrl?` (legacy)                              |
+| `get_cengage_assignments` | Fetch WebAssign-backed Cengage assignments from direct course/LTI links or saved-session dashboard flow with active-course verification; OWLv2/CengageNOW courses are listed but not scraped yet | `courseId?`, `courseKey?`, `courseQuery?`, `allCourses?`, `maxCourses?`, `maxAssignmentsPerCourse?`, `entryUrl?`, `ssoUrl?` (legacy)                              |
 | `get_cengage_assignment_details` | Fetch question-level Cengage/WebAssign assignment details with prompt sections, asset inventory, rendered-media fallback metadata, and scoring hints | `assignmentUrl?`, `assignmentId?`, `assignmentQuery?`, `courseId?`, `courseKey?`, `courseQuery?`, `includeAnswers?`, `includeResources?`, `includeAssetInventory?`, `includeRenderedMedia?`, `maxQuestions?`, `maxQuestionTextChars?`, `maxAnswerTextChars?` |
 | `clear_cache`             | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed     | `scope?`                                                                                                                                                          |
 | `cache_pin`               | Pin a resource already in cache (kept past TTL until unpinned)                                         | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?`                                                                                                       |
@@ -118,16 +121,22 @@ flowchart LR
 
 ### Cengage and WebAssign workflow (dashboard-first default)
 
+0. **Default assignment questions:** use `get_assignments` first. It decides whether eClass alone is enough, whether Cengage/WebAssign must be checked, and whether the user needs Cengage auth or course selection.
 1. **Default workflow:** authenticate once via `/auth-cengage`, call `list_cengage_courses` without `entryUrl`, then call `get_cengage_assignments` with `courseQuery`, `courseId`, or `courseKey`.
 2. **Aggregation workflow:** set `allCourses=true` in `get_cengage_assignments` to collect bounded summaries across dashboard courses (`maxCourses`, `maxAssignmentsPerCourse`).
 3. **Platform coverage:** `list_cengage_courses` reports visible dashboard materials even when they are OWLv2/CengageNOW instead of WebAssign. Assignment extraction is currently WebAssign-only, so OWLv2 courses return a clear unsupported-platform message instead of disappearing from the course list.
 4. **Details workflow:** after selecting an assignment, call `get_cengage_assignment_details` with `assignmentId`/`assignmentUrl`/`assignmentQuery` for question-level extraction and structured metadata.
-5. **When enrollment links still matter:** use explicit `entryUrl` when the course is not yet visible in dashboard inventory (for example first-time enrollment wrappers) or when reproducing a specific launch path.
+5. **When enrollment links still matter:** use explicit `entryUrl` when the course is not yet visible in dashboard inventory (for example first-time enrollment wrappers) or when reproducing a specific launch path. Direct WebAssign/LTI links are tried before dashboard selection.
 6. **Discovery role:** `discover_cengage_links` is bootstrap/fallback only; use it after dashboard-first calls cannot locate the needed course, then retry with discovered `entryUrl`/selection input.
 7. **Compatibility path:** `get_cengage_assignments` and `get_cengage_assignment_details` still accept legacy `ssoUrl`; `entryUrl` remains the preferred explicit-link field.
 8. **Selection behavior:** when multiple courses match, responses may return `status="needs_course_selection"`; provide `courseId`, `courseKey`, or `courseQuery` and retry.
 9. **Auth behavior parity:** when Cengage session state is missing or stale, responses return `status="auth_required"` with retry guidance and a dynamic `authUrl`.
-10. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `no_data`, `error`) and include `_cache` freshness metadata.
+10. **Activation guard:** WebAssign may open a previous active course even when the launch URL contains the requested `courseKey`. The tools verify the active WebAssign course context before returning rows.
+11. **Response contract:** Cengage tools follow structured status values (`ok`, `auth_required`, `needs_course_selection`, `needs_course_activation`, `no_data`, `error`) and include `_cache` freshness metadata.
+
+### Course platform index
+
+`get_assignments` writes durable eClass-to-Cengage/WebAssign course mappings to `.eclass-mcp/course-platform-index.json`. This file is user state, not TTL cache: `clear_cache` does not delete it, and Cengage re-auth only clears volatile dashboard caches. If a course match is ambiguous, retry `get_assignments` with `platformSelection.cengage.courseId`, `courseKey`, or `courseQuery`; the selected mapping is then remembered for the term. If activation fails because WebAssign opens a different active course, the mapping stays linked and the index records activation diagnostics instead of deleting the correct course identity.
 
 > 📖 **Master plan (roadmaps, history, engine beta, engineering):** [docs/PROJECT_MASTER.md](docs/PROJECT_MASTER.md) · Deep-dive: [Deadlines](docs/tools/deadlines/roadmap.md) · [PDF pipeline](docs/tools/get_file_text/history.md)
 
@@ -213,6 +222,7 @@ You're done. Ask Claude anything about your courses.
 
 ```
 "What assignments do I have due this week?"
+"Check all assignments for MATH 1014 across eClass and Cengage/WebAssign."
 "Show me my deadlines for March 2026, including past ones."
 "Get the full instructions and my submission status for this assignment:
   https://eclass.yorku.ca/mod/assign/view.php?id=XXXXX"
@@ -277,6 +287,7 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | -------------------------- | -------------------------------------------------------------------------- |
 | Old course data showing up | Delete `.eclass-mcp/cache/` to force a full refresh                        |
 | File content outdated      | Delete the specific `file_<hash>_v2.json` from `.eclass-mcp/cache/`        |
+| Course platform mapping wrong | Retry `get_assignments` with `platformSelection.cengage.courseId`, `courseKey`, or `courseQuery`; `clear_cache` does not delete `.eclass-mcp/course-platform-index.json` |
 | Grades not updating        | Cache TTL for grades is 12 hours — delete `grades_*.json` to force refresh |
 
 ### 🔗 Cengage / WebAssign Dashboard-First and Fallback Issues
@@ -285,6 +296,7 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `status="auth_required"` from Cengage tools              | Open the returned `retry.authUrl` (typically `http://localhost:<AUTH_PORT>/auth-cengage`), complete login, retry the same tool call            |
 | `status="needs_course_selection"`                        | Retry with `courseId`, `courseKey`, or `courseQuery`; if unsure, call `list_cengage_courses` first to choose a deterministic candidate         |
+| Cengage/WebAssign reports a different course context     | Treat `needs_course_activation` as an activation problem, not "no assignments" or automatic auth expiry. Open the intended course from Cengage/WebAssign, then retry; the tool refuses to return rows from the wrong active course. |
 | Dashboard-first call returns `status="no_data"`          | Re-run `/auth-cengage`, retry `list_cengage_courses` with no `entryUrl`, then use explicit `entryUrl` only if the course still does not appear |
 | `discover_cengage_links` returns `no_data`               | Use this only as fallback and provide raw text that still contains full URLs (file/announcement extraction, not paraphrases)                   |
 | Explicit-link assignment call returns `status="no_data"` | Verify link resolves to an active course/dashboard for your account; then retry with `courseId`/`courseQuery` to force selection               |
@@ -305,7 +317,8 @@ rm -rf dist && npm.cmd run build
 
 | Topic                                                                   | Location                                                                                                                                 |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool-by-tool docs index (all 23 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
+| Tool-by-tool docs index (all 24 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
+| Cross-platform assignment resolver                                      | [`docs/tools/get_assignments/README.md`](docs/tools/get_assignments/README.md)                                                           |
 | Cengage implementation and migration plan                               | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md)                                     |
 | Deadlines tool — full roadmap & architecture                            | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md)                                                                     |
 | Deadlines — implementation history                                      | [`docs/tools/deadlines/history.md`](docs/tools/deadlines/history.md)                                                                     |

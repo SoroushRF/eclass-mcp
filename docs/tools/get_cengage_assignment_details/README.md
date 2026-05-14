@@ -4,6 +4,7 @@
 
 - Opens a selected Cengage/WebAssign assignment and extracts question-level details.
 - Supports assignment selection by `assignmentId`, `assignmentUrl`, or `assignmentQuery`.
+- Verifies the active WebAssign course context before selecting assignment details.
 - Includes prompt text, prompt sections, scoring/result hints, feedback, and resource links.
 - Supports additive extraction metadata:
   - `extractionWarnings`
@@ -42,6 +43,7 @@
 - Very long multi-part prompts can still truncate under configured character caps.
 - Rendered-media fallback may skip captures when payload/limit guards are reached.
 - Platform UI variations can alter available per-question markers.
+- If WebAssign opens a different active course, the tool returns `needs_course_activation` with `COURSE_CONTEXT_MISMATCH` instead of extracting details from the wrong course.
 
 ## Tests
 
@@ -52,4 +54,5 @@
 - Source: `src/tools/cengage.ts` (`getCengageAssignmentDetails`).
 - Schemas: `src/tools/cengage-contracts.ts` (`GetCengageAssignmentDetailsInputSchema`, `GetCengageAssignmentDetailsResponseSchema`).
 - Scraper path: `src/scraper/cengage.ts` (`getAssignmentDetails`) and `src/scraper/cengage/assignment-details.ts`.
+- Course context guard: `src/scraper/cengage/course-context.ts`.
 - Cache key scope: `cengage/assignment_details` with `TTL.DEADLINES`.

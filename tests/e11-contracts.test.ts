@@ -11,6 +11,7 @@ import {
   RmpSearchToolResponseSchema,
   SisExamScheduleResponseSchema,
 } from '../src/tools/eclass-contracts';
+import { AssignmentResolverResponseSchema } from '../src/tools/assignment-contracts';
 import {
   asValidatedMcpText,
   asValidatedMcpResult,
@@ -231,6 +232,68 @@ describe('fixture JSON satisfies schemas (CI contract smoke)', () => {
         _cache: { hit: true, fetched_at: 'a', expires_at: 'b' },
         title: 'T',
         csvIncludedCount: 0,
+      }).success
+    ).toBe(true);
+  });
+
+  it('AssignmentResolverResponseSchema accepts cross-platform assignment payloads', () => {
+    expect(
+      AssignmentResolverResponseSchema.safeParse({
+        status: 'ok',
+        assignments: [
+          {
+            platform: 'webassign',
+            sourceTool: 'get_cengage_assignments',
+            name: 'Homework 1',
+            status: 'pending',
+          },
+        ],
+        sources: {
+          eclass: {
+            checked: true,
+            status: 'no_data',
+            assignmentCount: 0,
+          },
+          cengage: {
+            checked: true,
+            status: 'ok',
+            assignmentCount: 1,
+          },
+        },
+        platformIndex: {
+          hit: true,
+          mappingStatus: 'linked',
+        },
+      }).success
+    ).toBe(true);
+  });
+
+  it('AssignmentResolverResponseSchema accepts course activation blockers', () => {
+    expect(
+      AssignmentResolverResponseSchema.safeParse({
+        status: 'needs_course_activation',
+        code: 'COURSE_CONTEXT_MISMATCH',
+        assignments: [],
+        sources: {
+          eclass: {
+            checked: true,
+            status: 'no_data',
+            assignmentCount: 0,
+          },
+          cengage: {
+            checked: true,
+            status: 'needs_course_activation',
+            assignmentCount: 0,
+          },
+        },
+        platformIndex: {
+          hit: true,
+          mappingStatus: 'linked',
+        },
+        retry: {
+          afterAuth: false,
+          reason: 'course_activation_required',
+        },
       }).success
     ).toBe(true);
   });
