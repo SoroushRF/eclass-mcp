@@ -22,6 +22,7 @@ Defined in [`src/errors/codes.ts`](../src/errors/codes.ts) as `MACHINE_CODES` / 
 | Code                      | Meaning                                                                                                                                |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `SESSION_EXPIRED`         | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`). |
+| `SESSION_STORAGE_UNAVAILABLE` | Local encrypted session storage cannot be used because `ECLASS_MCP_SESSION_SECRET` is missing/too short, the secret is wrong, or a legacy plaintext/malformed session file was found. |
 | `SCRAPE_LAYOUT_CHANGED`   | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                 |
 | `UPSTREAM_ERROR`          | Generic network or upstream failure (non-429, non-timeout classification).                                                             |
 | `RATE_LIMITED`            | HTTP 429 or explicit rate-limit signals.                                                                                               |
@@ -58,6 +59,13 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 - **`SessionExpiredError`** ([`src/scraper/session.ts`](../src/scraper/session.ts)) carries `code: 'SESSION_EXPIRED'`.
 - eClass, SIS, and pin-refresh tool paths open `/auth`, wait briefly for a refreshed session, and retry once before returning **`sessionExpiredPayload()`**.
 - Cengage auth paths return `auth_required` with retry guidance through their Cengage-specific response schemas.
+
+### Phase 1b â€” Secure session storage (`SESSION_STORAGE_UNAVAILABLE`)
+
+- **`SecureSessionStorageError`** ([`src/security/secure-session-store.ts`](../src/security/secure-session-store.ts)) carries `code: 'SESSION_STORAGE_UNAVAILABLE'`.
+- `session.json` and `cengage-state.json` are encrypted secure-file envelopes using `ECLASS_MCP_SESSION_SECRET`.
+- Missing/weak secret, wrong secret, malformed envelopes, and legacy plaintext sessions return structured `status: 'error'` with `retry.afterAuth=false`; tools do not open auth windows or wait for login in this state.
+- The local auth server exposes `/logout` to clear auth session files without deleting cache, pins, debug output, or course-platform mappings.
 
 ### Phase 2 — Scraper drift (`SCRAPE_LAYOUT_CHANGED`)
 
@@ -102,6 +110,7 @@ RMP required-field checks were moved to **`VALIDATION_FAILED`** JSON for consist
 | Validation errors      | `src/errors/validation-error.ts`                                   |
 | Scraper errors         | `src/scraper/scrape-errors.ts`                                     |
 | Session                | `src/scraper/session.ts`                                           |
+| Secure session storage | `src/security/secure-session-store.ts`, `src/security/auth-session-wipe.ts` |
 | RMP client             | `src/scraper/rmp.ts`                                               |
 | eClass barrel exports  | `src/scraper/eclass.ts`                                            |
 | Zod contracts          | `src/tools/eclass-contracts.ts`                                    |

@@ -45,6 +45,10 @@ import {
 import { GetAssignmentsInputSchema } from './tools/assignment-contracts';
 import { rootLogger } from './logging/logger';
 import { runWithToolContext } from './logging/context';
+import {
+  SecureSessionStorageError,
+  isSecureSessionConfigured,
+} from './security/secure-session-store';
 
 const bootstrapLog = rootLogger.child({ component: 'bootstrap' });
 
@@ -535,13 +539,30 @@ async function main() {
   // Always start auth server in background so it's ready for redirects
   await startAuthServer();
 
-  if (!isSessionValid()) {
-    bootstrapLog.warn(
-      'eClass session not found or stale. Opening login window...'
+  if (!isSecureSessionConfigured()) {
+    bootstrapLog.error(
+      'Secure session storage is not configured. Set ECLASS_MCP_SESSION_SECRET in .env before authenticating.'
     );
-    openAuthWindow();
   } else {
-    bootstrapLog.info('eClass session check: Local session file found.');
+    try {
+      if (!isSessionValid()) {
+        bootstrapLog.warn(
+          'eClass session not found or stale. Opening login window...'
+        );
+        openAuthWindow();
+      } else {
+        bootstrapLog.info('eClass session check: Local session file found.');
+      }
+    } catch (error) {
+      if (error instanceof SecureSessionStorageError) {
+        bootstrapLog.error(
+          { reason: error.reason },
+          'Secure session storage is unavailable. Clear old auth sessions or check ECLASS_MCP_SESSION_SECRET.'
+        );
+      } else {
+        throw error;
+      }
+    }
   }
 
   const transport = new StdioServerTransport();

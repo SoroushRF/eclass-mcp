@@ -263,7 +263,7 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 | [x] **E10** | HTML fixtures + integration tests for scrape helpers (?6 variants)                                                                                                                                                                                                                                                                    | B    |
 | [x] **E11** | Zod schemas for tool outputs (and inputs where missing); stable JSON envelope (**required** for write tools via **E20**) — see `src/tools/eclass-contracts.ts`, `mcp-validated-response.ts`, [`docs/e11-tool-output-inventory.md`](./e11-tool-output-inventory.md)                                                                    | B    |
 | [x] **E12** | Structured errors + machine codes (`SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANGED`, upstream codes, `VALIDATION_FAILED`) — [`docs/e12-structured-errors.md`](./e12-structured-errors.md); modules under `src/errors/`, `src/scraper/scrape-errors.ts`, tool mappings — (**required** for write tools via **E20**)                          | B    |
-| [ ] **E13** | Session at-rest hardening + secure wipe on logout                                                                                                                                                                                                                                                                                     | C    |
+| [x] **E13** | Session at-rest hardening + secure wipe on logout: eClass/SIS cookies and Cengage/WebAssign storage state are encrypted with `ECLASS_MCP_SESSION_SECRET`; legacy plaintext sessions are rejected; `/logout` clears local auth session files only.                                                                                     | C    |
 | [x] **E14** | Structured logging + correlation ID + redaction — [`docs/logging.md`](./logging.md), `src/logging/*`, `ECLASS_MCP_LOG_LEVEL`                                                                                                                                                                                                          | C    |
 | [ ] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode                                                                                                                                                                                                                                                                   | C    |
 | [ ] **E16** | `npm run doctor` (Node, Playwright, Claude config path, `.env`, permissions)                                                                                                                                                                                                                                                          | D    |
@@ -449,7 +449,7 @@ jobs:
 
 #### 2.9.5 E13?E15 ? Security and operations
 
-- **E13:** Encrypt `session.json` or OS keychain storage; document threat model (local disk, shared machine).
+- **E13:** **Done.** Secure-file storage encrypts `session.json` and `cengage-state.json` with AES-256-GCM + `scrypt` using `ECLASS_MCP_SESSION_SECRET`; legacy plaintext sessions require re-auth; `/logout` best-effort wipes auth session files. README and `SECURITY.md` document the local threat model and wipe limitations.
 - **E14:** **Done.** Pino JSON to stderr; `runWithToolContext` + `getLogger()` + `requestId`/`tool` per MCP invocation; `redactCookieSubstrings` for free-form text; [`docs/logging.md`](./logging.md).
 - **E15:** Config object for selector arrays per page type; log which selector won; on total failure throw coded `SCRAPE_LAYOUT_CHANGED`.
 
@@ -809,13 +809,13 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 - **MCP:** `@modelcontextprotocol/sdk`, stdio transport to the host (e.g. Claude Desktop).
 - **Scraping:** Playwright (Chromium); **auth** flow uses a **visible** browser; **data** scraping uses **headless** contexts with session cookies.
 - **Parsers:** PDF (including pdfjs-based pipeline where implemented), DOCX (mammoth), PPTX (ZIP/XML extraction).
-- **Persistence:** no database; JSON on disk under **`.eclass-mcp/`** (gitignored): `session.json`, `cache/`, `pins.json` (pin registry), optional `debug/`.
+- **Persistence:** no database; JSON on disk under **`.eclass-mcp/`** (gitignored): encrypted auth session files (`session.json`, `cengage-state.json`), plaintext `cache/`, `pins.json` (pin registry), course-platform index, and optional `debug/`.
 - **Config:** `.env` (gitignored), `.env.example` for template.
 
 ### 3.3 Auth and session (canonical)
 
 - Local HTTP server (default port from env, e.g. `AUTH_PORT=3000`) exposes routes such as **`/auth`** for interactive login and **`/status`** for session validity.
-- Successful login persists **all** Playwright cookies for the context to **`.eclass-mcp/session.json`** via `saveSession()`; headless scrapers use `loadSession()` and `SessionExpiredError` when missing/expired/stale.
+- Successful eClass login persists **all** Playwright cookies for the context to encrypted **`.eclass-mcp/session.json`** via `saveSession()`; Cengage/WebAssign persists encrypted Playwright storage state to **`.eclass-mcp/cengage-state.json`**. Both require `ECLASS_MCP_SESSION_SECRET`; headless scrapers use decrypted in-memory cookies/storage state and return `SESSION_STORAGE_UNAVAILABLE` when secure storage is unavailable.
 - **Server logging:** use **`console.error`** for diagnostics ? **stdout** is reserved for MCP protocol traffic.
 
 ---

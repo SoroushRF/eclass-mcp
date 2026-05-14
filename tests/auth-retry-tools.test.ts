@@ -5,6 +5,7 @@ import { scraper, SessionExpiredError } from '../src/scraper/eclass';
 import { SISScraper } from '../src/scraper/sis';
 import { listCourses } from '../src/tools/courses';
 import { getExamSchedule, getClassTimetable } from '../src/tools/sis';
+import { SecureSessionStorageError } from '../src/security/secure-session-store';
 
 function parsePayload(result: { content: Array<{ text: string }> }) {
   return JSON.parse(result.content[0].text);
@@ -20,6 +21,22 @@ afterEach(() => {
 });
 
 describe('auth retry tool behavior', () => {
+  it('list_courses returns storage error without opening auth', async () => {
+    vi.spyOn(scraper, 'getCourses').mockRejectedValue(
+      new SecureSessionStorageError('missing_secret', 'missing secret')
+    );
+    const openAuthSpy = vi
+      .spyOn(authServer, 'openAuthWindow')
+      .mockImplementation(() => undefined);
+
+    const payload = parsePayload(await listCourses());
+
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+    expect(payload.retry?.afterAuth).toBe(false);
+    expect(openAuthSpy).not.toHaveBeenCalled();
+  });
+
   it('list_courses retries once after eClass auth completes', async () => {
     const coursesSpy = vi
       .spyOn(scraper, 'getCourses')

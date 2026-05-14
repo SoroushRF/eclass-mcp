@@ -14,6 +14,7 @@ import {
 import { getCengageSessionValidity } from '../scraper/cengage-session';
 import { ValidationError } from '../errors/validation-error';
 import { toErrorPayload } from '../errors/tool-error';
+import { SecureSessionStorageError } from '../security/secure-session-store';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { handleEclassSessionExpired } from './auth-retry';
 import {
@@ -656,7 +657,16 @@ export async function getAssignments(
     }
 
     const linkedCourse = mappingToDashboardCourse(platformRecord);
-    const cengageValid = getCengageSessionValidity().valid;
+    const cengageSessionValidity = getCengageSessionValidity();
+    if (cengageSessionValidity.reason === 'storage_unavailable') {
+      throw new SecureSessionStorageError(
+        'read_failed',
+        cengageSessionValidity.message ||
+          'Secure Cengage session storage is unavailable.',
+        { filePath: cengageSessionValidity.statePath }
+      );
+    }
+    const cengageValid = cengageSessionValidity.valid;
     const mustCheckCengage =
       includeExternal === 'always' ||
       !!linkedCourse ||
@@ -693,7 +703,16 @@ export async function getAssignments(
         };
       }
 
-      if (getCengageSessionValidity().valid) {
+      const latestCengageValidity = getCengageSessionValidity();
+      if (latestCengageValidity.reason === 'storage_unavailable') {
+        throw new SecureSessionStorageError(
+          'read_failed',
+          latestCengageValidity.message ||
+            'Secure Cengage session storage is unavailable.',
+          { filePath: latestCengageValidity.statePath }
+        );
+      }
+      if (latestCengageValidity.valid) {
         if (courseResolution.status === 'all') {
           await fetchCengageAllCourses({ args, sources, assignments });
         } else if (eclassIdentity && computeHasIdentity(eclassIdentity)) {
@@ -731,6 +750,23 @@ export async function getAssignments(
           : undefined,
     });
   } catch (error: unknown) {
+    if (error instanceof SecureSessionStorageError) {
+      const payload = toErrorPayload(
+        'SESSION_STORAGE_UNAVAILABLE',
+        'Secure session storage is unavailable. Set ECLASS_MCP_SESSION_SECRET, clear old plaintext sessions, then authenticate again.',
+        { retry: { afterAuth: false } }
+      );
+      return assignmentResponse({
+        status: 'error',
+        code: payload.code,
+        course: courseToResponse(selectedCourse),
+        assignments: [],
+        sources,
+        platformIndex: indexSummaryForResponse(platformRecord),
+        message: payload.message,
+        retry: payload.retry,
+      });
+    }
     if (error instanceof SessionExpiredError) {
       const fallback = (expired: SessionExpiredError) =>
         assignmentResponse({

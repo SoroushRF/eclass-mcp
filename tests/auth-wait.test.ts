@@ -7,7 +7,7 @@ import {
   resolveAuthWaitMs,
   waitForAuthSession,
 } from '../src/auth/server';
-import { getSessionFilePath } from '../src/scraper/session';
+import { getSessionFilePath, saveSession } from '../src/scraper/session';
 
 const sessionFilePath = getSessionFilePath();
 let originalSessionFileContent: string | null = null;
@@ -21,15 +21,7 @@ function removeSessionFile(): void {
 }
 
 function writeFreshSession(): void {
-  fs.mkdirSync(path.dirname(sessionFilePath), { recursive: true });
-  fs.writeFileSync(
-    sessionFilePath,
-    JSON.stringify({
-      saved_at: new Date().toISOString(),
-      cookies: [],
-    }),
-    'utf-8'
-  );
+  saveSession([], path.basename(sessionFilePath));
 }
 
 beforeAll(() => {

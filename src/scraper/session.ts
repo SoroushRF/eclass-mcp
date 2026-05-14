@@ -2,6 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import dotenv from 'dotenv';
 import { getLogger } from '../logging/context';
+import {
+  SecureSessionStorageError,
+  readSecureJsonFile,
+  secureDeleteFile,
+  writeSecureJsonFile,
+} from '../security/secure-session-store';
 
 export class SessionExpiredError extends Error {
   /** E12 machine code for session expiry (eClass / SIS paths). */
@@ -69,13 +75,53 @@ export function saveSession(
   };
 
   try {
-    fs.writeFileSync(
-      getSessionFilePath(fileName),
-      JSON.stringify(data, null, 2),
-      'utf-8'
-    );
+    writeSecureJsonFile(getSessionFilePath(fileName), data);
   } catch (error) {
+    if (error instanceof SecureSessionStorageError) {
+      throw error;
+    }
     getLogger().error({ err: error }, 'Error saving session');
+  }
+}
+
+function isSessionData(value: unknown): value is SessionData {
+  const data = value as Partial<SessionData>;
+  return (
+    !!data &&
+    typeof data === 'object' &&
+    typeof data.saved_at === 'string' &&
+    Array.isArray(data.cookies)
+  );
+}
+
+function loadSessionData(file: string): SessionData {
+  const data = readSecureJsonFile<SessionData>(file);
+  if (!isSessionData(data)) {
+    throw new SecureSessionStorageError(
+      'malformed_envelope',
+      'Secure session payload is malformed.',
+      { filePath: file }
+    );
+  }
+  return data;
+}
+
+export function loadSessionDataForTests(
+  fileName: string = 'session.json'
+): SessionData | null {
+  const file = getSessionFilePath(fileName);
+  if (!fs.existsSync(file)) {
+    return null;
+  }
+
+  try {
+    return loadSessionData(file);
+  } catch (error) {
+    if (error instanceof SecureSessionStorageError) {
+      throw error;
+    }
+    getLogger().error({ err: error }, 'Error saving session');
+    return null;
   }
 }
 
@@ -88,8 +134,7 @@ export function loadSession(
   }
 
   try {
-    const content = fs.readFileSync(file, 'utf-8');
-    const data: SessionData = JSON.parse(content);
+    const data = loadSessionData(file);
 
     if (!_isSessionFresh(data)) {
       return null;
@@ -97,6 +142,9 @@ export function loadSession(
 
     return data.cookies;
   } catch (error) {
+    if (error instanceof SecureSessionStorageError) {
+      throw error;
+    }
     getLogger().error({ err: error }, 'Error loading session');
     return null;
   }
@@ -119,10 +167,12 @@ export function isSessionValid(fileName: string = 'session.json'): boolean {
   }
 
   try {
-    const content = fs.readFileSync(file, 'utf-8');
-    const data: SessionData = JSON.parse(content);
+    const data = loadSessionData(file);
     return _isSessionFresh(data);
   } catch (_error) {
+    if (_error instanceof SecureSessionStorageError) {
+      throw _error;
+    }
     return false;
   }
 }
@@ -131,7 +181,7 @@ export function clearSession(fileName: string = 'session.json'): void {
   const file = getSessionFilePath(fileName);
   if (fs.existsSync(file)) {
     try {
-      fs.unlinkSync(file);
+      secureDeleteFile(file);
     } catch (error) {
       getLogger().error({ err: error }, 'Error clearing session');
     }

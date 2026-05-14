@@ -1,5 +1,12 @@
 import fs from 'fs';
 import path from 'path';
+import type { BrowserContextOptions } from 'playwright';
+import {
+  SecureSessionStorageError,
+  readSecureJsonFile,
+  secureDeleteFile,
+  writeSecureJsonFile,
+} from '../security/secure-session-store';
 
 export const CENGAGE_SESSION_DIR = path.resolve(__dirname, '../../.eclass-mcp');
 export const CENGAGE_STATE_PATH = path.join(
@@ -24,7 +31,8 @@ export type CengageSessionValidityReason =
   | 'missing_state'
   | 'invalid_meta'
   | 'invalid_state'
-  | 'stale';
+  | 'stale'
+  | 'storage_unavailable';
 
 export interface CengageSessionValidity {
   valid: boolean;
@@ -32,6 +40,7 @@ export interface CengageSessionValidity {
   statePath: string;
   metaPath: string;
   savedAt?: string;
+  message?: string;
 }
 
 export interface CengageSessionValidityOptions {
@@ -39,6 +48,14 @@ export interface CengageSessionValidityOptions {
   metaPath?: string;
   now?: Date;
   staleHours?: number;
+}
+
+export interface CengageSecureSessionData {
+  saved_at: string;
+  storageState: Exclude<
+    BrowserContextOptions['storageState'],
+    string | undefined
+  >;
 }
 
 function getSessionPaths(options?: { statePath?: string; metaPath?: string }): {
@@ -74,6 +91,24 @@ export function saveCengageSessionMetadata(options?: {
   };
 
   fs.writeFileSync(metaPath, JSON.stringify(payload, null, 2), 'utf-8');
+}
+
+export function saveCengageSessionState(
+  storageState: CengageSecureSessionData['storageState'],
+  options?: {
+    statePath?: string;
+    metaPath?: string;
+    savedAt?: Date;
+  }
+): void {
+  const { statePath, metaPath } = getSessionPaths(options);
+  const savedAt = options?.savedAt || new Date();
+  ensureCengageSessionDir(statePath);
+  writeSecureJsonFile(statePath, {
+    saved_at: savedAt.toISOString(),
+    storageState,
+  } satisfies CengageSecureSessionData);
+  saveCengageSessionMetadata({ statePath, metaPath, savedAt });
 }
 
 interface CengageSessionMetaLoadResult {
@@ -145,14 +180,23 @@ export function getCengageSessionValidity(
 
   if (!savedAt) {
     try {
-      const stat = fs.statSync(statePath);
-      savedAt = stat.mtime.toISOString();
+      const data = loadCengageSessionState({ statePath });
+      savedAt = data.saved_at;
       saveCengageSessionMetadata({
         statePath,
         metaPath,
         savedAt: new Date(savedAt),
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof SecureSessionStorageError) {
+        return {
+          valid: false,
+          reason: 'storage_unavailable',
+          statePath,
+          metaPath,
+          message: error.message,
+        };
+      }
       return {
         valid: false,
         reason: 'invalid_state',
@@ -160,11 +204,24 @@ export function getCengageSessionValidity(
         metaPath,
       };
     }
+  }
 
-    const fresh = isSavedCengageSessionFresh(savedAt, now, staleHours);
+  try {
+    loadCengageSessionState({ statePath });
+  } catch (error) {
+    if (error instanceof SecureSessionStorageError) {
+      return {
+        valid: false,
+        reason: 'storage_unavailable',
+        statePath,
+        metaPath,
+        savedAt,
+        message: error.message,
+      };
+    }
     return {
-      valid: fresh,
-      reason: fresh ? 'ok' : 'stale',
+      valid: false,
+      reason: 'invalid_state',
       statePath,
       metaPath,
       savedAt,
@@ -188,4 +245,42 @@ export function getCengageSessionValidity(
     metaPath,
     savedAt,
   };
+}
+
+function isCengageSecureSessionData(
+  value: unknown
+): value is CengageSecureSessionData {
+  const data = value as Partial<CengageSecureSessionData>;
+  return (
+    !!data &&
+    typeof data === 'object' &&
+    typeof data.saved_at === 'string' &&
+    !!data.storageState &&
+    typeof data.storageState === 'object' &&
+    Array.isArray((data.storageState as { cookies?: unknown }).cookies)
+  );
+}
+
+export function loadCengageSessionState(options?: {
+  statePath?: string;
+}): CengageSecureSessionData {
+  const statePath = options?.statePath || CENGAGE_STATE_PATH;
+  const data = readSecureJsonFile<CengageSecureSessionData>(statePath);
+  if (!isCengageSecureSessionData(data)) {
+    throw new SecureSessionStorageError(
+      'malformed_envelope',
+      'Secure Cengage session payload is malformed.',
+      { filePath: statePath }
+    );
+  }
+  return data;
+}
+
+export function clearCengageSession(options?: {
+  statePath?: string;
+  metaPath?: string;
+}): void {
+  const { statePath, metaPath } = getSessionPaths(options);
+  secureDeleteFile(statePath);
+  secureDeleteFile(metaPath);
 }

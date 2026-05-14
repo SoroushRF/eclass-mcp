@@ -20,7 +20,11 @@ Security fixes are applied to the **latest commit on the default branch** (`mast
 
 **Sensitive data reminder**
 
-This tool stores **Playwright session cookies** and **cached course data** under **`.eclass-mcp/`** on the user’s machine. Reports that describe leaks or unsafe persistence of that data are welcome.
+This tool stores **encrypted Playwright session cookies / browser storage state** and **plaintext cached course data** under **`.eclass-mcp/`** on the user’s machine. Auth sessions require `ECLASS_MCP_SESSION_SECRET`; keep that `.env` value private because anyone with both the encrypted session files and the secret can use the saved session.
+
+Session encryption protects against casual copying of `.eclass-mcp/session.json` or `.eclass-mcp/cengage-state.json`. It does **not** protect against a fully compromised OS user account, a malicious process running as the same user, keyloggers, or disclosure of the local `.env` file.
+
+The local `/logout` route performs best-effort auth-session deletion and overwrite before unlinking. Secure wipe cannot be guaranteed on SSDs, journaling filesystems, OneDrive/cloud sync, backups, or other copy-on-write storage.
 
 ## Reporting a vulnerability
 

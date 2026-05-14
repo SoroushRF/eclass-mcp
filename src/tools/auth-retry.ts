@@ -1,5 +1,9 @@
 import * as authServer from '../auth/server';
+import { sessionStorageUnavailablePayload } from '../errors/tool-error';
 import { SessionExpiredError } from '../scraper/session';
+import { SecureSessionStorageError } from '../security/secure-session-store';
+import { EclassToolErrorResponseSchema } from './eclass-contracts';
+import { asValidatedMcpText } from './mcp-validated-response';
 
 export async function handleEclassSessionExpired<T>(
   error: SessionExpiredError,
@@ -21,4 +25,20 @@ export async function handleEclassSessionExpired<T>(
     }
     throw retryError;
   }
+}
+
+export function isSessionStorageUnavailable(
+  error: unknown
+): error is SecureSessionStorageError {
+  return error instanceof SecureSessionStorageError;
+}
+
+export function sessionStorageUnavailableResponse(toolName: string) {
+  return asValidatedMcpText(
+    toolName,
+    EclassToolErrorResponseSchema,
+    sessionStorageUnavailablePayload(
+      'Secure session storage is unavailable. Set ECLASS_MCP_SESSION_SECRET, clear old plaintext sessions, then authenticate again.'
+    )
+  );
 }

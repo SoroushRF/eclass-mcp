@@ -1,14 +1,15 @@
 import { chromium } from 'playwright';
 import {
   CENGAGE_STATE_PATH,
-  ensureCengageSessionDir,
-  saveCengageSessionMetadata,
+  saveCengageSessionState,
 } from '../scraper/cengage-session';
 import { rootLogger } from '../logging/logger';
+import { assertSecureSessionConfigured } from '../security/secure-session-store';
 
 const log = rootLogger.child({ component: 'cengage-auth-cli' });
 
 async function main() {
+  assertSecureSessionConfigured();
   log.info('Starting standalone Cengage authentication...');
 
   const browser = await chromium.launch({ headless: false });
@@ -45,9 +46,8 @@ async function main() {
   // To be safe, wait an extra 5 seconds after they seemingly reach the dashboard
   await page.waitForTimeout(5000);
 
-  ensureCengageSessionDir(CENGAGE_STATE_PATH);
-  await context.storageState({ path: CENGAGE_STATE_PATH });
-  saveCengageSessionMetadata({ statePath: CENGAGE_STATE_PATH });
+  const storageState = await context.storageState();
+  saveCengageSessionState(storageState, { statePath: CENGAGE_STATE_PATH });
   log.info(
     'Saved Cengage session state and metadata to .eclass-mcp/cengage-state.json...'
   );

@@ -1,16 +1,26 @@
-import type { Browser, Page } from 'playwright';
+import type { Browser, BrowserContextOptions, Page } from 'playwright';
 import { CengageAuthRequiredError } from '../cengage-errors';
 import {
   CENGAGE_SESSION_STALE_HOURS,
   getCengageSessionValidity,
+  loadCengageSessionState,
 } from '../cengage-session';
+import { SecureSessionStorageError } from '../../security/secure-session-store';
 import type { CengageEntryLinkType } from '../cengage-url';
 
-export function getValidSessionStatePathOrThrow(
+export function getValidSessionStorageStateOrThrow(
   entryUrl: string,
   linkType: CengageEntryLinkType
-): string {
+): Exclude<BrowserContextOptions['storageState'], string | undefined> {
   const sessionValidity = getCengageSessionValidity();
+  if (sessionValidity.reason === 'storage_unavailable') {
+    throw new SecureSessionStorageError(
+      'read_failed',
+      sessionValidity.message ||
+        'Secure Cengage session storage is unavailable.',
+      { filePath: sessionValidity.statePath }
+    );
+  }
   if (!sessionValidity.valid) {
     const message =
       sessionValidity.reason === 'stale'
@@ -25,8 +35,13 @@ export function getValidSessionStatePathOrThrow(
     });
   }
 
-  return sessionValidity.statePath;
+  return loadCengageSessionState({
+    statePath: sessionValidity.statePath,
+  }).storageState;
 }
+
+export const getValidSessionStatePathOrThrow =
+  getValidSessionStorageStateOrThrow;
 
 export async function withAuthenticatedPage<T>(params: {
   entryUrl: string;
@@ -35,7 +50,7 @@ export async function withAuthenticatedPage<T>(params: {
   callback: (page: Page) => Promise<T>;
 }): Promise<T> {
   const { entryUrl, linkType, getBrowser, callback } = params;
-  const storageState = getValidSessionStatePathOrThrow(entryUrl, linkType);
+  const storageState = getValidSessionStorageStateOrThrow(entryUrl, linkType);
   const browser = await getBrowser();
   const context = await browser.newContext({
     storageState,

@@ -10,7 +10,11 @@ import {
   ItemDetailsMetaSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import { handleEclassSessionExpired } from './auth-retry';
+import {
+  handleEclassSessionExpired,
+  isSessionStorageUnavailable,
+  sessionStorageUnavailableResponse,
+} from './auth-retry';
 import { getEclassDeadlineItems, type DeadlineScope } from './eclass-service';
 
 function attachEclassDeadlinePayload(
@@ -87,6 +91,9 @@ export async function getUpcomingDeadlines(
       resp
     );
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('get_upcoming_deadlines');
+    }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>
         asValidatedMcpText(
@@ -216,6 +223,9 @@ export async function getDeadlines(
       resp
     );
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('get_deadlines');
+    }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>
         asValidatedMcpText(
@@ -544,6 +554,9 @@ export async function getItemDetails(
 
     return { content };
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('get_item_details');
+    }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>
         asValidatedMcpText(

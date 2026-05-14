@@ -4,7 +4,11 @@ import { attachCacheMeta } from '../cache/store';
 import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import { handleEclassSessionExpired } from './auth-retry';
+import {
+  handleEclassSessionExpired,
+  isSessionStorageUnavailable,
+  sessionStorageUnavailableResponse,
+} from './auth-retry';
 import { getEclassCoursesWithCache } from './eclass-service';
 
 export async function listCourses() {
@@ -36,6 +40,9 @@ export async function listCourses() {
   try {
     return await run();
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('list_courses');
+    }
     if (e instanceof SessionExpiredError) {
       return handleEclassSessionExpired(e, run, (error) =>
         asValidatedMcpText(

@@ -12,6 +12,7 @@ import {
 import { normalizeAndClassifyCengageEntry } from '../scraper/cengage-url';
 import { getAuthUrl, openAuthWindow } from '../auth/server';
 import { cache, TTL } from '../cache/store';
+import { SecureSessionStorageError } from '../security/secure-session-store';
 import type {
   DiscoverCengageLinksInput,
   DiscoverCengageLinksResponse,
@@ -67,6 +68,10 @@ const CENGAGE_ALL_ASSIGNMENTS_PER_COURSE_HARD_LIMIT = 25;
 
 export { discoverCengageLinksFromFileBlocks, discoverCengageLinksFromText };
 export type { DiscoverCengageLinksFromFileBlocksInput };
+
+function cengageSessionStorageUnavailableMessage(): string {
+  return 'Secure session storage is unavailable. Set ECLASS_MCP_SESSION_SECRET, clear old plaintext sessions, then authenticate again.';
+}
 
 function clampPositiveInt(
   value: number | undefined,
@@ -345,6 +350,17 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
       withCacheMeta(payload, toCacheMissMeta(CENGAGE_LIST_COURSES_TTL_MINUTES))
     );
   } catch (error: unknown) {
+    if (error instanceof SecureSessionStorageError) {
+      return asListCoursesToolResponse({
+        status: 'error',
+        code: 'SESSION_STORAGE_UNAVAILABLE',
+        entryUrl,
+        courses: [],
+        message: cengageSessionStorageUnavailableMessage(),
+        retry: { afterAuth: false },
+      });
+    }
+
     if (error instanceof CengageAuthRequiredError) {
       const authUrl = getAuthUrl('cengage');
       openAuthWindow('cengage');
@@ -651,6 +667,17 @@ export async function getCengageAssignmentDetails(
       )
     );
   } catch (error: unknown) {
+    if (error instanceof SecureSessionStorageError) {
+      return asAssignmentsToolResponse({
+        status: 'error',
+        code: 'SESSION_STORAGE_UNAVAILABLE',
+        entryUrl,
+        assignments: [],
+        message: cengageSessionStorageUnavailableMessage(),
+        retry: { afterAuth: false },
+      });
+    }
+
     if (error instanceof CengageAuthRequiredError) {
       const authUrl = getAuthUrl('cengage');
       openAuthWindow('cengage');
@@ -1112,6 +1139,16 @@ export async function getCengageAssignments(
       withCacheMeta(payload, toCacheMissMeta(CENGAGE_ASSIGNMENTS_TTL_MINUTES))
     );
   } catch (error: unknown) {
+    if (error instanceof SecureSessionStorageError) {
+      return asAssignmentDetailsToolResponse({
+        status: 'error',
+        code: 'SESSION_STORAGE_UNAVAILABLE',
+        entryUrl,
+        message: cengageSessionStorageUnavailableMessage(),
+        retry: { afterAuth: false },
+      });
+    }
+
     if (error instanceof CengageAuthRequiredError) {
       const authUrl = getAuthUrl('cengage');
       openAuthWindow('cengage');

@@ -10,7 +10,11 @@ import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
-import { handleEclassSessionExpired } from './auth-retry';
+import {
+  handleEclassSessionExpired,
+  isSessionStorageUnavailable,
+  sessionStorageUnavailableResponse,
+} from './auth-retry';
 
 export async function getCourseContent(courseId: string) {
   const run = async () => {
@@ -53,6 +57,9 @@ export async function getCourseContent(courseId: string) {
   try {
     return await run();
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('get_course_content');
+    }
     if (e instanceof SessionExpiredError) {
       return handleEclassSessionExpired(e, run, (error) =>
         asValidatedMcpText(
@@ -114,6 +121,9 @@ export async function getSectionText(url: string) {
   try {
     return await run();
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('get_section_text');
+    }
     if (e instanceof SessionExpiredError) {
       return handleEclassSessionExpired(e, run, (error) =>
         asValidatedMcpText(

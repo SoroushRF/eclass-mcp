@@ -3,13 +3,18 @@ import { chromium } from 'playwright';
 import { saveSession, isSessionValid } from '../scraper/session';
 import {
   CENGAGE_STATE_PATH,
-  ensureCengageSessionDir,
   getCengageSessionValidity,
-  saveCengageSessionMetadata,
+  saveCengageSessionState,
 } from '../scraper/cengage-session';
 import url from 'url';
 import dotenv from 'dotenv';
 import { exec } from 'child_process';
+import {
+  SecureSessionStorageError,
+  assertSecureSessionConfigured,
+  isSecureSessionConfigured,
+} from '../security/secure-session-store';
+import { clearAllAuthSessions } from '../security/auth-session-wipe';
 
 dotenv.config({ quiet: true });
 
@@ -67,6 +72,7 @@ export async function waitForAuthSession(options?: {
   timeoutMs?: number;
   pollIntervalMs?: number;
 }): Promise<boolean> {
+  if (!isSecureSessionConfigured()) return false;
   const timeoutMs = options?.timeoutMs ?? resolveAuthWaitMs();
   const pollIntervalMs =
     options?.pollIntervalMs ?? DEFAULT_AUTH_POLL_INTERVAL_MS;
@@ -91,6 +97,7 @@ export async function waitForCengageAuthSession(options?: {
   timeoutMs?: number;
   pollIntervalMs?: number;
 }): Promise<boolean> {
+  if (!isSecureSessionConfigured()) return false;
   const timeoutMs = options?.timeoutMs ?? resolveCengageAuthWaitMs();
   const pollIntervalMs =
     options?.pollIntervalMs ?? DEFAULT_AUTH_POLL_INTERVAL_MS;
@@ -133,6 +140,24 @@ function listenOnPort(server: http.Server, port: number): Promise<number> {
   });
 }
 
+function secureSessionConfigHtml(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : 'Secure session storage is unavailable.';
+  return `
+    <!DOCTYPE html>
+    <html>
+      <body style="font-family: sans-serif; max-width: 720px; margin: 48px auto; line-height: 1.5;">
+        <h2>Secure session storage is not configured</h2>
+        <p>${message}</p>
+        <p>Set <code>ECLASS_MCP_SESSION_SECRET</code> in <code>.env</code> to a long local secret, restart the MCP server, then authenticate again.</p>
+        <p>If old plaintext sessions exist, visit <code>/logout</code> after setting the secret or delete the old auth files under <code>.eclass-mcp/</code>.</p>
+      </body>
+    </html>
+  `;
+}
+
 export async function startAuthServer() {
   if (authServerInstance) return authServerInstance;
 
@@ -156,6 +181,7 @@ export async function startAuthServer() {
         `);
     } else if (parsedUrl.pathname === '/auth') {
       try {
+        assertSecureSessionConfigured();
         const browser = await chromium.launch({ headless: false });
         const context = await browser.newContext();
         const page = await context.newPage();
@@ -217,11 +243,17 @@ export async function startAuthServer() {
           }
         }, 3000);
       } catch (error: any) {
+        if (error instanceof SecureSessionStorageError) {
+          res.writeHead(503, { 'Content-Type': 'text/html' });
+          res.end(secureSessionConfigHtml(error));
+          return;
+        }
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(`<h2>Authentication failed: ${error.message}</h2>`);
       }
     } else if (parsedUrl.pathname === '/auth-cengage') {
       try {
+        assertSecureSessionConfigured();
         const browser = await chromium.launch({ headless: false });
         const context = await browser.newContext();
         const page = await context.newPage();
@@ -235,9 +267,10 @@ export async function startAuthServer() {
 
         await page.waitForTimeout(5000);
 
-        ensureCengageSessionDir(CENGAGE_STATE_PATH);
-        await context.storageState({ path: CENGAGE_STATE_PATH });
-        saveCengageSessionMetadata({ statePath: CENGAGE_STATE_PATH });
+        const storageState = await context.storageState();
+        saveCengageSessionState(storageState, {
+          statePath: CENGAGE_STATE_PATH,
+        });
 
         const { clearCengageCacheArtifacts } = await import('../cache/store');
         clearCengageCacheArtifacts();
@@ -261,13 +294,46 @@ export async function startAuthServer() {
           }
         }, 3000);
       } catch (error: any) {
+        if (error instanceof SecureSessionStorageError) {
+          res.writeHead(503, { 'Content-Type': 'text/html' });
+          res.end(secureSessionConfigHtml(error));
+          return;
+        }
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(`<h2>Cengage Authentication failed: ${error.message}</h2>`);
       }
     } else if (parsedUrl.pathname === '/status') {
-      const authenticated = isSessionValid();
+      const secureSessionConfigured = isSecureSessionConfigured();
+      let authenticated = false;
+      try {
+        authenticated = secureSessionConfigured ? isSessionValid() : false;
+      } catch {
+        // Keep authenticated=false when the configured secret cannot decrypt
+        // existing auth material.
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ authenticated }));
+      res.end(JSON.stringify({ authenticated, secureSessionConfigured }));
+    } else if (parsedUrl.pathname === '/logout') {
+      if (req.method === 'POST') {
+        const result = clearAllAuthSessions();
+        const status = result.errors.length > 0 ? 500 : 200;
+        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } else {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`
+          <!DOCTYPE html>
+          <html>
+            <body style="font-family: sans-serif; max-width: 720px; margin: 48px auto; line-height: 1.5;">
+              <h2>Clear local auth sessions?</h2>
+              <p>This removes encrypted eClass/SIS and Cengage/WebAssign auth session files from <code>.eclass-mcp/</code>. It does not delete cache, pins, debug output, or course-platform mappings.</p>
+              <form method="POST" action="/logout">
+                <button type="submit" style="padding: 8px 14px;">Clear auth sessions</button>
+              </form>
+            </body>
+          </html>
+        `);
+      }
     } else {
       res.writeHead(404);
       res.end();

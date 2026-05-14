@@ -3,6 +3,7 @@ import * as authServer from '../src/auth/server';
 import { CACHE_SCHEMA_VERSION, cache, getCacheKey } from '../src/cache/store';
 import { CengageScraper } from '../src/scraper/cengage';
 import { CengageAuthRequiredError } from '../src/scraper/cengage-errors';
+import { SecureSessionStorageError } from '../src/security/secure-session-store';
 import { listCengageCourses } from '../src/tools/cengage';
 
 const SAMPLE_COURSES = [
@@ -73,6 +74,28 @@ afterEach(() => {
 });
 
 describe('list cengage courses tool', () => {
+  it('returns storage error without opening Cengage auth', async () => {
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockRejectedValue(
+      new SecureSessionStorageError('missing_secret', 'missing secret')
+    );
+    const openAuthSpy = vi
+      .spyOn(authServer, 'openAuthWindow')
+      .mockImplementation(() => undefined);
+
+    const result = await listCengageCourses({
+      entryUrl: uniqueEntryUrl('storage-error'),
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+    expect(payload.retry.afterAuth).toBe(false);
+    expect(openAuthSpy).not.toHaveBeenCalled();
+  });
+
   it('supports dashboard-first mode without entry URL', async () => {
     isolateDashboardInventoryCache();
 

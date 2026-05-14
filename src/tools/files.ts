@@ -20,7 +20,11 @@ import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
 import path from 'path';
-import { handleEclassSessionExpired } from './auth-retry';
+import {
+  handleEclassSessionExpired,
+  isSessionStorageUnavailable,
+  sessionStorageUnavailableResponse,
+} from './auth-retry';
 
 export async function getFileText(
   courseId: string,
@@ -116,6 +120,9 @@ export async function getFileText(
   try {
     return await run();
   } catch (e) {
+    if (isSessionStorageUnavailable(e)) {
+      return sessionStorageUnavailableResponse('get_file_text');
+    }
     if (e instanceof SessionExpiredError) {
       return handleEclassSessionExpired(e, run, (error) =>
         asValidatedMcpText(

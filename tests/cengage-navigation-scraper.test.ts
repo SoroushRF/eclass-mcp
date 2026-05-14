@@ -20,12 +20,17 @@ describe('cengage navigation helpers', () => {
       savedAt: '2026-01-01T00:00:00.000Z',
     });
 
-    const statePath = getValidSessionStatePathOrThrow(
+    vi.spyOn(cengageSession, 'loadCengageSessionState').mockReturnValue({
+      saved_at: '2026-01-01T00:00:00.000Z',
+      storageState: { cookies: [], origins: [] },
+    });
+
+    const storageState = getValidSessionStatePathOrThrow(
       'https://www.cengage.com/dashboard/home',
       'cengage_dashboard'
     );
 
-    expect(statePath).toBe('C:/tmp/cengage-state.json');
+    expect(storageState).toEqual({ cookies: [], origins: [] });
   });
 
   it('throws auth-required error when session is stale', () => {
@@ -35,6 +40,10 @@ describe('cengage navigation helpers', () => {
       statePath: 'C:/tmp/cengage-state.json',
       metaPath: 'C:/tmp/cengage-meta.json',
       savedAt: '2026-01-01T00:00:00.000Z',
+    });
+    vi.spyOn(cengageSession, 'loadCengageSessionState').mockReturnValue({
+      saved_at: '2026-01-01T00:00:00.000Z',
+      storageState: { cookies: [], origins: [] },
     });
 
     expect(() =>
@@ -52,6 +61,10 @@ describe('cengage navigation helpers', () => {
       statePath: 'C:/tmp/cengage-state.json',
       metaPath: 'C:/tmp/cengage-meta.json',
       savedAt: '2026-01-01T00:00:00.000Z',
+    });
+    vi.spyOn(cengageSession, 'loadCengageSessionState').mockReturnValue({
+      saved_at: '2026-01-01T00:00:00.000Z',
+      storageState: { cookies: [], origins: [] },
     });
 
     const fakePage = { marker: 'page' };
@@ -74,7 +87,7 @@ describe('cengage navigation helpers', () => {
     expect(result).toBe('ok');
     expect(newContext).toHaveBeenCalledWith(
       expect.objectContaining({
-        storageState: 'C:/tmp/cengage-state.json',
+        storageState: { cookies: [], origins: [] },
       })
     );
     expect(close).toHaveBeenCalledTimes(1);
@@ -87,6 +100,10 @@ describe('cengage navigation helpers', () => {
       statePath: 'C:/tmp/cengage-state.json',
       metaPath: 'C:/tmp/cengage-meta.json',
       savedAt: '2026-01-01T00:00:00.000Z',
+    });
+    vi.spyOn(cengageSession, 'loadCengageSessionState').mockReturnValue({
+      saved_at: '2026-01-01T00:00:00.000Z',
+      storageState: { cookies: [], origins: [] },
     });
 
     const close = vi.fn(async () => undefined);

@@ -26,6 +26,20 @@ export function sessionExpiredPayload(
   };
 }
 
+export function sessionStorageUnavailablePayload(message: string): {
+  status: 'error';
+  message: string;
+  code: 'SESSION_STORAGE_UNAVAILABLE';
+  retry: { afterAuth: false };
+} {
+  return {
+    status: 'error',
+    message,
+    code: 'SESSION_STORAGE_UNAVAILABLE',
+    retry: { afterAuth: false },
+  };
+}
+
 export type ToolErrorPayload = {
   status: 'error' | 'auth_required';
   message: string;

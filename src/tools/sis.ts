@@ -5,7 +5,11 @@ import {
   SisTimetableResponseSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import { handleEclassSessionExpired } from './auth-retry';
+import {
+  handleEclassSessionExpired,
+  isSessionStorageUnavailable,
+  sessionStorageUnavailableResponse,
+} from './auth-retry';
 
 const scraper = new SISScraper();
 
@@ -38,6 +42,9 @@ export async function getExamSchedule() {
   try {
     return await run();
   } catch (error: unknown) {
+    if (isSessionStorageUnavailable(error)) {
+      return sessionStorageUnavailableResponse('get_exam_schedule');
+    }
     if (error instanceof SessionExpiredError) {
       return handleEclassSessionExpired(error, run, () =>
         asValidatedMcpText('get_exam_schedule', SisExamScheduleResponseSchema, {
@@ -94,6 +101,9 @@ export async function getClassTimetable() {
   try {
     return await run();
   } catch (error: unknown) {
+    if (isSessionStorageUnavailable(error)) {
+      return sessionStorageUnavailableResponse('get_class_timetable');
+    }
     if (error instanceof SessionExpiredError) {
       return handleEclassSessionExpired(error, run, () =>
         asValidatedMcpText('get_class_timetable', SisTimetableResponseSchema, {

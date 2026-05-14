@@ -46,6 +46,8 @@ vi.mock('../src/auth/server', () => ({
 
 vi.mock('../src/tools/auth-retry', () => ({
   handleEclassSessionExpired: mocks.handleEclassSessionExpired,
+  isSessionStorageUnavailable: () => false,
+  sessionStorageUnavailableResponse: vi.fn(),
 }));
 
 vi.mock('../src/logging/context', () => ({

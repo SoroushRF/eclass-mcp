@@ -53,6 +53,10 @@ Machine-readable **`code`** values (e.g. `SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANG
 
 When an eClass or SIS-backed tool hits `SESSION_EXPIRED`, the server opens `/auth`, waits up to **2 minutes** for the saved session to become valid, and retries the original tool operation once. If login is not completed in time, the tool returns the existing structured `status="auth_required"` response with retry guidance. Override the wait with **`ECLASS_MCP_AUTH_WAIT_MS`** in `.env`.
 
+### Secure session storage (E13)
+
+Local eClass/SIS cookies and Cengage/WebAssign Playwright storage state are encrypted at rest under `.eclass-mcp/` with `ECLASS_MCP_SESSION_SECRET`. The default install will not save or load auth sessions until that secret is set. Changing the secret invalidates saved sessions and requires re-authentication. Legacy plaintext session files from earlier versions are rejected; use `http://localhost:<AUTH_PORT>/logout` or delete the old auth files, then log in again.
+
 ### Logging (E14)
 
 Structured **JSON logs** go to **stderr** (stdout stays clean for MCP stdio). Each tool call gets a **`requestId`** and **`tool`** name via `runWithToolContext` in `src/index.ts`. Set **`ECLASS_MCP_LOG_LEVEL`** (`trace` … `silent`, default `info`) to control verbosity. Details: [`docs/logging.md`](docs/logging.md).
@@ -191,7 +195,7 @@ npx playwright install chromium
 
 ```bash
 cp .env.example .env
-# .env defaults are fine for most users — no changes needed
+# Edit .env and set ECLASS_MCP_SESSION_SECRET to a long local secret before authenticating.
 ```
 
 ### 4 — Build & Register with Claude Desktop
@@ -213,6 +217,8 @@ The first time Claude tries to use an eClass tool, you'll see:
 > _"eClass session not found. Please visit <http://localhost:3000/auth>"_
 
 Open that URL. A visible browser window opens — log in with your York credentials (including MFA if required). Once you land on the eClass dashboard, the session is saved automatically and the browser closes.
+
+Cengage/WebAssign auth uses the same encrypted local session store. If a Cengage tool returns `auth_required`, open the returned `/auth-cengage` URL after `ECLASS_MCP_SESSION_SECRET` is configured.
 
 You're done. Ask Claude anything about your courses.
 
@@ -269,6 +275,9 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | Symptom                       | Fix                                                                       |
 | ----------------------------- | ------------------------------------------------------------------------- |
 | `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                       |
+| `SESSION_STORAGE_UNAVAILABLE` | Set `ECLASS_MCP_SESSION_SECRET` in `.env`, restart the MCP server, clear old plaintext auth sessions, then authenticate again |
+| Wrong/changed session secret  | Restore the previous `ECLASS_MCP_SESSION_SECRET` or clear sessions at `http://localhost:3000/logout` and log in again |
+| Legacy plaintext session file | Clear local auth sessions at `http://localhost:3000/logout` or delete `.eclass-mcp/session.json` / `.eclass-mcp/cengage-state.json`, then re-authenticate |
 | Session expires too fast      | Session TTL is 60 hours — this is intentional (York sessions expire ~72h) |
 | Login window doesn't open     | Navigate to `http://localhost:3000/auth` manually in your browser         |
 | Login page loops or redirects | Clear your browser cookies for `eclass.yorku.ca` and try again            |
@@ -385,8 +394,10 @@ All scraping tests require a valid session (`npm run setup` + authenticate via `
 
 Everything runs **entirely on your machine**:
 
-- Your eClass session cookie is stored in `.eclass-mcp/session.json` (gitignored)
-- Parsed file content is cached in `.eclass-mcp/cache/` (gitignored)
+- Your eClass/SIS cookies are encrypted in `.eclass-mcp/session.json` (gitignored) using `ECLASS_MCP_SESSION_SECRET`
+- Your Cengage/WebAssign browser storage state is encrypted in `.eclass-mcp/cengage-state.json` (gitignored)
+- Parsed file content, cache entries, pins, debug dumps, and course-platform mappings remain plaintext local files under `.eclass-mcp/`
+- `http://localhost:<AUTH_PORT>/logout` removes local auth session files only; cache, pins, debug output, and course-platform mappings are left alone
 - No data is sent to any third-party service
 - The MCP server communicates only with Claude Desktop over local stdio and with `eclass.yorku.ca` using your session
 

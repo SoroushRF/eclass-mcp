@@ -5,6 +5,8 @@ export default defineConfig({
     testTimeout: 15000,
     env: {
       ECLASS_MCP_LOG_LEVEL: 'silent',
+      ECLASS_MCP_SESSION_SECRET:
+        'vitest-secure-session-secret-32-characters-minimum',
     },
     coverage: {
       provider: 'v8',
