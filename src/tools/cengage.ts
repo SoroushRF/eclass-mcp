@@ -213,7 +213,9 @@ function explicitExpectedCourse(params: {
   return {
     courseId,
     courseKey,
-    title: params.courseQuery || (courseKey ? `WebAssign ${courseKey}` : 'WebAssign'),
+    title:
+      params.courseQuery ||
+      (courseKey ? `WebAssign ${courseKey}` : 'WebAssign'),
     launchUrl: parsed.normalizedUrl,
     platform: parsed.normalizedUrl.includes('webassign.net')
       ? 'webassign'
@@ -924,10 +926,9 @@ export async function getCengageAssignments(
         }
 
         try {
-          const { assignments } = await getCengageAssignmentsForCourse(
-            course,
-            { scraper }
-          );
+          const { assignments } = await getCengageAssignmentsForCourse(course, {
+            scraper,
+          });
           const limitedAssignments = assignments.slice(
             0,
             maxAssignmentsPerCourse

@@ -19,16 +19,16 @@ This document is the **canonical reference** for how the eClass MCP server expos
 
 Defined in [`src/errors/codes.ts`](../src/errors/codes.ts) as `MACHINE_CODES` / `MachineCode`:
 
-| Code                    | Meaning                                                                                                                                |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_EXPIRED`       | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`). |
-| `SCRAPE_LAYOUT_CHANGED` | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                 |
-| `UPSTREAM_ERROR`        | Generic network or upstream failure (non-429, non-timeout classification).                                                             |
-| `RATE_LIMITED`          | HTTP 429 or explicit rate-limit signals.                                                                                               |
-| `TIMEOUT`               | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                     |
-| `VALIDATION_FAILED`     | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                         |
-| `COURSE_CONTEXT_MISMATCH` | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry. |
-| `INTERNAL_ERROR`        | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                |
+| Code                      | Meaning                                                                                                                                |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_EXPIRED`         | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`). |
+| `SCRAPE_LAYOUT_CHANGED`   | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                 |
+| `UPSTREAM_ERROR`          | Generic network or upstream failure (non-429, non-timeout classification).                                                             |
+| `RATE_LIMITED`            | HTTP 429 or explicit rate-limit signals.                                                                                               |
+| `TIMEOUT`                 | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                     |
+| `VALIDATION_FAILED`       | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                         |
+| `COURSE_CONTEXT_MISMATCH` | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry.   |
+| `INTERNAL_ERROR`          | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                |
 
 Zod: `MachineCodeSchema` / optional variants live in [`src/tools/eclass-contracts.ts`](../src/tools/eclass-contracts.ts).
 

@@ -85,7 +85,9 @@ function expectedTitlesFromCourse(
   ];
 
   return Array.from(
-    new Set(titles.map(normalizeText).filter((title) => !isGenericCourseTitle(title)))
+    new Set(
+      titles.map(normalizeText).filter((title) => !isGenericCourseTitle(title))
+    )
   );
 }
 
@@ -113,7 +115,10 @@ export async function collectWebAssignCourseContext(
     );
     const dataCoursesRaw = currentElement?.getAttribute('data-courses') || '';
     let dataCourses:
-      | Record<string, { course?: string; section?: string | null; term?: string }>
+      | Record<
+          string,
+          { course?: string; section?: string | null; term?: string }
+        >
       | undefined;
     try {
       const parsed = JSON.parse(dataCoursesRaw);

@@ -1,4 +1,7 @@
-import { CengageScraper, type WebAssignAssignment } from '../../scraper/cengage';
+import {
+  CengageScraper,
+  type WebAssignAssignment,
+} from '../../scraper/cengage';
 import type { CengageDashboardCourse } from '../../scraper/cengage-courses';
 import { CengageCourseActivationError } from '../../scraper/cengage-errors';
 import {
@@ -51,8 +54,9 @@ export function validateCengageAssignmentCourseContext(
     return;
   }
 
-  const actualCourseTitle = assignments.find((item) => item.courseTitle)
-    ?.courseTitle;
+  const actualCourseTitle = assignments.find(
+    (item) => item.courseTitle
+  )?.courseTitle;
   const actualCourseId = assignments.find((item) => item.courseId)?.courseId;
 
   if (
@@ -145,9 +149,7 @@ export function validateCengageAssignmentCourseContext(
   }
 }
 
-export function isCengageCourseContextMismatch(
-  error: unknown
-): boolean {
+export function isCengageCourseContextMismatch(error: unknown): boolean {
   return (
     error instanceof CengageCourseActivationError &&
     !!(

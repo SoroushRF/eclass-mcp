@@ -76,10 +76,7 @@ function convertSelectionResult(
     };
   }
 
-  if (
-    result.status === 'ambiguous' ||
-    result.status === 'selection_required'
-  ) {
+  if (result.status === 'ambiguous' || result.status === 'selection_required') {
     return {
       status: 'ambiguous',
       candidates: result.candidates,
@@ -156,7 +153,6 @@ export function resolveCengageCourseForEclass(params: {
   return {
     status: 'not_found',
     candidates: cengageCourses,
-    message:
-      'No Cengage/WebAssign course matched the eClass course identity.',
+    message: 'No Cengage/WebAssign course matched the eClass course identity.',
   };
 }

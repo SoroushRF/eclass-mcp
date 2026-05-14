@@ -72,20 +72,22 @@ describe('cengage mocked tool-contract scenarios (T23 baseline)', () => {
 
     const assignmentsSpy = vi
       .spyOn(CengageScraper.prototype, 'getAssignmentsWithContext')
-      .mockResolvedValue(withContext([
-        {
-          id: 'asg-1001',
-          name: 'Homework 1',
-          dueDate: '2026-04-20 23:59',
-          dueDateIso: '2026-04-20T23:59:00',
-          status: 'Pending',
-          score: undefined,
-          courseId: SAMPLE_COURSE.courseId,
-          courseTitle: SAMPLE_COURSE.title,
-          url: '/assignment/1001',
-          rawText: 'Homework 1 Due Date Apr 20, 2026 11:59 PM',
-        },
-      ]));
+      .mockResolvedValue(
+        withContext([
+          {
+            id: 'asg-1001',
+            name: 'Homework 1',
+            dueDate: '2026-04-20 23:59',
+            dueDateIso: '2026-04-20T23:59:00',
+            status: 'Pending',
+            score: undefined,
+            courseId: SAMPLE_COURSE.courseId,
+            courseTitle: SAMPLE_COURSE.title,
+            url: '/assignment/1001',
+            rawText: 'Homework 1 Due Date Apr 20, 2026 11:59 PM',
+          },
+        ])
+      );
 
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 

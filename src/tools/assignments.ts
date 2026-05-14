@@ -1,4 +1,8 @@
-import { getAuthUrl, openAuthWindow, waitForCengageAuthSession } from '../auth/server';
+import {
+  getAuthUrl,
+  openAuthWindow,
+  waitForCengageAuthSession,
+} from '../auth/server';
 import { SessionExpiredError, type Course } from '../scraper/eclass';
 import { CengageScraper } from '../scraper/cengage';
 import type { CengageDashboardCourse } from '../scraper/cengage-courses';
@@ -17,7 +21,10 @@ import {
   type AssignmentResolverResponse,
   type GetAssignmentsInput,
 } from './assignment-contracts';
-import { getEclassCoursesWithCache, getEclassDeadlineItems } from './eclass-service';
+import {
+  getEclassCoursesWithCache,
+  getEclassDeadlineItems,
+} from './eclass-service';
 import {
   getCengageAssignmentsForCourse,
   getCengageDashboardInventory,
@@ -219,7 +226,11 @@ function mappingToDashboardCourse(
   return {
     courseId: mapping.courseId,
     courseKey: mapping.courseKey,
-    title: mapping.title || mapping.courseKey || mapping.courseId || 'Cengage Course',
+    title:
+      mapping.title ||
+      mapping.courseKey ||
+      mapping.courseId ||
+      'Cengage Course',
     launchUrl: mapping.launchUrl,
     platform: mapping.platform || 'webassign',
     assignmentsSupported: mapping.assignmentsSupported,
@@ -520,7 +531,9 @@ function finalStatus(params: {
     return 'needs_course_selection';
   }
   if (params.sources.cengage.status === 'needs_course_activation') {
-    return params.assignments.length > 0 ? 'partial' : 'needs_course_activation';
+    return params.assignments.length > 0
+      ? 'partial'
+      : 'needs_course_activation';
   }
   if (params.assignments.length > 0) {
     if (

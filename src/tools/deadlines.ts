@@ -11,10 +11,7 @@ import {
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { handleEclassSessionExpired } from './auth-retry';
-import {
-  getEclassDeadlineItems,
-  type DeadlineScope,
-} from './eclass-service';
+import { getEclassDeadlineItems, type DeadlineScope } from './eclass-service';
 
 function attachEclassDeadlinePayload(
   items: unknown[],

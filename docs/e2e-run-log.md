@@ -283,7 +283,7 @@ Result summary:
 | 2   | List sections and files for course <ID>                     | `get_course_content`              |        |          |         |       |
 | 3   | Open this section URL and summarize the text: <section URL> | `get_section_text`                |        |          |         |       |
 | 4   | Read this file: <fileUrl from content>                      | `get_file_text`                   |        |          |         |       |
-| 5   | What is due in the next two weeks?                           | `get_assignments`                 |        |          |         |       |
+| 5   | What is due in the next two weeks?                          | `get_assignments`                 |        |          |         |       |
 | 6   | What deadlines are in March 2026?                           | `get_assignments`                 |        |          |         |       |
 | 7   | Assignments due between <start> and <end>                   | `get_assignments`                 |        |          |         |       |
 | 8   | Get full details for this assignment URL <url>              | `get_item_details`                |        |          |         |       |
@@ -305,23 +305,23 @@ Result summary:
 
 ### Automated Verification
 
-| Command | Result | Notes |
-| ------- | ------ | ----- |
-| `npm.cmd run test` | Pass | 47 files, 325 tests passed, 1 skipped |
-| `npm.cmd run typecheck` | Pass | Production TypeScript check |
-| `npm.cmd run typecheck:tests` | Pass | Test TypeScript check |
-| `npm.cmd run build` | Pass | `tsc` build |
+| Command                       | Result | Notes                                 |
+| ----------------------------- | ------ | ------------------------------------- |
+| `npm.cmd run test`            | Pass   | 47 files, 325 tests passed, 1 skipped |
+| `npm.cmd run typecheck`       | Pass   | Production TypeScript check           |
+| `npm.cmd run typecheck:tests` | Pass   | Test TypeScript check                 |
+| `npm.cmd run build`           | Pass   | `tsc` build                           |
 
 ### Inspector / Claude Desktop Rows To Record
 
-| #      | Prompt / Tool input                                                                     | Expected tool      | Result | Evidence | Notes |
-| ------ | --------------------------------------------------------------------------------------- | ------------------ | ------ | -------- | ----- |
-| T41-I1 | `{ courseCode: "MATH1014", scope: "upcoming" }`                                         | `get_assignments`  |        |          | Confirm `sources` and `platformIndex` fields |
-| T41-I2 | `{ courseCode: "MATH1014", includeExternal: "always" }`                                 | `get_assignments`  |        |          | Confirm Cengage check, auth retry, or selected course |
-| T41-I3 | Retry with `platformSelection.cengage.courseKey` after ambiguous candidates             | `get_assignments`  |        |          | Confirm `.eclass-mcp/course-platform-index.json` persists |
-| T41-I4 | Course with no eClass deadline rows                                                     | `get_deadlines`    |        |          | Confirm `recommendedTool="get_assignments"` |
-| T41-C1 | What assignments do I have this week?                                                   | `get_assignments`  |        |          | Claude should not stop at eClass-only deadlines |
-| T41-C2 | Check MATH 1014 assignments across eClass and Cengage/WebAssign.                        | `get_assignments`  |        |          | Missing Cengage auth should surface `/auth-cengage` |
-| T42-I1 | `{ entryUrl: "<direct WebAssign URL>", courseKey: "<expected courseKey>" }`              | `get_cengage_assignments` |        |          | Direct URL tried first; wrong active course returns `needs_course_activation` |
-| T42-I2 | `{ courseCode: "MATH1014", includeExternal: "always" }`                                 | `get_assignments`  |        |          | Wrong active WebAssign course returns `needs_course_activation` or `partial` with `COURSE_CONTEXT_MISMATCH` |
-| T42-I3 | `{ courseKey: "<expected courseKey>", assignmentId: "<assignmentId>" }`                  | `get_cengage_assignment_details` |        |          | Detail extraction verifies active course context |
+| #      | Prompt / Tool input                                                         | Expected tool                    | Result | Evidence | Notes                                                                                                       |
+| ------ | --------------------------------------------------------------------------- | -------------------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------- |
+| T41-I1 | `{ courseCode: "MATH1014", scope: "upcoming" }`                             | `get_assignments`                |        |          | Confirm `sources` and `platformIndex` fields                                                                |
+| T41-I2 | `{ courseCode: "MATH1014", includeExternal: "always" }`                     | `get_assignments`                |        |          | Confirm Cengage check, auth retry, or selected course                                                       |
+| T41-I3 | Retry with `platformSelection.cengage.courseKey` after ambiguous candidates | `get_assignments`                |        |          | Confirm `.eclass-mcp/course-platform-index.json` persists                                                   |
+| T41-I4 | Course with no eClass deadline rows                                         | `get_deadlines`                  |        |          | Confirm `recommendedTool="get_assignments"`                                                                 |
+| T41-C1 | What assignments do I have this week?                                       | `get_assignments`                |        |          | Claude should not stop at eClass-only deadlines                                                             |
+| T41-C2 | Check MATH 1014 assignments across eClass and Cengage/WebAssign.            | `get_assignments`                |        |          | Missing Cengage auth should surface `/auth-cengage`                                                         |
+| T42-I1 | `{ entryUrl: "<direct WebAssign URL>", courseKey: "<expected courseKey>" }` | `get_cengage_assignments`        |        |          | Direct URL tried first; wrong active course returns `needs_course_activation`                               |
+| T42-I2 | `{ courseCode: "MATH1014", includeExternal: "always" }`                     | `get_assignments`                |        |          | Wrong active WebAssign course returns `needs_course_activation` or `partial` with `COURSE_CONTEXT_MISMATCH` |
+| T42-I3 | `{ courseKey: "<expected courseKey>", assignmentId: "<assignmentId>" }`     | `get_cengage_assignment_details` |        |          | Detail extraction verifies active course context                                                            |

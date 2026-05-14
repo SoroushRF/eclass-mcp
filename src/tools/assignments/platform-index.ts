@@ -208,7 +208,9 @@ export function upsertCoursePlatformMapping(params: {
         lastCheckedAt: params.cengage.lastCheckedAt || now,
         matchedAt:
           params.cengage.status === 'linked'
-            ? params.cengage.matchedAt || existing?.platforms.cengage?.matchedAt || now
+            ? params.cengage.matchedAt ||
+              existing?.platforms.cengage?.matchedAt ||
+              now
             : params.cengage.matchedAt,
       },
     },

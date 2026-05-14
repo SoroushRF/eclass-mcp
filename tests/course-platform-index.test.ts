@@ -95,9 +95,7 @@ describe('course platform index storage', () => {
 
     expect(record.recordId).toBe('eclass:101');
     expect(loaded?.platforms.cengage?.status).toBe('linked');
-    expect(loaded?.platforms.cengage?.courseKey).toBe(
-      'WA-production-1607530'
-    );
+    expect(loaded?.platforms.cengage?.courseKey).toBe('WA-production-1607530');
   });
 
   it('persists activation diagnostics for linked mappings', () => {

@@ -1,11 +1,6 @@
 import { scraper, Assignment, Course } from '../scraper/eclass';
 import { ValidationError } from '../errors/validation-error';
-import {
-  cache,
-  TTL,
-  getCacheKey,
-  type CacheMetadata,
-} from '../cache/store';
+import { cache, TTL, getCacheKey, type CacheMetadata } from '../cache/store';
 import type { DeadlineItem } from '../types/deadlines';
 
 export type DeadlineScope = 'upcoming' | 'month' | 'range';
@@ -142,14 +137,7 @@ export async function getEclassCoursesWithCache(): Promise<EclassCoursesWithCach
 export async function getEclassDeadlineItems(
   params: GetEclassDeadlineParams
 ): Promise<EclassDeadlineItemsWithCache> {
-  const {
-    courseId,
-    scope = 'upcoming',
-    month,
-    year,
-    from,
-    to,
-  } = params || {};
+  const { courseId, scope = 'upcoming', month, year, from, to } = params || {};
 
   if (scope === 'upcoming') {
     const key = deadlineCacheKey('upcoming', courseId);

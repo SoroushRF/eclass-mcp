@@ -545,8 +545,10 @@ describe('get_assignments resolver', () => {
         confidence: 0.95,
       },
     ]);
-    vi.spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
-      .mockResolvedValue(withContext([]));
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentsForDashboardCourse'
+    ).mockResolvedValue(withContext([]));
     vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
 
     const payload = parsePayload(

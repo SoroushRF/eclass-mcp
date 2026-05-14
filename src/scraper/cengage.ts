@@ -572,7 +572,8 @@ export class CengageScraper {
     return {
       context: activeCourseContext,
       assignments: parseWebAssignAssignments(rowCandidates, {
-        courseId: activeCourseContext.currentSelected || inferredCourse?.courseId,
+        courseId:
+          activeCourseContext.currentSelected || inferredCourse?.courseId,
         courseKey: inferredCourse?.courseKey,
         courseTitle:
           activeCourseContext.currentCourseTitle || inferredCourse?.title,
@@ -1118,7 +1119,8 @@ export class CengageScraper {
       );
 
       const assignments = parseWebAssignAssignments(rowCandidates, {
-        courseId: activeCourseContext.currentSelected || inferredCourse?.courseId,
+        courseId:
+          activeCourseContext.currentSelected || inferredCourse?.courseId,
         courseKey: inferredCourse?.courseKey,
         courseTitle:
           activeCourseContext.currentCourseTitle || inferredCourse?.title,

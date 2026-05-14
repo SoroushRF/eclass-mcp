@@ -3,10 +3,7 @@ import type { CengageDashboardCourse } from '../../scraper/cengage-courses';
 import type { DeadlineItem } from '../../types/deadlines';
 import { parseEClassDate, type DeadlineScope } from '../eclass-service';
 
-export type NormalizedAssignmentPlatform =
-  | 'eclass'
-  | 'webassign'
-  | 'cengage';
+export type NormalizedAssignmentPlatform = 'eclass' | 'webassign' | 'cengage';
 
 export interface NormalizedAssignment {
   [key: string]: unknown;

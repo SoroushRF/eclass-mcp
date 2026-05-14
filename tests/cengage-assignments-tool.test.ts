@@ -297,7 +297,9 @@ describe('get cengage assignments tool on new core', () => {
         launchUrl:
           'https://www.webassign.net/v4cgi/login.pl?courseKey=WA-production-1002',
       }),
-      expect.objectContaining({ expectedCourseTitle: 'MATH 1010 - Calculus II' })
+      expect.objectContaining({
+        expectedCourseTitle: 'MATH 1010 - Calculus II',
+      })
     );
   });
 
