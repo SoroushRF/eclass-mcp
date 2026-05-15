@@ -2,6 +2,7 @@ import type { EClassBrowserSession } from './browser-session';
 import { ECLASS_URL } from './browser-session';
 import { checkSession } from './helpers';
 import type { Grade } from './types';
+import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
 
 const GOTO_OPTS = {
   waitUntil: 'domcontentloaded' as const,
@@ -24,22 +25,45 @@ export async function getGrades(
     await page.goto(url, GOTO_OPTS);
     await checkSession(page);
 
-    const grades = await page.evaluate(
+    const selectorGroups = {
+      overview: [
+        ...getSelectorGroup('eclass.grades.overview_table').candidates,
+      ],
+      rows: [...getSelectorGroup('eclass.grades.user_rows').candidates],
+    };
+    const evaluated = await page.evaluate(
       ({
         cid,
         isOverviewMode,
+        selectors,
       }: {
         cid: string | undefined;
         isOverviewMode: boolean;
+        selectors: typeof selectorGroups;
       }) => {
         if (isOverviewMode) {
-          const table = document.querySelector(
-            '.generaltable, #overview-grade, .user-grade'
-          );
-          if (!table) return [];
+          let table: Element | null = null;
+          let selectorMatch:
+            | { candidateId: string; selector: string; count: number }
+            | undefined;
+          for (const candidate of selectors.overview) {
+            const found = Array.from(
+              document.querySelectorAll(candidate.selector)
+            );
+            if (found.length > 0) {
+              table = found[0];
+              selectorMatch = {
+                candidateId: candidate.id,
+                selector: candidate.selector,
+                count: found.length,
+              };
+              break;
+            }
+          }
+          if (!table) return { grades: [], selectorMatch };
 
           const rows = Array.from(table.querySelectorAll('tr')).slice(1);
-          return rows
+          const grades = rows
             .map((r) => {
               const cells = Array.from(r.querySelectorAll('td'));
               if (cells.length < 2) return null;
@@ -65,9 +89,21 @@ export async function getGrades(
               };
             })
             .filter(Boolean);
+          return { grades, selectorMatch };
         } else {
-          const rows = Array.from(document.querySelectorAll('tr'));
-          return rows
+          const rowCandidate = selectors.rows[0];
+          const rows = Array.from(
+            document.querySelectorAll(rowCandidate.selector)
+          );
+          const selectorMatch =
+            rows.length > 0
+              ? {
+                  candidateId: rowCandidate.id,
+                  selector: rowCandidate.selector,
+                  count: rows.length,
+                }
+              : undefined;
+          const grades = rows
             .map((r) => {
               const itemCell = r.querySelector('.column-itemname');
               const gradeCell = r.querySelector('.column-grade');
@@ -102,12 +138,26 @@ export async function getGrades(
                 g.itemName !== 'Grade item' &&
                 g.itemName !== 'Category'
             );
+          return { grades, selectorMatch };
         }
       },
-      { cid, isOverviewMode: isOverview }
+      { cid, isOverviewMode: isOverview, selectors: selectorGroups }
     );
 
-    return (grades as Grade[]).filter((g) => {
+    if (evaluated.selectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.grades',
+        groupId: isOverview
+          ? 'eclass.grades.overview_table'
+          : 'eclass.grades.user_rows',
+        candidateId: evaluated.selectorMatch.candidateId,
+        selector: evaluated.selectorMatch.selector,
+        matchCount: evaluated.selectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+
+    return (evaluated.grades as Grade[]).filter((g) => {
       if (!g) return false;
       if (isOverview) return g.grade !== '-';
       return true;

@@ -61,6 +61,12 @@ Local eClass/SIS cookies and Cengage/WebAssign Playwright storage state are encr
 
 Structured **JSON logs** go to **stderr** (stdout stays clean for MCP stdio). Each tool call gets a **`requestId`** and **`tool`** name via `runWithToolContext` in `src/index.ts`. Set **`ECLASS_MCP_LOG_LEVEL`** (`trace` … `silent`, default `info`) to control verbosity. Details: [`docs/logging.md`](docs/logging.md).
 
+### Selector drift diagnostics (E15)
+
+Scraper selectors are grouped in a typed registry under `src/scraper/selectors/`. Migrated eClass and Cengage/WebAssign paths log `selector_match` at debug level with the page type, selector group, winning candidate, match count, and URL. If a required selector group no longer matches the page, tools return structured `SCRAPE_LAYOUT_CHANGED` errors instead of hiding DOM drift as an internal failure.
+
+Optional debug snapshots are disabled by default. Set `ECLASS_MCP_SELECTOR_DEBUG_SNAPSHOTS=1` only during local debugging to write bounded HTML and JSON metadata under `.eclass-mcp/debug/selectors/`.
+
 ---
 
 ## 🏗️ Architecture
@@ -198,13 +204,29 @@ cp .env.example .env
 # Edit .env and set ECLASS_MCP_SESSION_SECRET to a long local secret before authenticating.
 ```
 
+Run the read-only setup health check before debugging or registering Claude Desktop:
+
+```bash
+npm run doctor
+```
+
+Doctor checks Node/npm, the build artifact, Playwright Chromium, `.env`, secure session configuration, Claude Desktop config, permissions, and auth/session hints without opening a browser or changing local files.
+
 ### 4 — Build & Register with Claude Desktop
 
 ```bash
+npm run setup -- --dry-run
 npm run setup
 ```
 
-This compiles TypeScript and writes the MCP entry into your Claude Desktop config file automatically.
+The dry run prints the proposed Claude Desktop config change without writing files. The real setup compiles TypeScript, creates a timestamped backup when an existing Claude config is present, and atomically writes the `eclass` MCP entry.
+
+To inspect or restore setup backups later:
+
+```bash
+npm run setup -- --list-backups
+npm run setup -- --restore latest
+```
 
 ### 5 — Restart Claude Desktop
 
@@ -272,15 +294,19 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 
 ### 🔑 Authentication / Session
 
-| Symptom                       | Fix                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------- |
-| `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                       |
-| `SESSION_STORAGE_UNAVAILABLE` | Set `ECLASS_MCP_SESSION_SECRET` in `.env`, restart the MCP server, clear old plaintext auth sessions, then authenticate again |
-| Wrong/changed session secret  | Restore the previous `ECLASS_MCP_SESSION_SECRET` or clear sessions at `http://localhost:3000/logout` and log in again |
-| Legacy plaintext session file | Clear local auth sessions at `http://localhost:3000/logout` or delete `.eclass-mcp/session.json` / `.eclass-mcp/cengage-state.json`, then re-authenticate |
-| Session expires too fast      | Session TTL is 60 hours — this is intentional (York sessions expire ~72h) |
-| Login window doesn't open     | Navigate to `http://localhost:3000/auth` manually in your browser         |
-| Login page loops or redirects | Clear your browser cookies for `eclass.yorku.ca` and try again            |
+| Symptom                       | Fix                                                                                                                                                                                                                                |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unsure what is misconfigured  | Run `npm run doctor` in the project root for a read-only checklist and exact next actions                                                                                                                                          |
+| Want to preview setup changes | Run `npm run setup -- --dry-run`; it prints the Claude config diff and does not write files                                                                                                                                        |
+| Claude config needs rollback  | Run `npm run setup -- --list-backups`, then `npm run setup -- --restore latest` or restore a specific listed backup path                                                                                                           |
+| `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                                                                                                                                                                                |
+| `SESSION_STORAGE_UNAVAILABLE` | Set `ECLASS_MCP_SESSION_SECRET` in `.env`, restart the MCP server, clear old plaintext auth sessions, then authenticate again                                                                                                      |
+| `SCRAPE_LAYOUT_CHANGED`       | The eClass/Cengage page layout no longer matches known selectors. Retry once after refreshing auth if the page was mid-login; otherwise inspect stderr `selector_match` / `selector_failure` logs and optional selector snapshots. |
+| Wrong/changed session secret  | Restore the previous `ECLASS_MCP_SESSION_SECRET` or clear sessions at `http://localhost:3000/logout` and log in again                                                                                                              |
+| Legacy plaintext session file | Clear local auth sessions at `http://localhost:3000/logout` or delete `.eclass-mcp/session.json` / `.eclass-mcp/cengage-state.json`, then re-authenticate                                                                          |
+| Session expires too fast      | Session TTL is 60 hours — this is intentional (York sessions expire ~72h)                                                                                                                                                          |
+| Login window doesn't open     | Navigate to `http://localhost:3000/auth` manually in your browser                                                                                                                                                                  |
+| Login page loops or redirects | Clear your browser cookies for `eclass.yorku.ca` and try again                                                                                                                                                                     |
 
 ### 🎭 Playwright Browser
 
@@ -397,6 +423,7 @@ Everything runs **entirely on your machine**:
 - Your eClass/SIS cookies are encrypted in `.eclass-mcp/session.json` (gitignored) using `ECLASS_MCP_SESSION_SECRET`
 - Your Cengage/WebAssign browser storage state is encrypted in `.eclass-mcp/cengage-state.json` (gitignored)
 - Parsed file content, cache entries, pins, debug dumps, and course-platform mappings remain plaintext local files under `.eclass-mcp/`
+- Selector debug snapshots are plaintext local debug artifacts and are only written when `ECLASS_MCP_SELECTOR_DEBUG_SNAPSHOTS=1`
 - `http://localhost:<AUTH_PORT>/logout` removes local auth session files only; cache, pins, debug output, and course-platform mappings are left alone
 - No data is sent to any third-party service
 - The MCP server communicates only with Claude Desktop over local stdio and with `eclass.yorku.ca` using your session

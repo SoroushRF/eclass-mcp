@@ -6,6 +6,7 @@ import {
   classifyExternalPlatformCandidate,
   type ExternalPlatformMatch,
 } from './external-platforms';
+import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
 
 export async function getCourses(
   session: EClassBrowserSession
@@ -22,20 +23,15 @@ export async function getCourses(
 
     await page
       .waitForFunction(
-        () => {
-          const selectors = [
-            '.course-listitem .coursename',
-            '.coursebox .coursename a',
-            '.card-body .coursename',
-            '.course_title a',
-          ];
-
-          const hasLegacyCourseNode = selectors.some(
-            (s) => document.querySelectorAll(s).length > 0
+        ({ courseCardSelectors, courseLinkSelectors }) => {
+          const hasLegacyCourseNode = courseCardSelectors.some(
+            (candidate) =>
+              document.querySelectorAll(candidate.selector).length > 0
           );
-          const hasCourseLinks =
-            document.querySelectorAll('a[href*="course/view.php?id="]').length >
-            0;
+          const hasCourseLinks = courseLinkSelectors.some(
+            (candidate) =>
+              document.querySelectorAll(candidate.selector).length > 0
+          );
 
           const coursesView = document.querySelector(
             '[data-region="courses-view"]'
@@ -52,78 +48,133 @@ export async function getCourses(
           return hasLegacyCourseNode || hasCourseLinks || settledNoCourses;
         },
         {
+          courseCardSelectors: [
+            ...getSelectorGroup('eclass.dashboard.course_cards').candidates,
+          ],
+          courseLinkSelectors: [
+            ...getSelectorGroup('eclass.dashboard.course_links').candidates,
+          ],
+        },
+        {
           timeout: 20000,
         }
       )
       .catch(() => null);
 
-    const courses = await page.evaluate(() => {
-      const selectors = [
-        '.course-listitem .coursename',
-        '.coursebox .coursename a',
-        '.card-body .coursename',
-        '.course_title a',
-      ];
+    const courseCardSelectors = [
+      ...getSelectorGroup('eclass.dashboard.course_cards').candidates,
+    ];
+    const courseLinkSelectors = [
+      ...getSelectorGroup('eclass.dashboard.course_links').candidates,
+    ];
+    const courseResult = await page.evaluate(
+      ({ cardSelectors, linkSelectors }) => {
+        let items: Element[] = [];
+        let selectorMatch:
+          | {
+              groupId: string;
+              candidateId: string;
+              selector: string;
+              count: number;
+            }
+          | undefined;
 
-      let items: Element[] = [];
-      for (const s of selectors) {
-        const found = Array.from(document.querySelectorAll(s));
-        if (found.length > 0) {
-          items = found;
-          break;
+        for (const candidate of cardSelectors) {
+          const found = Array.from(
+            document.querySelectorAll(candidate.selector)
+          );
+          if (found.length > 0) {
+            items = found;
+            selectorMatch = {
+              groupId: 'eclass.dashboard.course_cards',
+              candidateId: candidate.id,
+              selector: candidate.selector,
+              count: found.length,
+            };
+            break;
+          }
         }
-      }
 
-      // Fallback for newer lazy-rendered My Courses layouts.
-      if (items.length === 0) {
-        const allCourseLinks = Array.from(
-          document.querySelectorAll('a[href*="course/view.php?id="]')
-        ) as HTMLAnchorElement[];
+        // Fallback for newer lazy-rendered My Courses layouts.
+        if (items.length === 0) {
+          const allCourseLinks = linkSelectors.flatMap((candidate) =>
+            Array.from(
+              document.querySelectorAll<HTMLAnchorElement>(candidate.selector)
+            ).map((link) => ({ candidate, link }))
+          );
 
-        const seenIds = new Set<string>();
-        const fallbackItems: Element[] = [];
-        for (const link of allCourseLinks) {
-          let id: string;
-          try {
-            const parsed = new URL(link.href);
-            id = parsed.searchParams.get('id') || '';
-          } catch {
-            const m = link.href.match(/[?&]id=(\d+)/);
-            id = m?.[1] || '';
+          const seenIds = new Set<string>();
+          const fallbackItems: Element[] = [];
+          for (const { candidate, link } of allCourseLinks) {
+            let id: string;
+            try {
+              const parsed = new URL(link.href);
+              id = parsed.searchParams.get('id') || '';
+            } catch {
+              const m = link.href.match(/[?&]id=(\d+)/);
+              id = m?.[1] || '';
+            }
+
+            if (!id || seenIds.has(id)) continue;
+            seenIds.add(id);
+            fallbackItems.push(link);
+            if (!selectorMatch) {
+              selectorMatch = {
+                groupId: 'eclass.dashboard.course_links',
+                candidateId: candidate.id,
+                selector: candidate.selector,
+                count: allCourseLinks.length,
+              };
+            }
           }
 
-          if (!id || seenIds.has(id)) continue;
-          seenIds.add(id);
-          fallbackItems.push(link);
+          items = fallbackItems;
         }
 
-        items = fallbackItems;
-      }
+        return {
+          selectorMatch,
+          courses: items
+            .map((el) => {
+              const link = (
+                el instanceof HTMLAnchorElement ? el : el.querySelector('a')
+              ) as HTMLAnchorElement;
+              const url = link?.href || '';
+              const match = url.match(/id=(\d+)/);
 
-      return items
-        .map((el) => {
-          const link = (
-            el instanceof HTMLAnchorElement ? el : el.querySelector('a')
-          ) as HTMLAnchorElement;
-          const url = link?.href || '';
-          const match = url.match(/id=(\d+)/);
+              let name = el.textContent?.trim() || 'Unknown Course';
+              name = name
+                .replace(/Course is starred/g, '')
+                .replace(/Course name/g, '')
+                .replace(/\s+/g, ' ')
+                .trim();
 
-          let name = el.textContent?.trim() || 'Unknown Course';
-          name = name
-            .replace(/Course is starred/g, '')
-            .replace(/Course name/g, '')
-            .replace(/\s+/g, ' ')
-            .trim();
+              return {
+                id: match ? match[1] : '',
+                name,
+                courseCode: '',
+                url,
+              };
+            })
+            .filter((c) => c.id),
+        };
+      },
+      { cardSelectors: courseCardSelectors, linkSelectors: courseLinkSelectors }
+    );
 
-          return {
-            id: match ? match[1] : '',
-            name,
-            courseCode: '',
-            url,
-          };
-        })
-        .filter((c) => c.id);
-    });
+    if (courseResult.selectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.dashboard',
+        groupId: courseResult.selectorMatch.groupId as any,
+        candidateId: courseResult.selectorMatch.candidateId,
+        selector: courseResult.selectorMatch.selector,
+        matchCount: courseResult.selectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+
+    const courses = Array.isArray(courseResult)
+      ? courseResult
+      : courseResult.courses;
 
     const enrichedCourses = courses.map((course) => ({
       ...course,
@@ -203,7 +254,7 @@ export async function getCourseContent(
           '.activityinstance a, .activity-item a'
         );
         const sections = document.querySelectorAll(
-          'a[href*="course/view.php?id="][href*="&section="]'
+          'a[href*="course/view.php?id="][href*="section="]'
         );
         return modules.length === 0 && sections.length > 0;
       });
@@ -212,7 +263,7 @@ export async function getCourseContent(
         const sectionLinks = await page.evaluate(() => {
           const links = Array.from(
             document.querySelectorAll(
-              'a[href*="course/view.php?id="][href*="&section="]'
+              'a[href*="course/view.php?id="][href*="section="]'
             )
           ) as HTMLAnchorElement[];
           return Array.from(new Set(links.map((a) => a.href)));

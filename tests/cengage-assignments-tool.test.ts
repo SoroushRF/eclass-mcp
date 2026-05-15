@@ -5,7 +5,10 @@ import { CengageScraper } from '../src/scraper/cengage';
 import {
   CengageAuthRequiredError,
   CengageCourseActivationError,
+  CengageError,
+  CengageNavigationError,
 } from '../src/scraper/cengage-errors';
+import { SecureSessionStorageError } from '../src/security/secure-session-store';
 import { getCengageAssignments } from '../src/tools/cengage';
 
 const SAMPLE_COURSE = {
@@ -593,5 +596,386 @@ describe('get cengage assignments tool on new core', () => {
     expect(payload.assignments).toHaveLength(2);
     expect(payload.allCourses[0].returnedAssignments).toBe(1);
     expect(assignmentsSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps secure storage failures to a non-retrying session storage error', async () => {
+    const entryUrl = uniqueEntryUrl('storage-unavailable');
+    const openAuthSpy = vi
+      .spyOn(authServer, 'openAuthWindow')
+      .mockImplementation(() => {});
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockRejectedValue(
+      new SecureSessionStorageError(
+        'decrypt_failed',
+        'Unable to decrypt Cengage session'
+      )
+    );
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({ entryUrl });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+    expect(payload.retry).toEqual({ afterAuth: false });
+    expect(payload.message).toContain('Secure session storage is unavailable');
+    expect(openAuthSpy).not.toHaveBeenCalled();
+  });
+
+  it('keeps Cengage parser codes visible in assignment-list failures', async () => {
+    const entryUrl = uniqueEntryUrl('parse-error');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentsForDashboardCourse'
+    ).mockRejectedValue(
+      new CengageError('parse_failed', 'Assignment rows changed')
+    );
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({ entryUrl });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.assignments).toEqual([]);
+    expect(payload.message).toBe('Assignment rows changed [parse_failed]');
+  });
+
+  it('returns a stable generic error when assignment scraping throws an Error', async () => {
+    const entryUrl = uniqueEntryUrl('generic-error');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentsForDashboardCourse'
+    ).mockRejectedValue(new Error('browser context closed'));
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({ entryUrl });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.assignments).toEqual([]);
+    expect(payload.message).toBe(
+      'Failed to fetch Cengage assignments: browser context closed'
+    );
+  });
+
+  it('returns a stable unknown-error response for non-Error assignment failures', async () => {
+    const entryUrl = uniqueEntryUrl('unknown-error');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentsForDashboardCourse'
+    ).mockRejectedValue('opaque failure');
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({ entryUrl });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.assignments).toEqual([]);
+    expect(payload.message).toBe(
+      'Failed to fetch Cengage assignments due to an unknown error.'
+    );
+  });
+
+  it('returns no_data for a verified direct WebAssign link with an empty assignment table', async () => {
+    const entryUrl = uniqueWebAssignUrl('direct-empty');
+    const directSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignmentsWithContext')
+      .mockResolvedValue(withContext([]));
+    const dashboardSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
+      .mockResolvedValue([SAMPLE_COURSE]);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      entryUrl,
+      courseKey: SAMPLE_COURSE.courseKey,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('no_data');
+    expect(payload.selectedCourse.courseKey).toBe(SAMPLE_COURSE.courseKey);
+    expect(payload.message).toBe(
+      'No assignments were found in the verified WebAssign course context.'
+    );
+    expect(directSpy).toHaveBeenCalledWith(
+      entryUrl,
+      expect.objectContaining({
+        expectedCourse: expect.objectContaining({
+          courseKey: SAMPLE_COURSE.courseKey,
+        }),
+      })
+    );
+    expect(dashboardSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to dashboard course selection when a direct WebAssign link bounces to Cengage dashboard', async () => {
+    const entryUrl = uniqueWebAssignUrl('direct-dashboard-fallback');
+    const directSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignmentsWithContext')
+      .mockRejectedValue(
+        new CengageNavigationError(
+          'Cengage dashboard was shown instead of WebAssign assignments'
+        )
+      );
+    const dashboardSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
+      .mockResolvedValue([SAMPLE_COURSE]);
+    const courseSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
+      .mockResolvedValue(
+        withContext([
+          {
+            id: 'fallback-1',
+            name: 'Fallback Homework',
+            dueDate: '2026-04-20 23:59',
+            status: 'Pending',
+            rawText: 'Fallback Homework Due Date',
+          } as any,
+        ])
+      );
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      entryUrl,
+      courseKey: SAMPLE_COURSE.courseKey,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.assignments[0].name).toBe('Fallback Homework');
+    expect(directSpy).toHaveBeenCalledTimes(1);
+    expect(dashboardSpy).toHaveBeenCalledTimes(1);
+    expect(courseSpy).toHaveBeenCalledWith(
+      SAMPLE_COURSE,
+      expect.objectContaining({ expectedCourseTitle: undefined })
+    );
+  });
+
+  it('returns activation diagnostics from a direct WebAssign link before trying dashboard fallback', async () => {
+    const entryUrl = uniqueWebAssignUrl('direct-activation');
+    const dashboardSpy = vi
+      .spyOn(CengageScraper.prototype, 'listDashboardCoursesFromEntryLink')
+      .mockResolvedValue([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentsWithContext'
+    ).mockRejectedValue(
+      new CengageCourseActivationError(
+        'WebAssign opened a different active course than the selected Cengage course.',
+        {
+          actualCourseTitle: 'PHYS 1800 Fall 2025 Final',
+          actualCurrentSelected: '1199639,1577413',
+        }
+      )
+    );
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      entryUrl,
+      courseKey: SAMPLE_COURSE.courseKey,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('needs_course_activation');
+    expect(payload.code).toBe('COURSE_CONTEXT_MISMATCH');
+    expect(payload.selectedCourse.courseKey).toBe(SAMPLE_COURSE.courseKey);
+    expect(payload.retry.input.courseKey).toBe(SAMPLE_COURSE.courseKey);
+    expect(payload.diagnostics.actualCourseTitle).toContain('PHYS 1800');
+    expect(dashboardSpy).not.toHaveBeenCalled();
+  });
+
+  it('reports per-course failures in all-courses aggregation without dropping successful courses', async () => {
+    isolateDashboardInventoryCache();
+    const tag = `aggregate-errors-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const courses = [
+      { ...SAMPLE_COURSE, title: `Good ${tag}`, courseKey: 'WA-good' },
+      {
+        ...SAMPLE_COURSE,
+        courseId: 'parse-course',
+        courseKey: 'WA-parse',
+        title: `Parse ${tag}`,
+      },
+      {
+        ...SAMPLE_COURSE,
+        courseId: 'browser-course',
+        courseKey: 'WA-browser',
+        title: `Browser ${tag}`,
+      },
+      {
+        ...SAMPLE_COURSE,
+        courseId: 'opaque-course',
+        courseKey: 'WA-opaque',
+        title: `Opaque ${tag}`,
+      },
+    ];
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromSavedSession'
+    ).mockResolvedValue(courses);
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentsForDashboardCourse'
+    ).mockImplementation(async (course: any) => {
+      if (course.courseKey === 'WA-good') {
+        return withContext([
+          {
+            id: 'good-1',
+            name: 'Good Homework',
+            dueDate: '2026-04-20 23:59',
+            status: 'Pending',
+            rawText: 'Good Homework Due Date',
+          } as any,
+        ]);
+      }
+      if (course.courseKey === 'WA-parse') {
+        throw new CengageError('parse_failed', 'Assignment table changed');
+      }
+      if (course.courseKey === 'WA-browser') {
+        throw new Error('browser crashed');
+      }
+      throw 'opaque failure';
+    });
+
+    const result = await getCengageAssignments({
+      allCourses: true,
+      courseQuery: tag,
+      maxCourses: 4,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('ok');
+    expect(payload.assignments).toHaveLength(1);
+    expect(payload.aggregation.warnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Assignment table changed [parse_failed]'),
+        expect.stringContaining('browser crashed'),
+        expect.stringContaining('Unknown error'),
+      ])
+    );
+    expect(payload.allCourses).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: `Good ${tag}`, status: 'ok' }),
+        expect.objectContaining({
+          title: `Parse ${tag}`,
+          status: 'error',
+          message: 'Assignment table changed [parse_failed]',
+        }),
+        expect.objectContaining({
+          title: `Browser ${tag}`,
+          status: 'error',
+          message: 'browser crashed',
+        }),
+        expect.objectContaining({
+          title: `Opaque ${tag}`,
+          status: 'error',
+          message: 'Unknown error',
+        }),
+      ])
+    );
+  });
+
+  it('returns no_data when all-courses aggregation filters out every dashboard course', async () => {
+    isolateDashboardInventoryCache();
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromSavedSession'
+    ).mockResolvedValue([SAMPLE_COURSE]);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
+      .mockResolvedValue(withContext([]));
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      allCourses: true,
+      courseQuery: 'definitely missing course',
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('no_data');
+    expect(payload.assignments).toEqual([]);
+    expect(payload.allCourses).toEqual([]);
+    expect(payload.aggregation).toMatchObject({
+      mode: 'all_courses',
+      coursesConsidered: 0,
+      coursesProcessed: 0,
+      coursesReturned: 0,
+    });
+    expect(assignmentsSpy).not.toHaveBeenCalled();
+  });
+
+  it('summarizes empty WebAssign and unsupported OWLv2 courses in all-courses aggregation', async () => {
+    isolateDashboardInventoryCache();
+    const tag = `aggregate-empty-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const webassignCourse = {
+      ...SAMPLE_COURSE,
+      title: `Empty WebAssign ${tag}`,
+      courseKey: 'WA-empty-aggregate',
+    };
+    const owlCourse = {
+      courseId: 'chem-owl-aggregate',
+      courseKey: 'E-OWL-AGGREGATE',
+      title: `Unsupported OWLv2 ${tag}`,
+      launchUrl:
+        'https://prod01-cnow-owl.cengagenow.com/ilrn/authentication.do?courseKey=E-OWL-AGGREGATE',
+      platform: 'owlv2' as const,
+      assignmentsSupported: false,
+      confidence: 0.9,
+    };
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromSavedSession'
+    ).mockResolvedValue([webassignCourse, owlCourse]);
+    const assignmentsSpy = vi
+      .spyOn(CengageScraper.prototype, 'getAssignmentsForDashboardCourse')
+      .mockResolvedValue(withContext([]));
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignments({
+      allCourses: true,
+      courseQuery: tag,
+      maxCourses: 5,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('no_data');
+    expect(payload.message).toBe(
+      'No assignments were found across the selected courses.'
+    );
+    expect(payload.assignments).toEqual([]);
+    expect(payload.allCourses).toEqual([
+      expect.objectContaining({
+        title: webassignCourse.title,
+        status: 'no_data',
+        assignmentCount: 0,
+        message:
+          'No assignments were returned for this course in the current session.',
+      }),
+      expect.objectContaining({
+        title: owlCourse.title,
+        platform: 'owlv2',
+        status: 'no_data',
+        assignmentCount: 0,
+        message: expect.stringContaining(
+          'assignment extraction is not supported'
+        ),
+      }),
+    ]);
+    expect(payload.aggregation.truncatedAssignments).toBe(false);
+    expect(assignmentsSpy).toHaveBeenCalledTimes(1);
   });
 });

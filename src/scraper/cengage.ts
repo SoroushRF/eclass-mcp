@@ -35,6 +35,8 @@ import {
   verifyWebAssignCourseContext,
   type WebAssignCourseContext,
 } from './cengage/course-context';
+import { getLogger } from '../logging/context';
+import { getSelectorGroup, logDomSelectorMatch } from './selectors';
 
 // Canonical homes are attempted in order when bootstrapping from a saved session.
 const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
@@ -46,29 +48,14 @@ const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
 ];
 
 const ASSIGNMENT_TAB_SELECTOR_GROUPS = [
-  {
-    label: 'Past Assignments',
-    selectors: [
-      'button[data-analytics="past-assignments-tab"]',
-      '[role="tab"][data-analytics="past-assignments-tab"]',
-      '[role="tab"][aria-label*="Past Assignments"]',
-      'button[aria-label*="Past Assignments"]',
-      '[role="tab"]:has-text("Past Assignments")',
-      'button:has-text("Past Assignments")',
-    ],
-  },
-  {
-    label: 'All Assignments',
-    selectors: [
-      'button[data-analytics="all-assignments-tab"]',
-      '[role="tab"][data-analytics="all-assignments-tab"]',
-      '[role="tab"][aria-label*="All Assignments"]',
-      'button[aria-label*="All Assignments"]',
-      '[role="tab"]:has-text("All Assignments")',
-      'button:has-text("All Assignments")',
-    ],
-  },
-] as const;
+  'Past Assignments',
+  'All Assignments',
+].map((label) => ({
+  label,
+  candidates: getSelectorGroup('cengage.assignments.tabs').candidates.filter(
+    (candidate) => candidate.description === label
+  ),
+}));
 
 export interface WebAssignAssignment {
   name: string;
@@ -330,8 +317,8 @@ export class CengageScraper {
       let matchedSelector: string | null = null;
       let clicked = false;
 
-      for (const selector of tabGroup.selectors) {
-        const locator = page.locator(selector).first();
+      for (const candidate of tabGroup.candidates) {
+        const locator = page.locator(candidate.selector).first();
         const count = await locator.count();
         if (count === 0) {
           continue;
@@ -342,7 +329,15 @@ export class CengageScraper {
           continue;
         }
 
-        matchedSelector = selector;
+        matchedSelector = candidate.selector;
+        logDomSelectorMatch({
+          pageType: 'cengage.assignments',
+          groupId: 'cengage.assignments.tabs',
+          candidateId: candidate.id,
+          selector: candidate.selector,
+          matchCount: count,
+          url: page.url(),
+        });
 
         const ariaSelected = (
           (await locator.getAttribute('aria-selected')) || ''
@@ -367,13 +362,17 @@ export class CengageScraper {
       }
 
       if (clicked) {
-        console.error(
-          `[Cengage] Switched assignment tab to "${tabGroup.label}" via: ${matchedSelector}`
-        );
+        getLogger().debug({
+          event: 'cengage_assignment_tab_switched',
+          tab: tabGroup.label,
+          selector: matchedSelector,
+        });
       } else {
-        console.error(
-          `[Cengage] "${tabGroup.label}" tab already selected via: ${matchedSelector}`
-        );
+        getLogger().debug({
+          event: 'cengage_assignment_tab_already_selected',
+          tab: tabGroup.label,
+          selector: matchedSelector,
+        });
       }
 
       await page
@@ -383,9 +382,11 @@ export class CengageScraper {
 
       rowCandidates = await extractAssignmentRowCandidates(page);
       if (rowCandidates.length > 0) {
-        console.error(
-          `[Cengage] Found ${rowCandidates.length} assignment rows after checking "${tabGroup.label}" tab.`
-        );
+        getLogger().debug({
+          event: 'cengage_assignment_rows_after_tab',
+          tab: tabGroup.label,
+          rowCount: rowCandidates.length,
+        });
         return rowCandidates;
       }
     }

@@ -9,6 +9,10 @@ import {
   isSessionStorageUnavailable,
   sessionStorageUnavailableResponse,
 } from './auth-retry';
+import {
+  isScrapeLayoutChanged,
+  scrapeLayoutChangedResponse,
+} from './scrape-layout-response';
 
 export async function getAnnouncements(courseId?: string, limit: number = 10) {
   const run = async () => {
@@ -56,6 +60,9 @@ export async function getAnnouncements(courseId?: string, limit: number = 10) {
   } catch (e) {
     if (isSessionStorageUnavailable(e)) {
       return sessionStorageUnavailableResponse('get_announcements');
+    }
+    if (isScrapeLayoutChanged(e)) {
+      return scrapeLayoutChangedResponse('get_announcements', e);
     }
     if (e instanceof SessionExpiredError) {
       return handleEclassSessionExpired(e, run, (error) =>

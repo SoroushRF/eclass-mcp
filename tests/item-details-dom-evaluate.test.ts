@@ -270,6 +270,227 @@ describe('eclass item-details DOM extraction branches', () => {
     expect(result.fields).toBeUndefined();
   });
 
+  it('extracts assignment fallback selectors, cleaned comments, body course id, and attachment kinds', async () => {
+    const assignmentUrl = 'https://eclass.yorku.ca/mod/assign/view.php?id=7777';
+    const html = `
+      <main>
+        <h1>Fallback Assignment</h1>
+        <div id="intro">
+          <div class="no-overflow">
+            <p>Fallback intro text.</p>
+          </div>
+        </div>
+        <a href="/pluginfile.php/7/spec.pdf">Spec</a>
+        <a href="/pluginfile.php/7/template.docx">Template</a>
+        <a href="/pluginfile.php/7/archive.zip">Archive</a>
+        <table class="generaltable">
+          <tr><th>Grading status</th><td>Not graded</td></tr>
+          <tr><th>Submission comments</th><td>Show comments Comments (1) Needs more detail Save comment | Cancel</td></tr>
+          <tr><th>Feedback</th><td>Inline feedback</td></tr>
+        </table>
+      </main>
+    `;
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      $: vi.fn().mockResolvedValue(null),
+      evaluate: vi.fn(async (callback: unknown, arg: unknown) =>
+        runEvaluateInDom(
+          html,
+          assignmentUrl,
+          callback as (value: unknown) => unknown,
+          arg,
+          (window) => {
+            window.document.body.className = 'format-topics course-456';
+          }
+        )
+      ),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const context = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const session = {
+      getAuthenticatedContext: vi.fn().mockResolvedValue(context),
+    };
+
+    const result = await getAssignmentDetails(session as any, assignmentUrl);
+
+    expect(result.courseId).toBe('456');
+    expect(result.descriptionText).toContain('Fallback intro text');
+    expect(result.grade).toBe('Not graded');
+    expect(result.feedbackText).toContain('Needs more detail');
+    expect(result.feedbackText).toContain('Inline feedback');
+    expect(result.attachments?.map((attachment) => attachment.kind)).toEqual([
+      'pdf',
+      'docx',
+      'other',
+    ]);
+  });
+
+  it('handles a minimal assignment page without intro, status table, course id, or external links', async () => {
+    const assignmentUrl = 'https://eclass.yorku.ca/mod/assign/view.php?id=8888';
+    const html = `
+      <html>
+        <head><title>Minimal Assignment From Title</title></head>
+        <body>
+          <main>
+            <p>No Moodle intro block was rendered for this activity.</p>
+          </main>
+        </body>
+      </html>
+    `;
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      $: vi.fn().mockResolvedValue(null),
+      evaluate: vi.fn(async (callback: unknown, arg: unknown) =>
+        runEvaluateInDom(
+          html,
+          assignmentUrl,
+          callback as (value: unknown) => unknown,
+          arg
+        )
+      ),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const context = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const session = {
+      getAuthenticatedContext: vi.fn().mockResolvedValue(context),
+    };
+
+    const result = await getAssignmentDetails(session as any, assignmentUrl);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        kind: 'assign',
+        url: assignmentUrl,
+        title: 'Minimal Assignment From Title',
+      })
+    );
+    expect(result.courseId).toBeUndefined();
+    expect(result.descriptionText).toBeUndefined();
+    expect(result.fields).toBeUndefined();
+    expect(result.externalLinks).toBeUndefined();
+    expect(page.$).toHaveBeenCalledWith('.comment-link');
+    expect(page.close).toHaveBeenCalledTimes(1);
+    expect(context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('limits assignment attachments at twenty and preserves unnamed plugin files', async () => {
+    const assignmentUrl = 'https://eclass.yorku.ca/mod/assign/view.php?id=9999';
+    const anchors = Array.from({ length: 25 }, (_, index) => {
+      const label = index === 0 ? '' : `File ${index}`;
+      return `<a href="/pluginfile.php/9/file-${index}.pdf">${label}</a>`;
+    }).join('\n');
+    const html = `
+      <main>
+        <h1>Attachment Limit Assignment</h1>
+        <div id="intro"><div class="no-overflow">Review the package.</div></div>
+        ${anchors}
+      </main>
+    `;
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      $: vi.fn().mockResolvedValue(null),
+      evaluate: vi.fn(async (callback: unknown, arg: unknown) =>
+        runEvaluateInDom(
+          html,
+          assignmentUrl,
+          callback as (value: unknown) => unknown,
+          arg
+        )
+      ),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const context = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const session = {
+      getAuthenticatedContext: vi.fn().mockResolvedValue(context),
+    };
+
+    const result = await getAssignmentDetails(session as any, assignmentUrl);
+
+    expect(result.attachments).toHaveLength(20);
+    expect(result.attachments?.[0]).toEqual(
+      expect.objectContaining({
+        url: 'https://eclass.yorku.ca/pluginfile.php/9/file-0.pdf',
+        kind: 'pdf',
+      })
+    );
+    expect(result.attachments?.[0].name).toBeUndefined();
+    expect(result.attachments?.[19]?.url).toBe(
+      'https://eclass.yorku.ca/pluginfile.php/9/file-19.pdf'
+    );
+  });
+
+  it('extracts quiz mark percent and fields from a nested summary table container', async () => {
+    const quizUrl = 'https://eclass.yorku.ca/mod/quiz/view.php?id=9020';
+    const html = `
+      <main>
+        <h1>Nested Quiz Summary</h1>
+        <section id="intro"><div class="no-overflow">Quiz description text.</div></section>
+        <p>Mark: 87.5%</p>
+        <div class="quizattemptsummary">
+          <table>
+            <tr><th>Attempt state</th><td>Submitted</td></tr>
+            <tr><th>Final mark</th><td>87.5%</td></tr>
+          </table>
+        </div>
+        <a href="/pluginfile.php/3/chart.png?preview=1">Chart</a>
+        <a href="/pluginfile.php/3/data.csv">Data</a>
+      </main>
+    `;
+
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      evaluate: vi.fn(async (callback: unknown, arg: unknown) =>
+        runEvaluateInDom(
+          html,
+          quizUrl,
+          callback as (value: unknown) => unknown,
+          arg
+        )
+      ),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const context = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+
+    const session = {
+      getAuthenticatedContext: vi.fn().mockResolvedValue(context),
+    };
+
+    const result = await getQuizDetails(session as any, quizUrl);
+
+    expect(result.grade).toBe('87.5%');
+    expect(result.fields).toEqual({
+      'Attempt state': 'Submitted',
+      'Final mark': '87.5%',
+    });
+    expect(result.descriptionText).toBe('Quiz description text.');
+    expect(result.attachments?.map((attachment) => attachment.kind)).toEqual([
+      'image',
+      'csv',
+    ]);
+  });
+
   it('classifies external links while dropping unsafe or duplicate links', () => {
     const links = classifyDescriptionExternalLinks(
       [

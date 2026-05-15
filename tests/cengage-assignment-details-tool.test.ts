@@ -3,8 +3,10 @@ import * as authServer from '../src/auth/server';
 import { CengageScraper } from '../src/scraper/cengage';
 import {
   CengageAuthRequiredError,
+  CengageCourseActivationError,
   CengageParseError,
 } from '../src/scraper/cengage-errors';
+import { SecureSessionStorageError } from '../src/security/secure-session-store';
 import { getCengageAssignmentDetails } from '../src/tools/cengage';
 
 const SAMPLE_COURSE = {
@@ -303,5 +305,108 @@ describe('get cengage assignment details tool', () => {
     expect(payload.retry.authUrl).toContain('/auth-cengage');
     expect(payload.retry.input.entryUrl).toBe(entryUrl);
     expect(openAuthSpy).toHaveBeenCalledWith('cengage');
+  });
+
+  it('maps secure session storage failures without opening auth retry loops', async () => {
+    const entryUrl = uniqueEntryUrl('storage');
+    const openAuthSpy = vi
+      .spyOn(authServer, 'openAuthWindow')
+      .mockImplementation(() => {});
+
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockRejectedValue(
+      new SecureSessionStorageError('missing_secret', 'missing secret')
+    );
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignmentDetails({
+      entryUrl,
+      assignmentQuery: 'Assignment 1',
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+    expect(payload.retry.afterAuth).toBe(false);
+    expect(openAuthSpy).not.toHaveBeenCalled();
+  });
+
+  it('maps assignment course activation mismatch to needs_course_activation', async () => {
+    const entryUrl = uniqueEntryUrl('activation');
+
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValue([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentDetails'
+    ).mockRejectedValue(
+      new CengageCourseActivationError('Wrong active WebAssign course', {
+        actualCourseTitle: 'PHYS 1800',
+        expectedCourseKey: SAMPLE_COURSE.courseKey,
+      })
+    );
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const result = await getCengageAssignmentDetails({
+      entryUrl,
+      assignmentQuery: 'Assignment 1',
+      courseKey: SAMPLE_COURSE.courseKey,
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect(payload.status).toBe('needs_course_activation');
+    expect(payload.code).toBe('COURSE_CONTEXT_MISMATCH');
+    expect(payload.retry.afterAuth).toBe(false);
+    expect(payload.retry.reason).toBe('course_activation_required');
+    expect(payload.diagnostics.actualCourseTitle).toBe('PHYS 1800');
+  });
+
+  it('maps generic and unknown assignment detail failures to stable error responses', async () => {
+    const genericEntryUrl = uniqueEntryUrl('generic-error');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValueOnce([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentDetails'
+    ).mockRejectedValueOnce(new Error('browser crashed'));
+    vi.spyOn(CengageScraper.prototype, 'close').mockResolvedValue(undefined);
+
+    const generic = JSON.parse(
+      (
+        await getCengageAssignmentDetails({
+          entryUrl: genericEntryUrl,
+          assignmentQuery: 'Assignment 1',
+        })
+      ).content[0].text
+    );
+    expect(generic.status).toBe('error');
+    expect(generic.message).toContain('browser crashed');
+
+    const unknownEntryUrl = uniqueEntryUrl('unknown-error');
+    vi.spyOn(
+      CengageScraper.prototype,
+      'listDashboardCoursesFromEntryLink'
+    ).mockResolvedValueOnce([SAMPLE_COURSE]);
+    vi.spyOn(
+      CengageScraper.prototype,
+      'getAssignmentDetails'
+    ).mockRejectedValueOnce('non-error failure');
+
+    const unknown = JSON.parse(
+      (
+        await getCengageAssignmentDetails({
+          entryUrl: unknownEntryUrl,
+          assignmentQuery: 'Assignment 1',
+        })
+      ).content[0].text
+    );
+    expect(unknown.status).toBe('error');
+    expect(unknown.message).toContain('unknown error');
   });
 });

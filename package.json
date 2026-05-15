@@ -10,6 +10,7 @@
     "typecheck:tests": "tsc --noEmit -p tests/tsconfig.json",
     "start": "node dist/index.js",
     "setup": "npm run build && node scripts/setup.mjs",
+    "doctor": "node scripts/doctor.mjs",
     "auth:cengage": "ts-node src/auth/cengage.ts",
     "lint": "eslint src tests --max-warnings 0",
     "lint:fix": "eslint src --fix",

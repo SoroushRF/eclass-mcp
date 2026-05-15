@@ -2,6 +2,7 @@ import type { EClassBrowserSession } from './browser-session';
 import { ECLASS_URL } from './browser-session';
 import { checkSession } from './helpers';
 import type { Announcement } from './types';
+import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
 
 const GOTO_OPTS = {
   waitUntil: 'domcontentloaded' as const,
@@ -73,18 +74,46 @@ export async function getAnnouncements(
       await page.goto(`${ECLASS_URL}/mod/forum/index.php?id=${cid}`, GOTO_OPTS);
       await checkSession(page);
 
-      forumUrl = await page.evaluate(() => {
-        const links = Array.from(
-          document.querySelectorAll(
-            '.generaltable a[href*="mod/forum/view.php"]'
-          )
-        ) as HTMLAnchorElement[];
+      const forumSelectors = [
+        ...getSelectorGroup('eclass.announcements.forum_link').candidates,
+      ];
+      const forumResult = await page.evaluate((selectors) => {
+        let links: HTMLAnchorElement[] = [];
+        let selectorMatch:
+          | { candidateId: string; selector: string; count: number }
+          | undefined;
+        for (const candidate of selectors) {
+          const found = Array.from(
+            document.querySelectorAll<HTMLAnchorElement>(candidate.selector)
+          );
+          if (found.length > 0) {
+            links = found;
+            selectorMatch = {
+              candidateId: candidate.id,
+              selector: candidate.selector,
+              count: found.length,
+            };
+            break;
+          }
+        }
         const target =
           links.find((l) =>
             /announcement|news|forum/i.test(l.textContent || '')
           ) || links[0];
-        return target ? target.href : '';
-      });
+        return { forumUrl: target ? target.href : '', selectorMatch };
+      }, forumSelectors);
+      forumUrl =
+        typeof forumResult === 'string' ? forumResult : forumResult.forumUrl;
+      if (typeof forumResult !== 'string' && forumResult.selectorMatch) {
+        logDomSelectorMatch({
+          pageType: 'eclass.announcements',
+          groupId: 'eclass.announcements.forum_link',
+          candidateId: forumResult.selectorMatch.candidateId,
+          selector: forumResult.selectorMatch.selector,
+          matchCount: forumResult.selectorMatch.count,
+          url: typeof page.url === 'function' ? page.url() : undefined,
+        });
+      }
 
       if (!forumUrl) {
         forumUrl = `${ECLASS_URL}/course/view.php?id=${cid}`;
@@ -97,16 +126,51 @@ export async function getAnnouncements(
     await checkSession(page);
 
     if (forumUrl.includes('course/view')) {
-      const foundLink = await page.evaluate(() => {
-        const links = Array.from(
-          document.querySelectorAll('a[href*="mod/forum/view.php"]')
-        ) as HTMLAnchorElement[];
+      const forumSelectors = [
+        ...getSelectorGroup('eclass.announcements.forum_link').candidates,
+      ];
+      const foundLinkResult = await page.evaluate((selectors) => {
+        let links: HTMLAnchorElement[] = [];
+        let selectorMatch:
+          | { candidateId: string; selector: string; count: number }
+          | undefined;
+        for (const candidate of selectors) {
+          const found = Array.from(
+            document.querySelectorAll<HTMLAnchorElement>(candidate.selector)
+          );
+          if (found.length > 0) {
+            links = found;
+            selectorMatch = {
+              candidateId: candidate.id,
+              selector: candidate.selector,
+              count: found.length,
+            };
+            break;
+          }
+        }
         const target =
           links.find((l) =>
             /announcement|news|forum/i.test(l.textContent || '')
           ) || links[0];
-        return target?.href || '';
-      });
+        return { href: target?.href || '', selectorMatch };
+      }, forumSelectors);
+      const foundLink =
+        typeof foundLinkResult === 'string'
+          ? foundLinkResult
+          : foundLinkResult.href;
+      if (
+        typeof foundLinkResult !== 'string' &&
+        foundLinkResult.selectorMatch
+      ) {
+        logDomSelectorMatch({
+          pageType: 'eclass.announcements',
+          groupId: 'eclass.announcements.forum_link',
+          candidateId: foundLinkResult.selectorMatch.candidateId,
+          selector: foundLinkResult.selectorMatch.selector,
+          matchCount: foundLinkResult.selectorMatch.count,
+          url: typeof page.url === 'function' ? page.url() : undefined,
+        });
+      }
       if (foundLink) {
         await page.goto(foundLink, GOTO_OPTS);
       } else {
@@ -114,11 +178,27 @@ export async function getAnnouncements(
       }
     }
 
-    const announcementsMeta = await page.evaluate(() => {
-      const topics = Array.from(
-        document.querySelectorAll('.topic, .discussion')
-      );
-      return topics
+    const topicSelectors = [
+      ...getSelectorGroup('eclass.announcements.topic_rows').candidates,
+    ];
+    const announcementsResult = await page.evaluate((selectors) => {
+      let topics: Element[] = [];
+      let selectorMatch:
+        | { candidateId: string; selector: string; count: number }
+        | undefined;
+      for (const candidate of selectors) {
+        const found = Array.from(document.querySelectorAll(candidate.selector));
+        if (found.length > 0) {
+          topics = found;
+          selectorMatch = {
+            candidateId: candidate.id,
+            selector: candidate.selector,
+            count: found.length,
+          };
+          break;
+        }
+      }
+      const announcements = topics
         .map((row) => {
           const titleLink = row.querySelector(
             '.subject a, .topic-name a, th.topic a'
@@ -152,7 +232,24 @@ export async function getAnnouncements(
           };
         })
         .filter((a) => a.id && a.discussionUrl);
-    });
+      return { announcements, selectorMatch };
+    }, topicSelectors);
+    const announcementsMeta = Array.isArray(announcementsResult)
+      ? announcementsResult
+      : announcementsResult.announcements;
+    if (
+      !Array.isArray(announcementsResult) &&
+      announcementsResult.selectorMatch
+    ) {
+      logDomSelectorMatch({
+        pageType: 'eclass.announcements',
+        groupId: 'eclass.announcements.topic_rows',
+        candidateId: announcementsResult.selectorMatch.candidateId,
+        selector: announcementsResult.selectorMatch.selector,
+        matchCount: announcementsResult.selectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
 
     const byDiscussion = new Map<
       string,

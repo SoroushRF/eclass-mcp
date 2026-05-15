@@ -16,6 +16,10 @@ import {
   sessionStorageUnavailableResponse,
 } from './auth-retry';
 import { getEclassDeadlineItems, type DeadlineScope } from './eclass-service';
+import {
+  isScrapeLayoutChanged,
+  scrapeLayoutChangedResponse,
+} from './scrape-layout-response';
 
 function attachEclassDeadlinePayload(
   items: unknown[],
@@ -93,6 +97,9 @@ export async function getUpcomingDeadlines(
   } catch (e) {
     if (isSessionStorageUnavailable(e)) {
       return sessionStorageUnavailableResponse('get_upcoming_deadlines');
+    }
+    if (isScrapeLayoutChanged(e)) {
+      return scrapeLayoutChangedResponse('get_upcoming_deadlines', e);
     }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>
@@ -225,6 +232,9 @@ export async function getDeadlines(
   } catch (e) {
     if (isSessionStorageUnavailable(e)) {
       return sessionStorageUnavailableResponse('get_deadlines');
+    }
+    if (isScrapeLayoutChanged(e)) {
+      return scrapeLayoutChangedResponse('get_deadlines', e);
     }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>
@@ -556,6 +566,9 @@ export async function getItemDetails(
   } catch (e) {
     if (isSessionStorageUnavailable(e)) {
       return sessionStorageUnavailableResponse('get_item_details');
+    }
+    if (isScrapeLayoutChanged(e)) {
+      return scrapeLayoutChangedResponse('get_item_details', e);
     }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>

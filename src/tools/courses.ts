@@ -10,6 +10,10 @@ import {
   sessionStorageUnavailableResponse,
 } from './auth-retry';
 import { getEclassCoursesWithCache } from './eclass-service';
+import {
+  isScrapeLayoutChanged,
+  scrapeLayoutChangedResponse,
+} from './scrape-layout-response';
 
 export async function listCourses() {
   const run = async () => {
@@ -42,6 +46,9 @@ export async function listCourses() {
   } catch (e) {
     if (isSessionStorageUnavailable(e)) {
       return sessionStorageUnavailableResponse('list_courses');
+    }
+    if (isScrapeLayoutChanged(e)) {
+      return scrapeLayoutChangedResponse('list_courses', e);
     }
     if (e instanceof SessionExpiredError) {
       return handleEclassSessionExpired(e, run, (error) =>

@@ -9,7 +9,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('eclass scraper modules zero-coverage lift', () => {
+describe('eclass scraper module flows', () => {
   it('getCourses maps course code metadata from evaluated course rows', async () => {
     vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
 

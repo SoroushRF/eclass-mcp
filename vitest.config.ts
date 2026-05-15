@@ -14,6 +14,7 @@ export default defineConfig({
       exclude: [
         'coverage/**',
         'dist/**',
+        'scripts/**',
         'tests/**',
         '*.config.ts',
         'src/auth/server.ts',
@@ -24,7 +25,7 @@ export default defineConfig({
       ],
       thresholds: {
         statements: 50,
-        branches: 70,
+        branches: 75,
         functions: 50,
         lines: 50,
       },

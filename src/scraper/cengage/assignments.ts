@@ -8,11 +8,12 @@ import {
   ASSIGNMENT_STATUS_SELECTORS,
   type CengageAssignmentRowCandidate,
 } from '../cengage-assignment-parser';
+import { logDomSelectorMatch, selectorCandidateIdFor } from '../selectors';
 
 export async function extractAssignmentRowCandidates(
   page: Page
 ): Promise<CengageAssignmentRowCandidate[]> {
-  return page.evaluate(
+  const evaluated = await page.evaluate(
     ({
       containerSelectors,
       rowSelectors,
@@ -50,8 +51,26 @@ export async function extractAssignmentRowCandidates(
       };
 
       const containers: Element[] = [];
+      const selectorMatches: Array<{
+        groupId: string;
+        selector: string;
+        count: number;
+      }> = [];
       for (const selector of containerSelectors) {
-        for (const match of Array.from(document.querySelectorAll(selector))) {
+        const found = Array.from(document.querySelectorAll(selector));
+        if (
+          found.length > 0 &&
+          !selectorMatches.some(
+            (m) => m.groupId === 'cengage.assignments.containers'
+          )
+        ) {
+          selectorMatches.push({
+            groupId: 'cengage.assignments.containers',
+            selector,
+            count: found.length,
+          });
+        }
+        for (const match of found) {
           if (isVisible(match)) {
             containers.push(match);
           }
@@ -81,7 +100,20 @@ export async function extractAssignmentRowCandidates(
         const rowCandidates: Element[] = [];
 
         for (const selector of rowSelectors) {
-          for (const row of Array.from(container.querySelectorAll(selector))) {
+          const found = Array.from(container.querySelectorAll(selector));
+          if (
+            found.length > 0 &&
+            !selectorMatches.some(
+              (m) => m.groupId === 'cengage.assignments.rows'
+            )
+          ) {
+            selectorMatches.push({
+              groupId: 'cengage.assignments.rows',
+              selector,
+              count: found.length,
+            });
+          }
+          for (const row of found) {
             rowCandidates.push(row);
           }
         }
@@ -128,6 +160,17 @@ export async function extractAssignmentRowCandidates(
             const value = normalizeText(element.textContent);
             if (value) {
               name = value;
+              if (
+                !selectorMatches.some(
+                  (m) => m.groupId === 'cengage.assignments.name'
+                )
+              ) {
+                selectorMatches.push({
+                  groupId: 'cengage.assignments.name',
+                  selector,
+                  count: 1,
+                });
+              }
               break;
             }
           }
@@ -146,6 +189,17 @@ export async function extractAssignmentRowCandidates(
             const value = normalizeText(element.textContent);
             if (value) {
               dueDate = value;
+              if (
+                !selectorMatches.some(
+                  (m) => m.groupId === 'cengage.assignments.due_date'
+                )
+              ) {
+                selectorMatches.push({
+                  groupId: 'cengage.assignments.due_date',
+                  selector,
+                  count: 1,
+                });
+              }
               break;
             }
           }
@@ -158,6 +212,17 @@ export async function extractAssignmentRowCandidates(
             const value = normalizeText(element.textContent);
             if (value) {
               score = value;
+              if (
+                !selectorMatches.some(
+                  (m) => m.groupId === 'cengage.assignments.score'
+                )
+              ) {
+                selectorMatches.push({
+                  groupId: 'cengage.assignments.score',
+                  selector,
+                  count: 1,
+                });
+              }
               break;
             }
           }
@@ -170,6 +235,17 @@ export async function extractAssignmentRowCandidates(
             const value = normalizeText(element.textContent);
             if (value) {
               statusHint = value;
+              if (
+                !selectorMatches.some(
+                  (m) => m.groupId === 'cengage.assignments.status'
+                )
+              ) {
+                selectorMatches.push({
+                  groupId: 'cengage.assignments.status',
+                  selector,
+                  count: 1,
+                });
+              }
               break;
             }
           }
@@ -206,7 +282,7 @@ export async function extractAssignmentRowCandidates(
         }
       }
 
-      return rows;
+      return { rows, selectorMatches };
     },
     {
       containerSelectors: [...ASSIGNMENT_CONTAINER_SELECTORS],
@@ -217,4 +293,21 @@ export async function extractAssignmentRowCandidates(
       statusSelectors: [...ASSIGNMENT_STATUS_SELECTORS],
     }
   );
+
+  for (const match of evaluated.selectorMatches) {
+    const groupId = match.groupId as Parameters<
+      typeof selectorCandidateIdFor
+    >[0];
+    logDomSelectorMatch({
+      pageType: 'cengage.assignments',
+      groupId,
+      candidateId:
+        selectorCandidateIdFor(groupId, match.selector) || 'unknown_selector',
+      selector: match.selector,
+      matchCount: match.count,
+      url: typeof page.url === 'function' ? page.url() : undefined,
+    });
+  }
+
+  return evaluated.rows;
 }

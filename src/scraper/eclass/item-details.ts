@@ -7,6 +7,7 @@ import type {
   ItemDetailsBase,
   QuizDetails,
 } from './types';
+import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
 
 type RawDescriptionLink = {
   name: string;
@@ -102,8 +103,20 @@ export async function getAssignmentDetails(
       await page.waitForTimeout(1000).catch(() => {});
     }
 
+    const selectorGroups = {
+      intro: [...getSelectorGroup('eclass.assignment.intro').candidates],
+      statusTable: [
+        ...getSelectorGroup('eclass.assignment.status_table').candidates,
+      ],
+    };
     const data = await page.evaluate(
-      ({ url: pageUrl }: { url: string }) => {
+      ({
+        url: pageUrl,
+        selectors,
+      }: {
+        url: string;
+        selectors: typeof selectorGroups;
+      }) => {
         const title =
           (
             document.querySelector('h1')?.textContent ||
@@ -116,15 +129,24 @@ export async function getAssignmentDetails(
           document.body.className.match(/course-(\d+)/)?.[1] ||
           '';
 
-        const descEl =
-          (document.querySelector(
-            '.description .no-overflow'
-          ) as HTMLElement | null) ||
-          (document.querySelector(
-            '#intro .no-overflow'
-          ) as HTMLElement | null) ||
-          (document.querySelector('#intro') as HTMLElement | null) ||
-          (document.querySelector('.no-overflow') as HTMLElement | null);
+        let descEl: HTMLElement | null = null;
+        let descSelectorMatch:
+          | { candidateId: string; selector: string; count: number }
+          | undefined;
+        for (const candidate of selectors.intro) {
+          const found = Array.from(
+            document.querySelectorAll<HTMLElement>(candidate.selector)
+          );
+          if (found.length > 0) {
+            descEl = found[0];
+            descSelectorMatch = {
+              candidateId: candidate.id,
+              selector: candidate.selector,
+              count: found.length,
+            };
+            break;
+          }
+        }
 
         const descriptionHtml = descEl?.innerHTML?.trim() || '';
         const descriptionText = descEl?.textContent?.trim() || '';
@@ -210,11 +232,25 @@ export async function getAssignmentDetails(
           uniqueAttachments.push(att);
         }
 
-        const tables = Array.from(
-          document.querySelectorAll(
-            '.submissionstatustable, .feedbacktable, .generaltable'
-          )
-        );
+        const tables: Element[] = [];
+        let tableSelectorMatch:
+          | { candidateId: string; selector: string; count: number }
+          | undefined;
+        for (const candidate of selectors.statusTable) {
+          const found = Array.from(
+            document.querySelectorAll(candidate.selector)
+          );
+          if (found.length > 0) {
+            tables.push(...found);
+            if (!tableSelectorMatch) {
+              tableSelectorMatch = {
+                candidateId: candidate.id,
+                selector: candidate.selector,
+                count: found.length,
+              };
+            }
+          }
+        }
         const fields: Record<string, string> = {};
 
         for (const table of tables) {
@@ -284,6 +320,8 @@ export async function getAssignmentDetails(
             ? descriptionImageUrlsUnique
             : undefined,
           rawDescriptionLinks,
+          descSelectorMatch,
+          tableSelectorMatch,
           attachments: uniqueAttachments.length
             ? (uniqueAttachments as any)
             : undefined,
@@ -292,10 +330,36 @@ export async function getAssignmentDetails(
           feedbackText: finalFeedback || undefined,
         };
       },
-      { url }
+      { url, selectors: selectorGroups }
     );
 
-    const { rawDescriptionLinks, ...rest } = data;
+    if (data.descSelectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.assignment',
+        groupId: 'eclass.assignment.intro',
+        candidateId: data.descSelectorMatch.candidateId,
+        selector: data.descSelectorMatch.selector,
+        matchCount: data.descSelectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+    if (data.tableSelectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.assignment',
+        groupId: 'eclass.assignment.status_table',
+        candidateId: data.tableSelectorMatch.candidateId,
+        selector: data.tableSelectorMatch.selector,
+        matchCount: data.tableSelectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+
+    const {
+      rawDescriptionLinks,
+      descSelectorMatch: _descSelectorMatch,
+      tableSelectorMatch: _tableSelectorMatch,
+      ...rest
+    } = data;
     const externalLinks = classifyDescriptionExternalLinks(
       rawDescriptionLinks || [],
       url
@@ -319,207 +383,243 @@ export async function getQuizDetails(
   const page = await context.newPage();
   try {
     await page.goto(url, { waitUntil: 'load', timeout: 60000 });
-    const data = await page.evaluate((pageUrl) => {
-      const title =
-        (
-          document.querySelector('h1')?.textContent ||
-          document.title ||
-          ''
-        ).trim() || 'Quiz';
-      const courseId =
-        (window as any).M?.cfg?.courseId?.toString() ||
-        document.body.className.match(/course-(\d+)/)?.[1] ||
-        '';
+    const introSelectors = [
+      ...getSelectorGroup('eclass.quiz.intro').candidates,
+    ];
+    const data = await page.evaluate(
+      ({ pageUrl, selectors }) => {
+        const title =
+          (
+            document.querySelector('h1')?.textContent ||
+            document.title ||
+            ''
+          ).trim() || 'Quiz';
+        const courseId =
+          (window as any).M?.cfg?.courseId?.toString() ||
+          document.body.className.match(/course-(\d+)/)?.[1] ||
+          '';
 
-      const descEl =
-        (document.querySelector('#intro .no-overflow') as HTMLElement | null) ||
-        (document.querySelector('#intro') as HTMLElement | null) ||
-        (document.querySelector('.no-overflow') as HTMLElement | null);
-
-      const descriptionHtml = descEl?.innerHTML?.trim() || '';
-      const descriptionText = descEl?.textContent?.trim() || '';
-      const rawDescriptionLinks: Array<{ name: string; url: string }> =
-        Array.from(descEl?.querySelectorAll('a[href]') || []).map((a) => ({
-          name: (a.textContent || '').trim(),
-          url: (a as HTMLAnchorElement).href || a.getAttribute('href') || '',
-        }));
-
-      const descriptionImageUrls: string[] = [];
-      if (descEl) {
-        const imgs = Array.from(
-          descEl.querySelectorAll('img[src]')
-        ) as HTMLImageElement[];
-        for (const img of imgs) {
-          const src = img.getAttribute('src') || '';
-          if (!src) continue;
-          try {
-            descriptionImageUrls.push(new URL(src, pageUrl).href);
-          } catch {
-            // ignore invalid URLs
-          }
-        }
-      }
-      const descriptionImageUrlsUnique = Array.from(
-        new Set(descriptionImageUrls)
-      );
-      const descriptionImageSet = new Set(descriptionImageUrlsUnique);
-
-      const pluginAnchors = Array.from(
-        document.querySelectorAll('a[href*="pluginfile.php"]')
-      ) as HTMLAnchorElement[];
-      const attachments: Array<{
-        url: string;
-        kind: any;
-        name?: string;
-        hint?: string;
-      }> = [];
-
-      const classifyKind = (href: string): any => {
-        const h = href.toLowerCase();
-        if (h.includes('.pdf')) return 'pdf';
-        if (h.includes('.docx')) return 'docx';
-        if (h.includes('.pptx')) return 'pptx';
-        if (h.match(/\.(png|jpe?g|gif|webp)(\?|#|$)/i)) return 'image';
-        if (h.includes('.csv')) return 'csv';
-        return 'other';
-      };
-
-      for (const a of pluginAnchors) {
-        const href = a.href || a.getAttribute('href') || '';
-        if (!href) continue;
-        let abs = href;
-        try {
-          abs = new URL(href, pageUrl).href;
-        } catch {
-          // ignore
-        }
-
-        if (descriptionImageSet.has(abs)) continue;
-        if (attachments.length >= 20) break;
-
-        const name = (a.textContent || '').trim() || '';
-        const kind = classifyKind(abs);
-        attachments.push({
-          url: abs,
-          kind,
-          name: name || undefined,
-          hint: 'Use the get_file_text tool to read this file.',
-        });
-      }
-
-      const uniqueAttachments: Array<{
-        url: string;
-        kind: any;
-        name?: string;
-        hint?: string;
-      }> = [];
-      const seen = new Set<string>();
-      for (const att of attachments) {
-        if (seen.has(att.url)) continue;
-        seen.add(att.url);
-        uniqueAttachments.push(att);
-      }
-
-      const pageText = (document.body?.innerText || '')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      const num = `(\\d+(?:\\.\\d+)?)`;
-      const highestGradeMatch = pageText.match(
-        new RegExp(`Highest grade:\\s*${num}\\s*\\/\\s*${num}`, 'i')
-      );
-      const gradeToPassMatch = pageText.match(
-        new RegExp(`Grade to pass:\\s*${num}\\s*out of\\s*${num}`, 'i')
-      );
-      const markPercentMatch = pageText.match(
-        new RegExp(`(?:Mark|Score):\\s*${num}\\s*%`, 'i')
-      );
-
-      let grade: string | undefined;
-      if (highestGradeMatch) {
-        grade = `${highestGradeMatch[1]} / ${highestGradeMatch[2]}`;
-      } else if (markPercentMatch) {
-        grade = `${markPercentMatch[1]}%`;
-      } else if (gradeToPassMatch) {
-        grade = `${gradeToPassMatch[1]} / ${gradeToPassMatch[2]} (to pass)`;
-      }
-
-      const table =
-        (document.querySelector(
-          'table.quizattemptsummary'
-        ) as HTMLTableElement | null) ||
-        (document.querySelector(
-          'table.generaltable.quizattemptsummary'
-        ) as HTMLTableElement | null) ||
-        (document.querySelector('.quizattemptsummary') as HTMLElement | null);
-
-      const fields: Record<string, string> = {};
-      const tableEl =
-        table && table.tagName === 'TABLE'
-          ? (table as HTMLTableElement)
-          : table
-            ? (table.querySelector('table') as HTMLTableElement | null)
-            : null;
-
-      if (tableEl) {
-        const rows = Array.from(tableEl.querySelectorAll('tr'));
-        for (const r of rows) {
-          const cells = Array.from(r.querySelectorAll('th, td'))
-            .map((el) => (el.textContent || '').trim().replace(/\s+/g, ' '))
-            .filter(Boolean);
-
-          if (cells.length >= 2) {
-            const k = cells[0];
-            const v = cells.slice(1).join(' ').trim();
-            if (
-              k &&
-              v &&
-              (/(grade|mark|attempt|state)/i.test(k) ||
-                /\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?/.test(v))
-            ) {
-              fields[k] = v;
-            }
-          }
-        }
-      }
-
-      if (!grade) {
-        const candidateKeys = Object.keys(fields).filter((k) =>
-          /grade|mark/i.test(k)
-        );
-        for (const k of candidateKeys) {
-          const v = fields[k];
-          if (/\d/.test(v) && (v.includes('/') || v.includes('%'))) {
-            grade = v;
+        let descEl: HTMLElement | null = null;
+        let descSelectorMatch:
+          | { candidateId: string; selector: string; count: number }
+          | undefined;
+        for (const candidate of selectors) {
+          const found = Array.from(
+            document.querySelectorAll<HTMLElement>(candidate.selector)
+          );
+          if (found.length > 0) {
+            descEl = found[0];
+            descSelectorMatch = {
+              candidateId: candidate.id,
+              selector: candidate.selector,
+              count: found.length,
+            };
             break;
           }
         }
-      }
 
-      const feedbackMatch = pageText.match(/Feedback:\s*(.+?)(?:\n|$)/i);
-      const feedbackText = feedbackMatch ? feedbackMatch[1].trim() : '';
+        const descriptionHtml = descEl?.innerHTML?.trim() || '';
+        const descriptionText = descEl?.textContent?.trim() || '';
+        const rawDescriptionLinks: Array<{ name: string; url: string }> =
+          Array.from(descEl?.querySelectorAll('a[href]') || []).map((a) => ({
+            name: (a.textContent || '').trim(),
+            url: (a as HTMLAnchorElement).href || a.getAttribute('href') || '',
+          }));
 
-      return {
-        kind: 'quiz' as const,
-        url: pageUrl,
-        courseId: courseId || undefined,
-        title,
-        descriptionHtml: descriptionHtml || undefined,
-        descriptionText: descriptionText || undefined,
-        descriptionImageUrls: descriptionImageUrlsUnique.length
-          ? descriptionImageUrlsUnique
-          : undefined,
-        rawDescriptionLinks,
-        attachments: uniqueAttachments.length
-          ? (uniqueAttachments as any)
-          : undefined,
-        fields: Object.keys(fields).length ? fields : undefined,
-        grade: grade || undefined,
-        feedbackText: feedbackText || undefined,
-      };
-    }, url);
+        const descriptionImageUrls: string[] = [];
+        if (descEl) {
+          const imgs = Array.from(
+            descEl.querySelectorAll('img[src]')
+          ) as HTMLImageElement[];
+          for (const img of imgs) {
+            const src = img.getAttribute('src') || '';
+            if (!src) continue;
+            try {
+              descriptionImageUrls.push(new URL(src, pageUrl).href);
+            } catch {
+              // ignore invalid URLs
+            }
+          }
+        }
+        const descriptionImageUrlsUnique = Array.from(
+          new Set(descriptionImageUrls)
+        );
+        const descriptionImageSet = new Set(descriptionImageUrlsUnique);
 
-    const { rawDescriptionLinks, ...rest } = data;
+        const pluginAnchors = Array.from(
+          document.querySelectorAll('a[href*="pluginfile.php"]')
+        ) as HTMLAnchorElement[];
+        const attachments: Array<{
+          url: string;
+          kind: any;
+          name?: string;
+          hint?: string;
+        }> = [];
+
+        const classifyKind = (href: string): any => {
+          const h = href.toLowerCase();
+          if (h.includes('.pdf')) return 'pdf';
+          if (h.includes('.docx')) return 'docx';
+          if (h.includes('.pptx')) return 'pptx';
+          if (h.match(/\.(png|jpe?g|gif|webp)(\?|#|$)/i)) return 'image';
+          if (h.includes('.csv')) return 'csv';
+          return 'other';
+        };
+
+        for (const a of pluginAnchors) {
+          const href = a.href || a.getAttribute('href') || '';
+          if (!href) continue;
+          let abs = href;
+          try {
+            abs = new URL(href, pageUrl).href;
+          } catch {
+            // ignore
+          }
+
+          if (descriptionImageSet.has(abs)) continue;
+          if (attachments.length >= 20) break;
+
+          const name = (a.textContent || '').trim() || '';
+          const kind = classifyKind(abs);
+          attachments.push({
+            url: abs,
+            kind,
+            name: name || undefined,
+            hint: 'Use the get_file_text tool to read this file.',
+          });
+        }
+
+        const uniqueAttachments: Array<{
+          url: string;
+          kind: any;
+          name?: string;
+          hint?: string;
+        }> = [];
+        const seen = new Set<string>();
+        for (const att of attachments) {
+          if (seen.has(att.url)) continue;
+          seen.add(att.url);
+          uniqueAttachments.push(att);
+        }
+
+        const pageText = (document.body?.innerText || '')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        const num = `(\\d+(?:\\.\\d+)?)`;
+        const highestGradeMatch = pageText.match(
+          new RegExp(`Highest grade:\\s*${num}\\s*\\/\\s*${num}`, 'i')
+        );
+        const gradeToPassMatch = pageText.match(
+          new RegExp(`Grade to pass:\\s*${num}\\s*out of\\s*${num}`, 'i')
+        );
+        const markPercentMatch = pageText.match(
+          new RegExp(`(?:Mark|Score):\\s*${num}\\s*%`, 'i')
+        );
+
+        let grade: string | undefined;
+        if (highestGradeMatch) {
+          grade = `${highestGradeMatch[1]} / ${highestGradeMatch[2]}`;
+        } else if (markPercentMatch) {
+          grade = `${markPercentMatch[1]}%`;
+        } else if (gradeToPassMatch) {
+          grade = `${gradeToPassMatch[1]} / ${gradeToPassMatch[2]} (to pass)`;
+        }
+
+        const table =
+          (document.querySelector(
+            'table.quizattemptsummary'
+          ) as HTMLTableElement | null) ||
+          (document.querySelector(
+            'table.generaltable.quizattemptsummary'
+          ) as HTMLTableElement | null) ||
+          (document.querySelector('.quizattemptsummary') as HTMLElement | null);
+
+        const fields: Record<string, string> = {};
+        const tableEl =
+          table && table.tagName === 'TABLE'
+            ? (table as HTMLTableElement)
+            : table
+              ? (table.querySelector('table') as HTMLTableElement | null)
+              : null;
+
+        if (tableEl) {
+          const rows = Array.from(tableEl.querySelectorAll('tr'));
+          for (const r of rows) {
+            const cells = Array.from(r.querySelectorAll('th, td'))
+              .map((el) => (el.textContent || '').trim().replace(/\s+/g, ' '))
+              .filter(Boolean);
+
+            if (cells.length >= 2) {
+              const k = cells[0];
+              const v = cells.slice(1).join(' ').trim();
+              if (
+                k &&
+                v &&
+                (/(grade|mark|attempt|state)/i.test(k) ||
+                  /\d+(\.\d+)?\s*\/\s*\d+(\.\d+)?/.test(v))
+              ) {
+                fields[k] = v;
+              }
+            }
+          }
+        }
+
+        if (!grade) {
+          const candidateKeys = Object.keys(fields).filter((k) =>
+            /grade|mark/i.test(k)
+          );
+          for (const k of candidateKeys) {
+            const v = fields[k];
+            if (/\d/.test(v) && (v.includes('/') || v.includes('%'))) {
+              grade = v;
+              break;
+            }
+          }
+        }
+
+        const feedbackMatch = pageText.match(/Feedback:\s*(.+?)(?:\n|$)/i);
+        const feedbackText = feedbackMatch ? feedbackMatch[1].trim() : '';
+
+        return {
+          kind: 'quiz' as const,
+          url: pageUrl,
+          courseId: courseId || undefined,
+          title,
+          descriptionHtml: descriptionHtml || undefined,
+          descriptionText: descriptionText || undefined,
+          descriptionImageUrls: descriptionImageUrlsUnique.length
+            ? descriptionImageUrlsUnique
+            : undefined,
+          rawDescriptionLinks,
+          attachments: uniqueAttachments.length
+            ? (uniqueAttachments as any)
+            : undefined,
+          fields: Object.keys(fields).length ? fields : undefined,
+          grade: grade || undefined,
+          feedbackText: feedbackText || undefined,
+          descSelectorMatch,
+        };
+      },
+      { pageUrl: url, selectors: introSelectors }
+    );
+
+    if (data.descSelectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.quiz',
+        groupId: 'eclass.quiz.intro',
+        candidateId: data.descSelectorMatch.candidateId,
+        selector: data.descSelectorMatch.selector,
+        matchCount: data.descSelectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+
+    const {
+      rawDescriptionLinks,
+      descSelectorMatch: _descSelectorMatch,
+      ...rest
+    } = data;
     const externalLinks = classifyDescriptionExternalLinks(
       rawDescriptionLinks || [],
       url

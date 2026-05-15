@@ -6,6 +6,11 @@ import {
   upstreamErrorFromHttpStatus,
   upstreamErrorFromUnknown,
 } from '../scrape-errors';
+import {
+  getSelectorGroup,
+  logDomSelectorMatch,
+  throwSelectorLayoutChanged,
+} from '../selectors';
 
 export async function downloadFile(
   session: EClassBrowserSession,
@@ -144,23 +149,94 @@ export async function downloadFile(
               };
             }
 
-            directUrl = await page.evaluate(() => {
-              const obj =
-                document.querySelector<HTMLObjectElement>('object[data]');
-              if (obj?.data) return obj.data;
-              const iframe =
-                document.querySelector<HTMLIFrameElement>('iframe[src]');
-              if (iframe?.src) return iframe.src;
-              const workaround = document.querySelector<HTMLAnchorElement>(
-                '.resourceworkaround a, a[href*="forcedownload=1"]'
+            const selectorGroups = {
+              embedded: [
+                ...getSelectorGroup('eclass.files.embedded_resource')
+                  .candidates,
+              ],
+              direct: [
+                ...getSelectorGroup('eclass.files.direct_download_link')
+                  .candidates,
+              ],
+            };
+            const directResult = await page.evaluate((selectors) => {
+              for (const candidate of selectors.embedded) {
+                const found = Array.from(
+                  document.querySelectorAll<
+                    HTMLObjectElement | HTMLIFrameElement
+                  >(candidate.selector)
+                );
+                const element = found[0];
+                const url =
+                  element instanceof HTMLObjectElement
+                    ? element.data
+                    : element instanceof HTMLIFrameElement
+                      ? element.src
+                      : '';
+                if (url) {
+                  return {
+                    directUrl: url,
+                    selectorMatch: {
+                      groupId: 'eclass.files.embedded_resource',
+                      candidateId: candidate.id,
+                      selector: candidate.selector,
+                      count: found.length,
+                    },
+                  };
+                }
+              }
+
+              for (const candidate of selectors.direct) {
+                const found = Array.from(
+                  document.querySelectorAll<HTMLAnchorElement>(
+                    candidate.selector
+                  )
+                );
+                const link = found.find((anchor) => !!anchor.href);
+                if (link?.href) {
+                  return {
+                    directUrl: link.href,
+                    selectorMatch: {
+                      groupId: 'eclass.files.direct_download_link',
+                      candidateId: candidate.id,
+                      selector: candidate.selector,
+                      count: found.length,
+                    },
+                  };
+                }
+              }
+
+              return { directUrl: null, selectorMatch: undefined };
+            }, selectorGroups);
+            directUrl =
+              typeof directResult === 'string' || directResult === null
+                ? directResult
+                : directResult.directUrl;
+            if (
+              typeof directResult !== 'string' &&
+              directResult !== null &&
+              directResult.selectorMatch
+            ) {
+              logDomSelectorMatch({
+                pageType: 'eclass.files',
+                groupId: directResult.selectorMatch.groupId as any,
+                candidateId: directResult.selectorMatch.candidateId,
+                selector: directResult.selectorMatch.selector,
+                matchCount: directResult.selectorMatch.count,
+                url: typeof page.url === 'function' ? page.url() : undefined,
+              });
+            }
+
+            if (!directUrl) {
+              await throwSelectorLayoutChanged(
+                page,
+                'eclass.files.direct_download_link',
+                {
+                  message:
+                    'Hit an HTML wrapper page but could not extract a direct file URL even after JS rendering.',
+                }
               );
-              if (workaround?.href) return workaround.href;
-              const pluginLink = document.querySelector<HTMLAnchorElement>(
-                'a[href*="pluginfile.php"]'
-              );
-              if (pluginLink?.href) return pluginLink.href;
-              return null;
-            });
+            }
           } finally {
             await page.close();
           }

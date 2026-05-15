@@ -86,6 +86,46 @@ function ensureIndexDir(): void {
   }
 }
 
+function sleepSync(ms: number): void {
+  const buffer = new SharedArrayBuffer(4);
+  const view = new Int32Array(buffer);
+  Atomics.wait(view, 0, 0, ms);
+}
+
+function isTransientReplaceError(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException).code;
+  return code === 'EPERM' || code === 'EACCES' || code === 'EEXIST';
+}
+
+function replaceFileWithRetry(tmpPath: string, targetPath: string): void {
+  const maxAttempts = process.platform === 'win32' ? 5 : 1;
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      fs.renameSync(tmpPath, targetPath);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!isTransientReplaceError(error)) break;
+
+      try {
+        if (fs.existsSync(targetPath)) {
+          fs.rmSync(targetPath, { force: true });
+        }
+      } catch {
+        // Best-effort cleanup; retry below handles transient Windows locks.
+      }
+
+      if (attempt < maxAttempts - 1) {
+        sleepSync(25 * (attempt + 1));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
 export function getCoursePlatformIndexPath(): string {
   return COURSE_PLATFORM_INDEX_PATH;
 }
@@ -158,9 +198,22 @@ export function saveCoursePlatformIndex(data: CoursePlatformIndexFile): void {
     updated_at: data.updated_at || new Date().toISOString(),
     records: data.records || {},
   };
-  const tmp = `${COURSE_PLATFORM_INDEX_PATH}.${process.pid}.tmp`;
+  const tmp = `${COURSE_PLATFORM_INDEX_PATH}.${process.pid}.${Date.now()}.${Math.random()
+    .toString(36)
+    .slice(2)}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(payload, null, 2), 'utf-8');
-  fs.renameSync(tmp, COURSE_PLATFORM_INDEX_PATH);
+  try {
+    replaceFileWithRetry(tmp, COURSE_PLATFORM_INDEX_PATH);
+  } catch (error) {
+    try {
+      if (fs.existsSync(tmp)) {
+        fs.rmSync(tmp, { force: true });
+      }
+    } catch {
+      // Ignore temp cleanup errors so the original write failure is preserved.
+    }
+    throw error;
+  }
   indexMemoryCache = payload;
 }
 

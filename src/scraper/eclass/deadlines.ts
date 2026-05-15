@@ -3,6 +3,7 @@ import { ECLASS_URL } from './browser-session';
 import { buildCourseMetadata, toDeadlineItem, checkSession } from './helpers';
 import { getCourses } from './courses';
 import type { Assignment, DeadlineItem } from './types';
+import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
 
 export async function getDeadlines(
   session: EClassBrowserSession,
@@ -18,9 +19,32 @@ export async function getDeadlines(
     await page.goto(url, { waitUntil: 'networkidle' });
     await checkSession(page);
 
-    const deadlines = await page.evaluate(() => {
-      const events = Array.from(document.querySelectorAll('.event'));
-      return events
+    const eventSelectors = [
+      ...getSelectorGroup('eclass.calendar.upcoming_events').candidates,
+    ];
+    const evaluated = await page.evaluate((selectors) => {
+      let events: Element[] = [];
+      let selectorMatch:
+        | {
+            candidateId: string;
+            selector: string;
+            count: number;
+          }
+        | undefined;
+      for (const candidate of selectors) {
+        const found = Array.from(document.querySelectorAll(candidate.selector));
+        if (found.length > 0) {
+          events = found;
+          selectorMatch = {
+            candidateId: candidate.id,
+            selector: candidate.selector,
+            count: found.length,
+          };
+          break;
+        }
+      }
+
+      const deadlines = events
         .map((ev) => {
           const title =
             ev.querySelector('h3.name')?.textContent?.trim() ||
@@ -61,7 +85,23 @@ export async function getDeadlines(
         .filter(
           (d) => d.url && (d.url.includes('assign') || d.url.includes('quiz'))
         );
-    });
+      return { deadlines, selectorMatch };
+    }, eventSelectors);
+
+    if (evaluated.selectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.calendar',
+        groupId: 'eclass.calendar.upcoming_events',
+        candidateId: evaluated.selectorMatch.candidateId,
+        selector: evaluated.selectorMatch.selector,
+        matchCount: evaluated.selectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+
+    const deadlines = Array.isArray(evaluated)
+      ? evaluated
+      : evaluated.deadlines;
 
     return (deadlines as Assignment[]).map((item) => ({
       ...item,
@@ -90,14 +130,37 @@ export async function getMonthDeadlines(
     await page.goto(url, { waitUntil: 'networkidle' });
     await checkSession(page);
 
-    const items = await page.evaluate(() => {
-      const eventEls = Array.from(
-        document.querySelectorAll(
-          '.calendar_event_course, .calendar_event, .event'
-        )
-      );
+    const monthEventSelectors = [
+      ...getSelectorGroup('eclass.calendar.month_events').candidates,
+    ];
+    const evaluated = await page.evaluate((selectors) => {
+      const eventEls: Element[] = [];
+      let selectorMatch:
+        | {
+            candidateId: string;
+            selector: string;
+            count: number;
+          }
+        | undefined;
+      const seen = new Set<Element>();
+      for (const candidate of selectors) {
+        const found = Array.from(document.querySelectorAll(candidate.selector));
+        if (found.length > 0 && !selectorMatch) {
+          selectorMatch = {
+            candidateId: candidate.id,
+            selector: candidate.selector,
+            count: found.length,
+          };
+        }
+        for (const element of found) {
+          if (!seen.has(element)) {
+            seen.add(element);
+            eventEls.push(element);
+          }
+        }
+      }
 
-      return eventEls
+      const items = eventEls
         .map((el) => {
           const links = Array.from(
             el.querySelectorAll('a[href]')
@@ -157,7 +220,21 @@ export async function getMonthDeadlines(
           };
         })
         .filter((d) => d.url);
-    });
+      return { items, selectorMatch };
+    }, monthEventSelectors);
+
+    if (evaluated.selectorMatch) {
+      logDomSelectorMatch({
+        pageType: 'eclass.calendar',
+        groupId: 'eclass.calendar.month_events',
+        candidateId: evaluated.selectorMatch.candidateId,
+        selector: evaluated.selectorMatch.selector,
+        matchCount: evaluated.selectorMatch.count,
+        url: typeof page.url === 'function' ? page.url() : undefined,
+      });
+    }
+
+    const items = Array.isArray(evaluated) ? evaluated : evaluated.items;
 
     return (items as Assignment[]).map(toDeadlineItem);
   } finally {

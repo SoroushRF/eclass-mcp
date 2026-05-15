@@ -24,7 +24,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('eclass file download branch coverage lift', () => {
+describe('eclass file download behavior', () => {
   it('returns binary response directly and infers extension when filename is missing', async () => {
     const requestGet = vi.fn(async () =>
       makeResponse({
@@ -144,6 +144,90 @@ describe('eclass file download branch coverage lift', () => {
     expect(result.mimeType).toBe('application/pdf');
     expect(result.buffer.toString()).toBe('resolved-pdf');
     expect(requestGet).toHaveBeenCalledTimes(2);
+  });
+
+  it('maps non-ok resolved wrapper fetches to upstream errors', async () => {
+    const requestGet = vi
+      .fn()
+      .mockResolvedValueOnce(
+        makeResponse({
+          ok: true,
+          status: 200,
+          headers: {
+            'content-type': 'text/html; charset=utf-8',
+          },
+          body: Buffer.from(
+            '<html><body><iframe src="/pluginfile.php/22/missing.pdf"></iframe></body></html>'
+          ),
+          url: 'https://eclass.yorku.ca/mod/resource/view.php?id=22',
+        })
+      )
+      .mockResolvedValueOnce(
+        makeResponse({
+          ok: false,
+          status: 503,
+          headers: {
+            'content-type': 'text/plain',
+          },
+          body: Buffer.from('service unavailable'),
+          url: 'https://eclass.yorku.ca/pluginfile.php/22/missing.pdf',
+        })
+      );
+
+    const context = {
+      request: { get: requestGet },
+      close: vi.fn(async () => undefined),
+    };
+
+    const session = {
+      getAuthenticatedContext: vi.fn(async () => context),
+    };
+
+    await expect(
+      downloadFile(
+        session as any,
+        'https://eclass.yorku.ca/mod/resource/view.php?id=22'
+      )
+    ).rejects.toMatchObject({
+      name: 'UpstreamError',
+      code: 'UPSTREAM_ERROR',
+      httpStatus: 503,
+    });
+
+    expect(requestGet).toHaveBeenCalledTimes(2);
+    expect(context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to original URL basename and .bin for unknown direct payloads', async () => {
+    const response = {
+      ok: () => true,
+      status: () => 200,
+      headers: () => ({
+        'content-type': 'application/x-custom-binary',
+      }),
+      body: async () => Buffer.from('opaque-bytes'),
+      url: () => {
+        throw new Error('response url unavailable');
+      },
+    };
+
+    const context = {
+      request: { get: vi.fn(async () => response) },
+      close: vi.fn(async () => undefined),
+    };
+
+    const session = {
+      getAuthenticatedContext: vi.fn(async () => context),
+    };
+
+    const result = await downloadFile(
+      session as any,
+      'https://eclass.yorku.ca/pluginfile.php/opaque-download'
+    );
+
+    expect(result.filename).toBe('opaque-download.bin');
+    expect(result.mimeType).toBe('application/x-custom-binary');
+    expect(result.buffer.toString()).toBe('opaque-bytes');
   });
 
   it('uses network interception fallback for rendered resources', async () => {

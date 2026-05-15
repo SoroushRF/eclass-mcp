@@ -4,6 +4,7 @@ import {
   waitForCengageAuthSession,
 } from '../auth/server';
 import { SessionExpiredError, type Course } from '../scraper/eclass';
+import { ScrapeLayoutError } from '../scraper/scrape-errors';
 import { CengageScraper } from '../scraper/cengage';
 import type { CengageDashboardCourse } from '../scraper/cengage-courses';
 import {
@@ -765,6 +766,20 @@ export async function getAssignments(
         platformIndex: indexSummaryForResponse(platformRecord),
         message: payload.message,
         retry: payload.retry,
+      });
+    }
+    if (error instanceof ScrapeLayoutError) {
+      const payload = toErrorPayload('SCRAPE_LAYOUT_CHANGED', error.message, {
+        details: error.context,
+      });
+      return assignmentResponse({
+        status: 'error',
+        code: payload.code,
+        course: courseToResponse(selectedCourse),
+        assignments: [],
+        sources,
+        platformIndex: indexSummaryForResponse(platformRecord),
+        message: payload.message,
       });
     }
     if (error instanceof SessionExpiredError) {

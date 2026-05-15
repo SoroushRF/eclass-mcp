@@ -31,71 +31,29 @@ export interface ParseWebAssignAssignmentsOptions {
   courseTitle?: string;
 }
 
-export const ASSIGNMENT_CONTAINER_SELECTORS = [
-  '#js-student-myAssignmentsWrapper',
-  '#js-student-myAssignmentsPage',
-  '[id*="myAssignments"]',
-  '[data-test="currentAssignmentContainer"]',
-  '[data-test="pastAssignmentContainer"]',
-  '[data-test="allAssignmentContainer"]',
-  '[data-testid*="assignment"][data-testid*="container"]',
-  '[data-testid="my-assignments"]',
-  '[data-e2e*="assignment"]',
-  '[aria-label*="Assignments"]',
-] as const;
+export const ASSIGNMENT_CONTAINER_SELECTORS = selectorsFor(
+  'cengage.assignments.containers'
+);
 
-export const ASSIGNMENT_ROW_SELECTORS = [
-  '[data-assignment-id]',
-  'tr[data-test^="assignment_"]',
-  '[data-testid*="assignment-row"]',
-  '.assignment-row',
-  'li[class*="assignment"]',
-  'tr[class*="assignment"]',
-  'li[role="row"]',
-  'tr[role="row"]',
-  'li',
-  'tr',
-] as const;
+export const ASSIGNMENT_ROW_SELECTORS = selectorsFor(
+  'cengage.assignments.rows'
+);
 
-export const ASSIGNMENT_NAME_SELECTORS = [
-  '[data-test^="assignment_link_"]',
-  '[data-testid*="assignment-title"]',
-  '.assignment-title',
-  'a[href*="assignment"]',
-  'a[href*="homework"]',
-  'strong',
-  'b',
-  'h3',
-  'h4',
-  'td:first-child a',
-  'td:first-child',
-] as const;
+export const ASSIGNMENT_NAME_SELECTORS = selectorsFor(
+  'cengage.assignments.name'
+);
 
-export const ASSIGNMENT_DUE_DATE_SELECTORS = [
-  '[data-test="due"]',
-  '[data-testid*="due"]',
-  '[class*="due"]',
-  'time[datetime]',
-  'time',
-  'td[class*="date"]',
-] as const;
+export const ASSIGNMENT_DUE_DATE_SELECTORS = selectorsFor(
+  'cengage.assignments.due_date'
+);
 
-export const ASSIGNMENT_SCORE_SELECTORS = [
-  '[data-test="score"]',
-  '[data-testid*="score"]',
-  '[class*="score"]',
-  '[class*="grade"]',
-  'td[class*="score"]',
-  'td[class*="grade"]',
-] as const;
+export const ASSIGNMENT_SCORE_SELECTORS = selectorsFor(
+  'cengage.assignments.score'
+);
 
-export const ASSIGNMENT_STATUS_SELECTORS = [
-  '[data-test="status"]',
-  '[data-testid*="status"]',
-  '[class*="status"]',
-  '[class*="submission"]',
-  'td[class*="status"]',
-] as const;
+export const ASSIGNMENT_STATUS_SELECTORS = selectorsFor(
+  'cengage.assignments.status'
+);
 
 function normalizeText(value: string | undefined | null): string {
   return (value || '').replace(/\s+/g, ' ').trim();
@@ -599,3 +557,4 @@ export function parseWebAssignAssignments(
     return assignment;
   });
 }
+import { selectorsFor } from './selectors';

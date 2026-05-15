@@ -108,6 +108,64 @@ describe('auth retry tool behavior', () => {
     expect(examsSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('get_exam_schedule returns empty, storage, and generic errors with stable envelopes', async () => {
+    vi.spyOn(SISScraper.prototype, 'scrapeExams').mockResolvedValueOnce([]);
+    let payload = parsePayload(await getExamSchedule());
+    expect(payload.status).toBe('empty');
+    expect(payload.exams).toEqual([]);
+
+    vi.spyOn(SISScraper.prototype, 'scrapeExams').mockRejectedValueOnce(
+      new SecureSessionStorageError('missing_secret', 'missing secret')
+    );
+    payload = parsePayload(await getExamSchedule());
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+    expect(payload.retry.afterAuth).toBe(false);
+
+    vi.spyOn(SISScraper.prototype, 'scrapeExams').mockRejectedValueOnce(
+      'sis exploded'
+    );
+    payload = parsePayload(await getExamSchedule());
+    expect(payload.status).toBe('error');
+    expect(payload.message).toContain('sis exploded');
+  });
+
+  it('get_class_timetable returns ok, empty, storage, and generic errors with stable envelopes', async () => {
+    vi.spyOn(SISScraper.prototype, 'scrapeTimetable').mockResolvedValueOnce([
+      {
+        courseCode: 'EECS 2030',
+        section: 'M',
+        title: 'Advanced OOP',
+        days: 'Mon',
+        time: '10:00',
+        location: 'LAS',
+        instructor: 'Prof',
+      },
+    ] as any);
+    let payload = parsePayload(await getClassTimetable());
+    expect(payload.status).toBe('ok');
+    expect(payload.entries).toHaveLength(1);
+
+    vi.spyOn(SISScraper.prototype, 'scrapeTimetable').mockResolvedValueOnce([]);
+    payload = parsePayload(await getClassTimetable());
+    expect(payload.status).toBe('empty');
+    expect(payload.entries).toEqual([]);
+
+    vi.spyOn(SISScraper.prototype, 'scrapeTimetable').mockRejectedValueOnce(
+      new SecureSessionStorageError('missing_secret', 'missing secret')
+    );
+    payload = parsePayload(await getClassTimetable());
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+
+    vi.spyOn(SISScraper.prototype, 'scrapeTimetable').mockRejectedValueOnce(
+      new Error('timetable failed')
+    );
+    payload = parsePayload(await getClassTimetable());
+    expect(payload.status).toBe('error');
+    expect(payload.message).toContain('timetable failed');
+  });
+
   it('get_class_timetable returns auth_required when auth wait times out', async () => {
     vi.spyOn(SISScraper.prototype, 'scrapeTimetable').mockRejectedValue(
       new SessionExpiredError('expired')

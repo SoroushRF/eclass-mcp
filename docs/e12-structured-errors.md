@@ -19,17 +19,17 @@ This document is the **canonical reference** for how the eClass MCP server expos
 
 Defined in [`src/errors/codes.ts`](../src/errors/codes.ts) as `MACHINE_CODES` / `MachineCode`:
 
-| Code                      | Meaning                                                                                                                                |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_EXPIRED`         | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`). |
+| Code                          | Meaning                                                                                                                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_EXPIRED`             | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`).                                                |
 | `SESSION_STORAGE_UNAVAILABLE` | Local encrypted session storage cannot be used because `ECLASS_MCP_SESSION_SECRET` is missing/too short, the secret is wrong, or a legacy plaintext/malformed session file was found. |
-| `SCRAPE_LAYOUT_CHANGED`   | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                 |
-| `UPSTREAM_ERROR`          | Generic network or upstream failure (non-429, non-timeout classification).                                                             |
-| `RATE_LIMITED`            | HTTP 429 or explicit rate-limit signals.                                                                                               |
-| `TIMEOUT`                 | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                     |
-| `VALIDATION_FAILED`       | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                         |
-| `COURSE_CONTEXT_MISMATCH` | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry.   |
-| `INTERNAL_ERROR`          | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                |
+| `SCRAPE_LAYOUT_CHANGED`       | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                                                                |
+| `UPSTREAM_ERROR`              | Generic network or upstream failure (non-429, non-timeout classification).                                                                                                            |
+| `RATE_LIMITED`                | HTTP 429 or explicit rate-limit signals.                                                                                                                                              |
+| `TIMEOUT`                     | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                                                                    |
+| `VALIDATION_FAILED`           | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                                                                        |
+| `COURSE_CONTEXT_MISMATCH`     | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry.                                                  |
+| `INTERNAL_ERROR`              | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                                                               |
 
 Zod: `MachineCodeSchema` / optional variants live in [`src/tools/eclass-contracts.ts`](../src/tools/eclass-contracts.ts).
 
@@ -70,6 +70,7 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 ### Phase 2 — Scraper drift (`SCRAPE_LAYOUT_CHANGED`)
 
 - **`ScrapeLayoutError`** ([`src/scraper/scrape-errors.ts`](../src/scraper/scrape-errors.ts)) with optional **`context`** for debugging.
+- E15 selector registry failures include selector group id, page type, tried selectors, selector counts, URL/title, and optional debug snapshot path when `ECLASS_MCP_SELECTOR_DEBUG_SNAPSHOTS=1`.
 - Example: file download HTML wrapper with no extractable direct URL ([`src/scraper/eclass/files.ts`](../src/scraper/eclass/files.ts)); tool layer [`src/tools/files.ts`](../src/tools/files.ts) maps to **`toErrorPayload('SCRAPE_LAYOUT_CHANGED', …)`**.
 
 ### Phase 3 — Network (`UPSTREAM_ERROR`, `RATE_LIMITED`, `TIMEOUT`)
@@ -103,19 +104,19 @@ RMP required-field checks were moved to **`VALIDATION_FAILED`** JSON for consist
 
 ## 6. Primary source files (quick index)
 
-| Area                   | Files                                                              |
-| ---------------------- | ------------------------------------------------------------------ |
-| Codes                  | `src/errors/codes.ts`                                              |
-| Payload helpers        | `src/errors/tool-error.ts`                                         |
-| Validation errors      | `src/errors/validation-error.ts`                                   |
-| Scraper errors         | `src/scraper/scrape-errors.ts`                                     |
-| Session                | `src/scraper/session.ts`                                           |
+| Area                   | Files                                                                       |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Codes                  | `src/errors/codes.ts`                                                       |
+| Payload helpers        | `src/errors/tool-error.ts`                                                  |
+| Validation errors      | `src/errors/validation-error.ts`                                            |
+| Scraper errors         | `src/scraper/scrape-errors.ts`                                              |
+| Session                | `src/scraper/session.ts`                                                    |
 | Secure session storage | `src/security/secure-session-store.ts`, `src/security/auth-session-wipe.ts` |
-| RMP client             | `src/scraper/rmp.ts`                                               |
-| eClass barrel exports  | `src/scraper/eclass.ts`                                            |
-| Zod contracts          | `src/tools/eclass-contracts.ts`                                    |
-| Validation wrapper     | `src/tools/mcp-validated-response.ts`                              |
-| Tools (representative) | `src/tools/deadlines.ts`, `src/tools/files.ts`, `src/tools/rmp.ts` |
+| RMP client             | `src/scraper/rmp.ts`                                                        |
+| eClass barrel exports  | `src/scraper/eclass.ts`                                                     |
+| Zod contracts          | `src/tools/eclass-contracts.ts`                                             |
+| Validation wrapper     | `src/tools/mcp-validated-response.ts`                                       |
+| Tools (representative) | `src/tools/deadlines.ts`, `src/tools/files.ts`, `src/tools/rmp.ts`          |
 
 ---
 

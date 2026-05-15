@@ -138,7 +138,38 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe('eclass low-branch DOM paths', () => {
+describe('eclass DOM scraper flows', () => {
+  it('getCourses uses primary course-card selectors before fallback links', async () => {
+    vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
+
+    const coursesUrl = 'https://eclass.yorku.ca/my/courses.php';
+    const page = createDomPage({
+      htmlByUrl: {
+        [coursesUrl]: `
+          <main>
+            <div class="course-listitem">
+              <div class="coursename">
+                <a href="https://eclass.yorku.ca/course/view.php?id=909">Course is starred EECS 2030 - Advanced OOP Course name</a>
+              </div>
+            </div>
+          </main>
+        `,
+      },
+    });
+
+    const { session } = createSessionFromPages([page]);
+    const result = await getCourses(session as any);
+
+    expect(result).toEqual([
+      {
+        id: '909',
+        name: 'EECS 2030 - Advanced OOP',
+        courseCode: 'EECS2030',
+        url: 'https://eclass.yorku.ca/course/view.php?id=909',
+      },
+    ]);
+  });
+
   it('getCourses uses fallback link extraction and deduplicates course ids', async () => {
     vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
 
@@ -164,6 +195,28 @@ describe('eclass low-branch DOM paths', () => {
     expect(page.waitForFunction).toHaveBeenCalledTimes(1);
     expect(page.close).toHaveBeenCalledTimes(1);
     expect(context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('getCourses extracts fallback ids from malformed hrefs using the legacy regex path', async () => {
+    vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
+
+    const coursesUrl = 'https://eclass.yorku.ca/my/courses.php';
+    const page = createDomPage({
+      htmlByUrl: {
+        [coursesUrl]: `
+          <main>
+            <a href="http://[bad/course/view.php?id=404">BIOL 4040 - Broken Link Course</a>
+          </main>
+        `,
+      },
+    });
+
+    const { session } = createSessionFromPages([page]);
+    const result = await getCourses(session as any);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe('404');
+    expect(result[0]?.courseCode).toBe('BIOL4040');
   });
 
   it('getCourses detects settled empty view and triggers debug dump', async () => {
@@ -228,7 +281,7 @@ describe('eclass low-branch DOM paths', () => {
     );
   });
 
-  it.skip('getCourseContent supports one-section-per-page fallback and ignores failed section loads', async () => {
+  it('getCourseContent supports one-section-per-page fallback and ignores failed section loads', async () => {
     vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
 
     const courseUrl = 'https://eclass.yorku.ca/course/view.php?id=500';
@@ -260,14 +313,16 @@ describe('eclass low-branch DOM paths', () => {
           </main>
         `,
       },
+      throwOnGotoUrls: new Set([section2]),
     });
 
     const { session } = createSessionFromPages([page]);
     const result = await getCourseContent(session as any, '500');
 
-    expect(result.sections.length).toBeGreaterThan(0);
-    expect(result.sections[0]?.title).toContain('Section');
+    expect(result.sections).toHaveLength(1);
+    expect(result.sections[0]?.title).toContain('Section 1');
     expect(result.sections[0]?.items[0]?.type).toBe('assign');
+    expect(result.sections[0]?.items[0]?.name).toBe('Assignment A');
   });
 
   it('getCourseContent supports section-based fallback when modules are on the main page', async () => {

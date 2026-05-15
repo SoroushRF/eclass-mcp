@@ -3,6 +3,8 @@ import { JSDOM } from 'jsdom';
 import {
   captureAssignmentRenderedMedia,
   extractAssignmentDetails,
+  normalizeCaptureAssignmentRenderedMediaOptions,
+  normalizeExtractAssignmentDetailsOptions,
   type ExtractedAssignmentDetails,
 } from '../src/scraper/cengage/assignment-details';
 
@@ -39,6 +41,13 @@ function runEvaluateInDom<TArg, TResult>(
     }),
   });
 
+  Object.defineProperty(window.HTMLElement.prototype, 'innerText', {
+    configurable: true,
+    get() {
+      return (this.textContent || '').replace(/\n\s*/g, '\n').trim();
+    },
+  });
+
   const prevWindow = (globalThis as Record<string, unknown>).window;
   const prevDocument = (globalThis as Record<string, unknown>).document;
   const prevHTMLElement = (globalThis as Record<string, unknown>).HTMLElement;
@@ -61,6 +70,68 @@ function runEvaluateInDom<TArg, TResult>(
 }
 
 describe('cengage assignment details scraper internals', () => {
+  it('normalizes extraction and rendered-media options with bounded defaults', () => {
+    expect(normalizeExtractAssignmentDetailsOptions()).toMatchObject({
+      maxQuestions: 50,
+      maxQuestionTextChars: 2000,
+      maxAnswerTextChars: 1200,
+      includeAnswers: true,
+      includeResources: true,
+      includeAssetInventory: true,
+      maxInteractiveAssets: 10,
+      maxMediaAssets: 10,
+    });
+
+    expect(
+      normalizeExtractAssignmentDetailsOptions({
+        maxQuestions: 0.4,
+        maxQuestionTextChars: 12,
+        maxAnswerTextChars: 9,
+        includeAnswers: false,
+        includeResources: false,
+        includeAssetInventory: false,
+        maxInteractiveAssets: -5,
+        maxMediaAssets: 0,
+      })
+    ).toMatchObject({
+      maxQuestions: 1,
+      maxQuestionTextChars: 200,
+      maxAnswerTextChars: 100,
+      includeAnswers: false,
+      includeResources: false,
+      includeAssetInventory: false,
+      maxInteractiveAssets: 1,
+      maxMediaAssets: 1,
+    });
+
+    expect(normalizeCaptureAssignmentRenderedMediaOptions()).toMatchObject({
+      maxRenderedImages: 20,
+      maxCaptureUnits: 50,
+      maxCapturePerQuestion: 1,
+      maxPayloadBytes: 819200,
+      minTextForSafeText: 250,
+      captureDpi: 100,
+    });
+
+    expect(
+      normalizeCaptureAssignmentRenderedMediaOptions({
+        maxRenderedImages: 999,
+        maxCaptureUnits: 999,
+        maxCapturePerQuestion: 0,
+        maxPayloadBytes: 1,
+        minTextForSafeText: 0,
+        captureDpi: 10,
+      })
+    ).toMatchObject({
+      maxRenderedImages: 20,
+      maxCaptureUnits: 50,
+      maxCapturePerQuestion: 1,
+      maxPayloadBytes: 10000,
+      minTextForSafeText: 1,
+      captureDpi: 72,
+    });
+  });
+
   it('extracts rich question details with truncation, resources, and assets', async () => {
     const html = `
       <main>
@@ -220,6 +291,103 @@ describe('cengage assignment details scraper internals', () => {
     expect(details.questions[0]?.resourceLinks).toBeUndefined();
     expect(details.questions[0]?.interactiveAssets).toBeUndefined();
     expect(details.questions[0]?.mediaAssets).toBeUndefined();
+  });
+
+  it('classifies alternate prompt, resource, score, and asset variants', async () => {
+    const html = `
+      <main>
+        <h1>Variant Assignment</h1>
+        <div class="waQBox" id="questionvariant_1">
+          <div class="js-question-header" data-question-display='{"questionID":"variant","submissions":"2/5","summary":{"total":{"score":"2.5 pts","total":"4 pts"}}}'>
+            <strong>[ 1 / 2 points ]</strong>
+            <span data-test="questionNum1">Question 12</span>
+          </div>
+          <div class="studentQuestionBox">
+            <div class="wa1par">Line one prompt
+Line two prompt</div>
+            <div class="wa1ans">Answer variant.</div>
+          </div>
+          <div class="mIncorrect"></div>
+          <div id="question_help_container_variant">
+            <a href="/help/variant">Help Variant</a>
+          </div>
+          <iframe id="plain-frame" src="/frame/plain" title="Plain iframe"></iframe>
+          <div id="math-widget" data-widget="mathquill equation"></div>
+          <div class="simulation interactive" data-url="/sim/run"></div>
+          <object data-url="/object/data"></object>
+          <canvas id="canvas-widget"></canvas>
+          <svg id="svg-widget"></svg>
+          <div class="custom-widget widget" data-url="not a url"></div>
+          <img id="img-one" src="/media/one.png" alt="One" />
+          <audio src="/media/audio.mp3"></audio>
+        </div>
+      </main>
+    `;
+
+    const page = {
+      evaluate: async (callback: unknown, arg: unknown) =>
+        runEvaluateInDom(
+          html,
+          'https://www.webassign.net/web/Student/Assignment-Responses/last?dep=400',
+          callback as ((value: unknown) => unknown) | (() => unknown),
+          arg
+        ),
+    };
+
+    const details = await extractAssignmentDetails(page as any, {
+      includeAnswers: true,
+      includeResources: true,
+      includeAssetInventory: true,
+      maxInteractiveAssets: 20,
+      maxMediaAssets: 20,
+    });
+
+    const question = details.questions[0];
+    expect(question?.questionNumber).toBe(12);
+    expect(question?.questionId).toBe('variant');
+    expect(question?.result).toBe('incorrect');
+    expect(question?.submissionsUsed).toBe('2/5');
+    expect(question?.pointsEarned).toBe(2.5);
+    expect(question?.pointsPossible).toBe(4);
+    expect(question?.promptSections).toEqual([
+      { title: 'Overview', text: 'Line one prompt Line two prompt' },
+    ]);
+    expect(question?.resourceLinks).toEqual([
+      {
+        label: 'Help Variant',
+        url: 'https://www.webassign.net/help/variant',
+      },
+    ]);
+    expect(question?.interactiveAssets?.map((asset) => asset.kind)).toEqual(
+      expect.arrayContaining([
+        'iframe',
+        'math_widget',
+        'simulation_widget',
+        'object',
+        'canvas',
+        'svg',
+        'unknown_widget',
+      ])
+    );
+    expect(question?.interactiveAssets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'object', unsupported: true }),
+        expect.objectContaining({
+          kind: 'unknown_widget',
+          unsupported: true,
+          sourceUrl: expect.stringContaining('not%20a%20url'),
+        }),
+      ])
+    );
+    expect(question?.mediaAssets?.map((asset) => asset.kind)).toEqual(
+      expect.arrayContaining(['image', 'audio', 'canvas', 'svg'])
+    );
+    expect(question?.extractionWarnings).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('Unsupported interactive asset detected'),
+      ])
+    );
+    expect(question?.completenessLevel).toBe('partial');
   });
 
   it('captures rendered-media screenshots from image-classified questions', async () => {
