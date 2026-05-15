@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-05-03
+**Last updated:** 2026-05-15
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -49,9 +49,9 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T14-T20** | Engine beta extension — SIS, RateMyProfessors, E2E verification                                                                                                                                                                                                                                          |
 | **T27**     | Engine post-beta automation — Cron / proactive notifications                                                                                                                                                                                                                                             |
 | **T21-T23** | Optional product polish (parallel track; does not block T14-T20)                                                                                                                                                                                                                                         |
-| **T24**     | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10](#2.10-detailed-plan---t26-scraper-modularization-eclassts-breakdown)                                                                                                        |
-| **T25**     | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)                                                                                                                               |
-| **T26**     | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#2.12-detailed-plan---t27-user-pinned-cache-quota-and-tools)                                                                                                                                                 |
+| **T24**     | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown)                                                                                                        |
+| **T25**     | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool)                                                                                                                               |
+| **T26**     | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools)                                                                                                                                                 |
 | **T28**     | [x] Cengage Integration Phase 1 complete: foundation + discovery/link metadata hardening — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)       |
 | **T29**     | [x] Cengage Integration Phase 2 complete: authentication routing and session handling — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)          |
 | **T30**     | [x] Cengage Integration Phases 3-4 complete: scraper core + MCP wiring + cache metadata parity — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
@@ -218,9 +218,9 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 - [x] **T21** ??? PDF pipeline: intelligent diagram / image detection and payload strategy ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md). **Completed 2026-03-23**.
 - [x] **T22** ? Deadlines: harden quiz + date selectors across themes; document test courses. **Completed 2026-03-23**.
 - [x] **T23** ? Richer `get_grades` / `get_announcements` / course map (post-v1 excellence per [?6](#6-mvp-vs-post-v1--perfection-backlog)). **Completed 2026-03-23**.
-- [x] **T24** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
-- [x] **T25** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
-- [x] **T26** ? **Pinned cache (user-directed):** `cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin` / `cache_delete_pinned`; single-store discipline; on-disk **quota** (`ECLASS_MCP_PIN_QUOTA_BYTES`); `clear_cache` skips pinned entries ? [2.12](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools). **Depends on T25.**
+- [x] **T24** ? **Scraper modularization:** break up `src/scraper/eclass.ts` into `src/scraper/eclass/` (browser session, domain modules, thin fa?ade) ? **no functional regressions**; see [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
+- [x] **T25** ? **Smart cache:** fresher TTL tiers, **`fetched_at` / `expires_at` / `cache_hit`** on tool JSON, **`clear_cache`** MCP tool (scoped), **volatile cache clear on successful auth**, replace ad-hoc `_v2`/`_v3` key suffixes with **`CACHE_SCHEMA_VERSION`** ? [?2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool).
+- [x] **T26** ? **Pinned cache (user-directed):** `cache_pin` / `cache_unpin` / `cache_list_pins` / `cache_refresh_pin` / `cache_delete_pinned`; single-store discipline; on-disk **quota** (`ECLASS_MCP_PIN_QUOTA_BYTES`); `clear_cache` skips pinned entries ? [2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools). **Depends on T25.**
 - [ ] **T27** ??? **Cron / proactive deadline notifications** (`node-cron`, notifier, `src/notifications/cron.ts`).
 
 #### 2.4.2 Cengage, WeBWorK, and Auth Retry (T28-T36)
@@ -468,7 +468,7 @@ jobs:
 
 ---
 
-### 2.10 Detailed plan ? **T24** Scraper modularization (`eclass.ts` breakdown)
+### 2.10b Detailed plan ? **T24** Scraper modularization (`eclass.ts` breakdown)
 
 **Goal:** `src/scraper/eclass.ts` is too large to navigate and test. Refactor into **small modules** under `src/scraper/eclass/` while preserving **identical public API** for `src/tools/*` (either keep a thin `eclass.ts` at `src/scraper/` that re-exports, or update imports once in a single PR ? prefer **one barrel** so downstream stays `from '../scraper/eclass'`).
 
@@ -530,7 +530,7 @@ jobs:
 - **Pushback ? ?hit eClass on login or whenever user calls the tool??:** Hitting eClass on **every** tool call removes most cache benefit and increases ban/WAF risk. Prefer: **(1)** shorter TTLs for hot data, **(2)** **clear volatile cache after successful auth** (new session ? stale assumptions), **(3)** optional **`force_refresh`** on selected tools, **(4)** explicit **`clear_cache`** when the user asks for the freshest data.
 - **Pushback ? ?syllabus vs announcements?? without signals:** The cache layer does not reliably know if a PDF is a syllabus or a lecture; same URL can be overwritten. **Phase 1 of T25:** tier by **tool/resource type** (not filename NLP). **Phase 2 (optional later):** shorter TTL when `get_file_text` detects "outline" patterns or user flags ? out of scope for T25 DoD unless time allows.
 - **Metadata in responses:** Add a **small, stable envelope** to the JSON each tool already returns (e.g. top-level `_cache: { hit, fetched_at, expires_at }` plus existing payload fields) so Claude can quote freshness. Avoid a **second** MCP content block for every call (noisier protocol-wise); the model can summarize `_cache` in natural language for the user.
-- **`clear_cache` tool:** **Agree** ? register a **10th** tool `clear_cache` with `scope`: `all` \| `volatile` \| `deadlines` \| `announcements` \| `grades` \| `content` \| `files` \| `courses` (exact enum to match key prefixes). Return a short JSON summary of what was removed.
+- **`clear_cache` tool:** **Done** ? `clear_cache` is registered with `scope`: `all` \| `volatile` \| `deadlines` \| `announcements` \| `grades` \| `content` \| `files` \| `courses` (exact enum to match key prefixes). Returns a short JSON summary of what was removed.
 - **"Cache-first" discipline:** Tools must check for a valid, unexpired cache **before** triggering a session check or login flow. If valid cache exists, return it instantly; only force login if cache is missing or expired.
 
 #### Target TTLs (minutes) ? replace current `TTL` in `store.ts`
@@ -639,7 +639,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 - README: pin semantics ("immutable until refresh"), quota env vars, interaction with `clear_cache`.
 - Update **?3.1** tool count and planned rows when T27 ships.
 
-#### Definition of done (T27)
+#### Definition of done (T26)
 
 - [x] **T26 complete** (or explicitly listed exceptions documented)?no parallel cache key story.
 - [x] Pin registry on disk (`pins.json`) + integration with **single** cache architecture (no duplicate blobs for the same logical file without justification).
@@ -797,9 +797,9 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 | `cache_refresh_pin`              | Re-fetch and refresh a pinned cache entry                                                                                 |
 | `cache_delete_pinned`            | Explicitly delete pinned cache files + registry rows                                                                      |
 
-**Cache metadata ([T25](#211-detailed-plan---t26-smart-cache-metadata---clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
+**Cache metadata ([T25](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool)):** JSON tools return **`_cache`** freshness metadata; `clear_cache` clears default TTL cache only.
 
-**Pinned cache ([T26](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
+**Pinned cache ([T26](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
 
 **Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), gated by **E20-E21** in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; risky write calls require signed **`preflightRef`**, explicit **`confirm: true`**, and target revalidation immediately before mutation.
 
@@ -831,23 +831,37 @@ Key paths under `src/`:
 - `index.ts` ? MCP server, tool registration
 - `tools/*.ts` ? one module per tool area
 - `scraper/session.ts` ? load/save cookies, validity
-- `scraper/eclass.ts` ? main eClass scraper (large; modularize under **T25** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown))
+- `scraper/eclass.ts` ? barrel re-export for the modularized `scraper/eclass/` directory (**T24** complete; see [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown))
 - `auth/server.ts` ? local auth HTTP server
 - `cache/store.ts` ? TTL JSON cache
 - `parser/*` ? file parsing
 
 ### 4.2 Tool error pattern (canonical)
 
-Authenticated tools should catch `SessionExpiredError`, prompt re-auth (e.g. `openAuthWindow()` where implemented), and return a text response the model can surface to the user. Public HTTP tools (future RMP) omit session handling and propagate or wrap other errors as appropriate.
+Authenticated tools follow a layered error-handling pattern: check for `SecureSessionStorageError` first (session encryption issues), then `ScrapeLayoutError` (selector drift), then `SessionExpiredError` (with auto-retry via `handleEclassSessionExpired`). Public HTTP tools (RMP) omit session handling and propagate or wrap other errors as appropriate.
 
 ```typescript
-// Pattern (representative ? align with existing tools in src/tools/)
+// Pattern (representative ? see src/tools/courses.ts for a real example)
+const run = async () => {
+  const { data, cacheMeta } = await getDataWithCache();
+  return asValidatedMcpText('tool_name', Schema, attachCacheMeta(data, cacheMeta));
+};
+
 try {
-  // ... fetch / scrape ...
+  return await run();
 } catch (e) {
+  if (isSessionStorageUnavailable(e)) {
+    return sessionStorageUnavailableResponse('tool_name');
+  }
+  if (isScrapeLayoutChanged(e)) {
+    return scrapeLayoutChangedResponse('tool_name', e);
+  }
   if (e instanceof SessionExpiredError) {
-    openAuthWindow();
-    return { content: [{ type: 'text' as const, text: (e as Error).message }] };
+    return handleEclassSessionExpired(e, run, (error) =>
+      asValidatedMcpText('tool_name', Schema, sessionExpiredPayload(error.message, {
+        afterAuth: true, authUrl: getAuthUrl('eclass'),
+      }))
+    );
   }
   throw e;
 }
@@ -855,7 +869,7 @@ try {
 
 ### 4.3 Cache keys
 
-**Current code** still uses ad-hoc `_v2` / `_v3` suffixes in some tools. **Target (T26):** a single **`CACHE_SCHEMA_VERSION`** in [`src/cache/store.ts`](../src/cache/store.ts) plus key builders ? bump only when the **JSON shape** of cached data changes; see [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
+**Completed (T25).** All tools now use a single **`CACHE_SCHEMA_VERSION`** in [`src/cache/store.ts`](../src/cache/store.ts) with key builders; the former ad-hoc `_v2`/`_v3` suffixes have been removed. Bump `CACHE_SCHEMA_VERSION` only when the **JSON shape** of cached data changes.
 
 ---
 
@@ -907,7 +921,7 @@ Treat them as **post-v1 excellence**, not greenfield:
 
 **Checkbox status** for T01?T13: see [?2.2](#22-tracker--v1-foundation-t01t13).
 
-The original spec targeted **6 tools**; the repo now ships **22**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20**, **T28?T31**, and engineering track **E\***.
+The original spec targeted **6 tools**; the repo now ships **24**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20**, **T28?T31**, and engineering track **E\***.
 
 ---
 
@@ -944,9 +958,9 @@ Cengage hardening (**T28-T31**) is complete; the concise status summary lives in
 1. **PDF / files** ? [`get_file_text/roadmap.md`](tools/get_file_text/roadmap.md).
 2. **Deadlines** ? Playwright install; selector hardening; [`deadlines/roadmap.md`](tools/deadlines/roadmap.md).
 3. **Post-v1 tool depth** ? [?6.2](#62-upcoming-tools-section--reinterpretation).
-4. **Scraper structure** ? **T24** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
-5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
-6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) _(after T25)_.
+4. **Scraper structure** ? **T24** / [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
+5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool).
+6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools) _(after T25)_.
 7. **future write tools (preflight-first)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
 8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 
@@ -1015,50 +1029,50 @@ for (const sisUrl of SIS_URLS) {
 
 ### 11.1 Executive summary
 
-The project scores roughly **7.4/10** on engineering maturity; largest gaps are **CI/CD, tests, security hardening, structured errors, observability, and release discipline**.
+The project scores roughly **8.7/10** on engineering maturity after completing the E01?E20 roadmap; the original gaps (CI/CD, tests, security hardening, structured errors, observability, and release discipline) are now addressed. The remaining open item is **E21** (post-write audit log + cache invalidation).
 
 ### 11.2 Scored rubric (0?10)
 
-| Category               | Python ref | This repo | Notes                   |
-| ---------------------- | ---------- | --------- | ----------------------- |
-| Architecture clarity   | 8.0        | 7.5       | TS repo more complex    |
-| Feature depth          | 4.0        | 8.5       | TS much broader         |
-| Reliability/resilience | 5.5        | 7.0       | Selector fallbacks help |
-| Security posture       | 5.5        | 6.0       | Session hardening TBD   |
-| Testing maturity       | 4.5        | 4.5       | Needs CI + fixtures     |
-| DevEx/onboarding       | 7.0        | 8.5       | Strong practical docs   |
-| Portability            | 6.5        | 6.0       | Env assumptions         |
-| Documentation          | 8.0        | 8.0       | Good troubleshooting    |
-| Professional polish    | 7.0        | 7.0       | Needs formal guardrails |
-| Production readiness   | 5.5        | 7.0       | Closer to daily use     |
+| Category               | Python ref | This repo | Notes                                       |
+| ---------------------- | ---------- | --------- | ------------------------------------------- |
+| Architecture clarity   | 8.0        | 8.5       | Modularized scrapers, typed selectors       |
+| Feature depth          | 4.0        | 9.0       | 24 tools, cross-platform resolver           |
+| Reliability/resilience | 5.5        | 8.5       | Selector registry, auth retry, drift codes  |
+| Security posture       | 5.5        | 8.5       | AES-256-GCM sessions, signed preflight refs |
+| Testing maturity       | 4.5        | 8.0       | 60 test suites, 75% branch gate             |
+| DevEx/onboarding       | 7.0        | 9.0       | Doctor, safe setup, dry-run, restore        |
+| Portability            | 6.5        | 7.5       | Windows/Linux CI, env-driven config         |
+| Documentation          | 8.0        | 8.5       | Operational limits, release docs, changelog |
+| Professional polish    | 7.0        | 8.5       | Release checklist, versioning policy        |
+| Production readiness   | 5.5        | 8.5       | Structured errors, logging, encrypted auth  |
 
 ### 11.3 SWOR, definition of 9+, KPIs, risks, sprints
 
-- **SWOR:** strengths = York value, modular tools, Playwright realism; weaknesses = quality gates, drift, session security; opportunities = fixtures, doctor, releases; risks = untested scope growth, silent breakage, leaks.
+- **SWOR:** strengths = York value, modular tools, Playwright realism, typed selector registry, signed preflight security; weaknesses = no global concurrency limiter, no write-tool audit log yet; opportunities = E21 audit, WeBWorK integration, proactive cron; risks = drift on untested Cengage/WebAssign pages, silent WAF changes.
 - **9.0+ means:** reliable, CI-tested, secure-enough local session, operable errors/logs, lifecycle docs, portable setup.
-- **KPIs:** CI pass rate, regression detection in one PR cycle, >70% critical-path coverage, zero cookie leaks in logs.
-- **Three-sprint sketch:** Sprint 1 = E01?E07 + start E08; Sprint 2 = E08?E12 + early E14; Sprint 3 = E13?E15 + E16?E19; **write tools:** land **E20-E21** with **T37-T40** when E11/E12 are green.
+- **KPIs:** CI pass rate, regression detection in one PR cycle, >75% branch coverage, zero cookie leaks in logs.
+- **Remaining sprint:** E21 (audit + cache invalidation), then T37?T40 write tools.
 
 ### 11.4 Score projection (after roadmap)
 
 | Category             | Current | Target |
 | -------------------- | ------- | ------ |
-| Architecture         | 7.5     | 8.8    |
-| Features             | 8.5     | 9.2    |
-| Reliability          | 7.0     | 9.0    |
-| Security             | 6.0     | 8.6    |
-| Testing              | 4.5     | 8.5    |
-| DevEx                | 8.5     | 9.2    |
-| Portability          | 6.0     | 8.7    |
-| Docs                 | 8.0     | 9.0    |
-| Polish               | 7.0     | 9.1    |
-| Production readiness | 7.0     | 9.0    |
+| Architecture         | 8.5     | 9.0    |
+| Features             | 9.0     | 9.2    |
+| Reliability          | 8.5     | 9.0    |
+| Security             | 8.5     | 9.0    |
+| Testing              | 8.0     | 8.5    |
+| DevEx                | 9.0     | 9.2    |
+| Portability          | 7.5     | 8.7    |
+| Docs                 | 8.5     | 9.0    |
+| Polish               | 8.5     | 9.1    |
+| Production readiness | 8.5     | 9.0    |
 
 ---
 
 ## 12. Phase D ? Maintainer / codebase health
 
-- **T25 ? `src/scraper/eclass.ts` refactor:** Tracked in **?2.4**; full procedure in [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
+- **T24 ? `src/scraper/eclass/` modularization:** Completed; barrel re-export preserves downstream API. Full procedure in [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
 - **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); gates **E20-E21** in **§2.5**.
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
