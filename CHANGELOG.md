@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_Nothing yet._
+### Documentation
+
+- Added `docs/operational-limits.md` to document current timeouts, auth waits, concurrency posture, retry behavior, rate-limit handling, and future runtime safety guidance.
 
 ## [1.0.0-beta.2] - 2026-05-15
 

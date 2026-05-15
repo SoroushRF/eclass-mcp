@@ -67,6 +67,10 @@ Scraper selectors are grouped in a typed registry under `src/scraper/selectors/`
 
 Optional debug snapshots are disabled by default. Set `ECLASS_MCP_SELECTOR_DEBUG_SNAPSHOTS=1` only during local debugging to write bounded HTML and JSON metadata under `.eclass-mcp/debug/selectors/`.
 
+### Operational limits (E19)
+
+Navigation timeouts, auth wait windows, current concurrency posture, and rate-limit behavior are documented in [`docs/operational-limits.md`](docs/operational-limits.md). Slow external pages should map to structured `TIMEOUT`, `RATE_LIMITED`, or `UPSTREAM_ERROR` responses when the tool can classify them; platform-specific auth and activation states may produce more specific guidance.
+
 ---
 
 ## 🏗️ Architecture

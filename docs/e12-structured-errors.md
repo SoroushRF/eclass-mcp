@@ -78,6 +78,7 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 - **`UpstreamError`** + **`upstreamErrorFromHttpStatus`** + **`upstreamErrorFromUnknown`** in [`src/scraper/scrape-errors.ts`](../src/scraper/scrape-errors.ts).
 - **RMP** ([`src/scraper/rmp.ts`](../src/scraper/rmp.ts)): `fetch` failures, non-OK HTTP, invalid JSON, GraphQL `errors` in the response body.
 - **File download** ([`src/scraper/eclass/files.ts`](../src/scraper/eclass/files.ts)): Playwright `request.get` non-OK responses; other Playwright/network errors mapped via **`upstreamErrorFromUnknown`**.
+- Runtime timeout, concurrency, retry, and rate-limit posture is documented in [`docs/operational-limits.md`](./operational-limits.md).
 - **Tools:** [`src/tools/rmp.ts`](../src/tools/rmp.ts), [`src/tools/files.ts`](../src/tools/files.ts) return **`EclassToolErrorResponseSchema`** with **`toErrorPayload(error.code, …)`** and optional **`details.httpStatus`**.
 
 ### Phase 4 — Validation (`VALIDATION_FAILED`)
