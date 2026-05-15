@@ -4,6 +4,8 @@ Checklist for MCP `server.tool` registrations in `src/index.ts`. Validation uses
 
 **E12:** Machine codes and error-class mapping — full reference [`e12-structured-errors.md`](./e12-structured-errors.md); codes live in `src/errors/codes.ts`.
 
+**Future writes (E20):** prepare tools return structured JSON with a signed `preflightRef`; write tools return structured success/error JSON and must validate Zod inputs before registration. Risky write inputs extend the shared preflight reference + `confirm: true` contract in `src/tools/write-contracts.ts`.
+
 | Tool                                                                                          | Response shape                                                                                                                                                                  | Notes                                                                         |
 | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `list_courses`                                                                                | JSON: `attachCacheMeta` on `{ courses }` or `no_data`, or `auth_required`                                                                                                       | No plain text                                                                 |

@@ -234,12 +234,12 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 
 #### 2.4.3 Future write tools (T37-T40)
 
-**Prerequisites:** **E20** satisfied before registering or implementing destructive tools; **E11** / **E12** are part of E20. **E21** must land **with** the first write tool merge (same PR or immediately after). **E13** (session at-rest hardening) is **strongly recommended** before relying on writes on shared machines.
+**Prerequisites:** **E20** satisfied before implementing destructive tools; **E11** / **E12** are part of E20. **E21** must land **with** the first write tool merge (same PR or immediately after). **E13** (session at-rest hardening) is **strongly recommended** before relying on writes on shared machines.
 
 - [ ] **T37** ? **Assignment submission preflight:** scraper + MCP tool(s) to resolve an assignment activity (from course/URL/cm id), return **read-only** constraints (due date, allowed types/size, draft vs final, current submission summary). No upload. Supports human-in-the-loop workflows.
-- [ ] **T38** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`**; tool registered **only** when opt-in env is set (see **E20**). Depends on **T37** for validation path reuse.
-- [ ] **T39** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **confirm** + env gate as T38. Inspect script + selectors before implementation.
-- [ ] **T40** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T37-T39** (preflight, submit, calendar); include session-expired and **writes disabled** (env off) cases.
+- [ ] **T38** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`** and a signed **`preflightRef`** from the prepare tool; the tool revalidates the target before mutating. Depends on **T37** for validation path reuse.
+- [ ] **T39** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **preflightRef** + **confirm** model as T38. Inspect script + selectors before implementation.
+- [ ] **T40** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T37-T39** (preflight, submit, calendar); include session-expired, missing/stale preflight reference, confirmation-required, and platform-state-changed cases.
 
 #### 2.4.4 Cross-platform assignment resolver (T41)
 
@@ -271,7 +271,7 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 | [x] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config: preview diff, timestamped backups, backup listing, safe restore from `latest` or a validated path, and atomic Claude config writes.                                                                                                                               | D    |
 | [x] **E18** | `CHANGELOG.md` + full-history commit audit ledger + GitHub Release body/checklist for `v1.0.0-beta.2`; tag creation intentionally stops for user confirmation.                                                                                                                                                                        | D    |
 | [x] **E19** | Runtime limits documentation for external calls: navigation/auth waits, current concurrency posture, rate-limit behavior, retry semantics, and future write-tool safety guidance in [`docs/operational-limits.md`](./operational-limits.md).                                                                                          | D    |
-| [ ] **E20** | **Write tools ? pre-ship gates:** **E11** + **E12** complete for every write tool; `SECURITY.md` + README subsection (risks, misuse, no warranty); **opt-in env** (e.g. `ECLASS_MCP_ENABLE_WRITES=1`) ? write tools **not registered** when unset; link to [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)               | C    |
+| [x] **E20** | **Write tools ? pre-ship gates:** accuracy-first write contract: shared Zod schemas, signed preflight references, per-call `confirm: true`, target revalidation before mutation, write-specific machine codes, README/`SECURITY.md` risk copy; no actual write tool implemented yet.                                                  | C    |
 | [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T25** when present) | C    |
 
 _(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-tool safety, Epic C.)_
@@ -463,7 +463,7 @@ jobs:
 
 #### 2.9.7 E20?E21 ? Future write-tool safety
 
-- **E20:** Pre-ship **gates** for **T28-T30**: **E11** + **E12** done for write tools; opt-in env for registration; README + `SECURITY.md` copy. Full checklist: [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31).
+- **E20:** Done. Future write tools use an accuracy-first contract instead of an env registration gate: read-only prepare/preflight first, signed `preflightRef`, per-call `confirm: true`, target revalidation before mutation, structured write failure codes, and README + `SECURITY.md` risk copy.
 - **E21:** **After** a successful write: append-only **audit log** (redaction aligned with **E14**); **invalidate** scrape cache entries that would otherwise lie (scopes per **T25** / `clear_cache` once available).
 
 ---
@@ -687,15 +687,16 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 #### Safety before implementation (E20)
 
 1. **Contracts:** Complete **E11** (Zod) and **E12** (structured errors — [`e12-structured-errors.md`](./e12-structured-errors.md)) for **all** write tools before merge. Machine-readable failures beat prose when the host retries or summarizes.
-2. **Registration gate:** `ListTools` / `index.ts` registers write tools **only** when an explicit env var is set (name **`ECLASS_MCP_ENABLE_WRITES`** unless renamed in implementation; document in `.env.example`).
-3. **User-facing risk:** README subsection + **SECURITY.md** bullet: writes are **irreversible** in normal use; users are responsible for confirming paths and course context; no institutional warranty.
-4. **Session posture:** Treat **E13** as a **recommended** prerequisite for write tools on laptops that are not single-user private.
+2. **Preflight reference:** risky write tools require a signed `preflightRef` from a read-only prepare tool. The write tool verifies the signature/expiry, reruns target resolution, compares the target hash, and fails with `WRITE_PLATFORM_STATE_CHANGED` if course, assignment, due date, submission state, upload slots, or intended file facts changed.
+3. **Per-call confirmation:** write tools require explicit **`confirm: true`** in the input. Missing confirmation returns `WRITE_CONFIRMATION_REQUIRED`.
+4. **User-facing risk:** README subsection + **SECURITY.md** bullet: writes may be **irreversible** in normal use; users are responsible for confirming paths and course context; no institutional warranty.
+5. **Session posture:** Treat **E13** as a **recommended** prerequisite for write tools on laptops that are not single-user private.
 
 #### Product shape (T37-T39)
 
-- **Preflight first (T37):** A read-only tool (or extension of existing detail fetch) that returns **constraints** and **current submission state** so the model and user can sanity-check before any upload.
-- **Submit (T38):** One tool, narrow parameters (course/activity identity + local file path or agreed payload shape), mandatory **`confirm: true`**, strict MIME/size checks against preflight when feasible.
-- **Calendar (T39):** Start with events the **student role** can create in Moodle; same confirm + env gate. Inspect script + selectors before implementation.
+- **Preflight first (T37):** A read-only tool (or extension of existing detail fetch) that returns **constraints**, **current submission state**, warnings, and a signed **`preflightRef`** so the model and user can sanity-check before any upload.
+- **Submit (T38):** One tool, narrow parameters (course/activity identity + local file path or agreed payload shape), mandatory **`preflightRef`** + **`confirm: true`**, strict MIME/size checks against preflight when feasible.
+- **Calendar (T39):** Start with events the **student role** can create in Moodle; same preflight reference + confirm model. Inspect script + selectors before implementation.
 
 #### Safety after a successful write (E21)
 
@@ -705,11 +706,11 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 #### Verification (T40)
 
 - Extend the E2E handbook with **safe** scenarios (test course / sandbox if available); document **Skip** when no fixture course.
-- Rows for: preflight happy path, submit with writes **disabled** (env off), session expired mid-flow.
+- Rows for: preflight happy path, submit with missing/stale preflight reference, confirmation required, platform state changed, and session expired mid-flow.
 
 #### Definition of done (writes track)
 
-- [ ] **E20** checkboxes satisfied; write tools absent from default registration.
+- [x] **E20** checkboxes satisfied; write tools have shared contract schemas, signed preflight references, and write-specific error codes before implementation.
 - [ ] **E21** audit + invalidation behavior documented in README.
 - [ ] **T37-T39** implemented with shared validation helpers.
 - [ ] **T40** handbook + run log updated (or explicit Skip with reason).
@@ -800,7 +801,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 **Pinned cache ([T26](#212-detailed-plan---t27-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
 
-**Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), gated by **E20-E21** in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; **opt-in env**; **`confirm: true`** on destructive calls; **not** registered unless enabled.
+**Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), gated by **E20-E21** in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; risky write calls require signed **`preflightRef`**, explicit **`confirm: true`**, and target revalidation immediately before mutation.
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -946,7 +947,7 @@ Cengage hardening (**T28-T31**) is complete; the concise status summary lives in
 4. **Scraper structure** ? **T24** / [?2.10](#210-detailed-plan--t26-scraper-modularization-eclassts-breakdown).
 5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t27-smart-cache-metadata--clear_cache-tool).
 6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t28-user-pinned-cache-quota-and-tools) _(after T25)_.
-7. **future write tools (opt-in)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
+7. **future write tools (preflight-first)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
 8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 
 ---

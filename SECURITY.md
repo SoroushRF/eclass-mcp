@@ -26,6 +26,12 @@ Session encryption protects against casual copying of `.eclass-mcp/session.json`
 
 The local `/logout` route performs best-effort auth-session deletion and overwrite before unlinking. Secure wipe cannot be guaranteed on SSDs, journaling filesystems, OneDrive/cloud sync, backups, or other copy-on-write storage.
 
+## Future write-tool risk model
+
+Future upload/submission/calendar tools may perform actions that are difficult or impossible to undo in normal eClass, Cengage/WebAssign, or Moodle use. Users remain responsible for confirming the target course, assignment, due date, submission state, and local files before a write.
+
+The project reduces write risk with an accuracy-first contract: read-only preflight first, a signed `preflightRef`, explicit per-call `confirm: true`, target revalidation immediately before mutation, structured write failure codes, and later E21 append-only audit logging. Claude or host-level tool permissions are convenience controls, not the safety source of truth. This project is not affiliated with York University and provides no institutional warranty.
+
 ## Reporting a vulnerability
 
 **Preferred (GitHub)**

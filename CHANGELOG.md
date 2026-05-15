@@ -7,9 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added E20 write-preflight contract helpers: shared Zod schemas, signed preflight references, and write-specific machine codes for future assignment/calendar write tools.
+
 ### Documentation
 
 - Added `docs/operational-limits.md` to document current timeouts, auth waits, concurrency posture, retry behavior, rate-limit handling, and future runtime safety guidance.
+- Replaced the old write-tool env-gate plan with an accuracy-first preflight + confirmation + target revalidation model in README, SECURITY, E11/E12 docs, and the master tracker.
 
 ## [1.0.0-beta.2] - 2026-05-15
 

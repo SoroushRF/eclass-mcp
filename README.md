@@ -71,6 +71,10 @@ Optional debug snapshots are disabled by default. Set `ECLASS_MCP_SELECTOR_DEBUG
 
 Navigation timeouts, auth wait windows, current concurrency posture, and rate-limit behavior are documented in [`docs/operational-limits.md`](docs/operational-limits.md). Slow external pages should map to structured `TIMEOUT`, `RATE_LIMITED`, or `UPSTREAM_ERROR` responses when the tool can classify them; platform-specific auth and activation states may produce more specific guidance.
 
+### Future write safety (E20)
+
+Future write tools are designed around accuracy-first preflight, not hidden registration gates. A risky write must first call a read-only prepare tool that returns the exact course, assignment, due date, submission state, upload constraints, warnings, and a signed `preflightRef`. The real write call must include that `preflightRef` plus `confirm: true`; the server rechecks the page before mutating and fails if the target is ambiguous, stale, or changed. Claude tool permissions are useful UX controls, but server-side target verification is the safety source of truth.
+
 ---
 
 ## 🏗️ Architecture

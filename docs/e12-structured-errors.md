@@ -19,17 +19,25 @@ This document is the **canonical reference** for how the eClass MCP server expos
 
 Defined in [`src/errors/codes.ts`](../src/errors/codes.ts) as `MACHINE_CODES` / `MachineCode`:
 
-| Code                          | Meaning                                                                                                                                                                               |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SESSION_EXPIRED`             | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`).                                                |
-| `SESSION_STORAGE_UNAVAILABLE` | Local encrypted session storage cannot be used because `ECLASS_MCP_SESSION_SECRET` is missing/too short, the secret is wrong, or a legacy plaintext/malformed session file was found. |
-| `SCRAPE_LAYOUT_CHANGED`       | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                                                                |
-| `UPSTREAM_ERROR`              | Generic network or upstream failure (non-429, non-timeout classification).                                                                                                            |
-| `RATE_LIMITED`                | HTTP 429 or explicit rate-limit signals.                                                                                                                                              |
-| `TIMEOUT`                     | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                                                                    |
-| `VALIDATION_FAILED`           | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                                                                        |
-| `COURSE_CONTEXT_MISMATCH`     | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry.                                                  |
-| `INTERNAL_ERROR`              | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                                                               |
+| Code                           | Meaning                                                                                                                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SESSION_EXPIRED`              | Session cookie or auth context is no longer valid; user may need to complete login (often with `status: 'auth_required'` and `retry`).                                                |
+| `SESSION_STORAGE_UNAVAILABLE`  | Local encrypted session storage cannot be used because `ECLASS_MCP_SESSION_SECRET` is missing/too short, the secret is wrong, or a legacy plaintext/malformed session file was found. |
+| `SCRAPE_LAYOUT_CHANGED`        | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                                                                |
+| `UPSTREAM_ERROR`               | Generic network or upstream failure (non-429, non-timeout classification).                                                                                                            |
+| `RATE_LIMITED`                 | HTTP 429 or explicit rate-limit signals.                                                                                                                                              |
+| `TIMEOUT`                      | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                                                                    |
+| `VALIDATION_FAILED`            | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                                                                        |
+| `COURSE_CONTEXT_MISMATCH`      | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry.                                                  |
+| `WRITE_CONFIRMATION_REQUIRED`  | A future write tool was called without explicit `confirm: true`.                                                                                                                      |
+| `WRITE_PREFLIGHT_REQUIRED`     | A future write tool was called without a valid signed `preflightRef` from the prepare tool.                                                                                           |
+| `WRITE_PREFLIGHT_EXPIRED`      | The signed preflight reference is too old; call the prepare tool again.                                                                                                               |
+| `WRITE_TARGET_AMBIGUOUS`       | The write target cannot be resolved to one exact course/activity/file slot.                                                                                                           |
+| `WRITE_PRECHECK_FAILED`        | The prepare or write precheck found a blocking issue before mutation.                                                                                                                 |
+| `WRITE_PLATFORM_STATE_CHANGED` | The platform state no longer matches the signed preflight facts; call the prepare tool again.                                                                                         |
+| `UPLOAD_SLOT_NOT_FOUND`        | The expected Moodle/Cengage upload control could not be found.                                                                                                                        |
+| `SUBMISSION_ALREADY_FINALIZED` | The assignment appears already submitted/finalized and should not be changed by automation.                                                                                           |
+| `INTERNAL_ERROR`               | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                                                               |
 
 Zod: `MachineCodeSchema` / optional variants live in [`src/tools/eclass-contracts.ts`](../src/tools/eclass-contracts.ts).
 
@@ -91,6 +99,16 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 
 ---
 
+### Phase 5 — Future writes (E20)
+
+- Missing `preflightRef` is **`WRITE_PREFLIGHT_REQUIRED`**, not an auth failure.
+- Expired `preflightRef` is **`WRITE_PREFLIGHT_EXPIRED`**, not an internal failure; call the prepare tool again.
+- Ambiguous target resolution is **`WRITE_TARGET_AMBIGUOUS`** unless the DOM itself cannot be interpreted, in which case use **`SCRAPE_LAYOUT_CHANGED`**.
+- Changed course, assignment title, due date, submission state, upload slots, or intended file facts after preflight is **`WRITE_PLATFORM_STATE_CHANGED`**. The model/user must call the prepare tool again before retrying the write.
+- Missing `confirm: true` is **`WRITE_CONFIRMATION_REQUIRED`**.
+
+---
+
 ## 5. Policy: `McpError` vs JSON tool body
 
 | Mechanism                                                       | When to use                                                                                                                                                                      |
@@ -116,6 +134,7 @@ RMP required-field checks were moved to **`VALIDATION_FAILED`** JSON for consist
 | RMP client             | `src/scraper/rmp.ts`                                                        |
 | eClass barrel exports  | `src/scraper/eclass.ts`                                                     |
 | Zod contracts          | `src/tools/eclass-contracts.ts`                                             |
+| Write preflight        | `src/tools/write-contracts.ts`, `src/tools/write-preflight-ref.ts`          |
 | Validation wrapper     | `src/tools/mcp-validated-response.ts`                                       |
 | Tools (representative) | `src/tools/deadlines.ts`, `src/tools/files.ts`, `src/tools/rmp.ts`          |
 

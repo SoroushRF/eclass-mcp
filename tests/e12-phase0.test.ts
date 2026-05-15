@@ -104,12 +104,18 @@ describe('E12 Phase 4 — VALIDATION_FAILED', () => {
 describe('E12 Phase 0 — machine codes', () => {
   it('MACHINE_CODES is stable and isMachineCode works', () => {
     expect(MACHINE_CODES).toContain('SESSION_EXPIRED');
+    expect(MACHINE_CODES).toContain('WRITE_PREFLIGHT_REQUIRED');
+    expect(MACHINE_CODES).toContain('WRITE_PLATFORM_STATE_CHANGED');
     expect(isMachineCode('SESSION_EXPIRED')).toBe(true);
+    expect(isMachineCode('WRITE_CONFIRMATION_REQUIRED')).toBe(true);
     expect(isMachineCode('NOT_A_CODE')).toBe(false);
   });
 
   it('MachineCodeSchema accepts known codes only', () => {
     expect(MachineCodeSchema.safeParse('SESSION_EXPIRED').success).toBe(true);
+    expect(MachineCodeSchema.safeParse('WRITE_PREFLIGHT_EXPIRED').success).toBe(
+      true
+    );
     expect(MachineCodeSchema.safeParse('UNKNOWN').success).toBe(false);
   });
 });
