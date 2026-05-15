@@ -22,6 +22,11 @@ afterEach(() => {
 
 describe('auth retry tool behavior', () => {
   it('list_courses returns storage error without opening auth', async () => {
+    const originalGetWithMeta = cache.getWithMeta.bind(cache);
+    vi.spyOn(cache, 'getWithMeta').mockImplementation((key: string) => {
+      if (key === getCacheKey('courses')) return null;
+      return originalGetWithMeta(key);
+    });
     vi.spyOn(scraper, 'getCourses').mockRejectedValue(
       new SecureSessionStorageError('missing_secret', 'missing secret')
     );

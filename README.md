@@ -2,7 +2,7 @@
 
 > **Connect Claude to York University's eClass — assignments, deadlines, grades, and course files, right inside your AI assistant.**
 
-> **Current engine stage:** `1.0.0-beta.1`
+> **Current engine stage:** `1.0.0-beta.2`
 >
 > The engine versioning and release policy now lives in [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md#engine-versioning--release-policy). The historical core-only release is treated as `0.9.0-core`, and the engine line is versioned separately from the eventual product surfaces.
 

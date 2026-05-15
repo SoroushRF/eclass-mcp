@@ -80,11 +80,12 @@ This repository now treats the MCP server as an **engine line** that can stay op
   - Treat it as the last core-only milestone, not the stable engine line.
 
 - `1.0.0-beta.1`
-  - Current engine stage in this repo.
+  - Previous engine beta stage in this repo.
   - Core eClass tools plus SIS and RMP are integrated.
   - The engine is useful and real, but still being hardened for broader use.
 
 - `1.0.0-beta.2`
+  - Current engine stage in this repo.
   - Cengage and WeBWorK assignment platform integration.
   - Platform discovery engine: passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
   - Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
@@ -167,8 +168,8 @@ This repository now treats the MCP server as an **engine line** that can stay op
 #### Current repo status
 
 - Historical core-only release: `0.9.0-core`
-- Current engine stage: `1.0.0-beta.1`
-- Next planned beta: `1.0.0-beta.2` (Cengage completed; eClass/SIS blocking poll completed; WeBWorK still pending)
+- Current engine stage: `1.0.0-beta.2`
+- Current beta includes Cengage/WebAssign, secure session storage, selector drift diagnostics, doctor/setup productization, and release discipline; WeBWorK remains pending.
 - Next major public engine milestone: `1.0.0`
 - Future planning should assume the engine and product will eventually diverge into separate release lines.
 
@@ -268,7 +269,7 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 | [x] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode — typed selector groups under `src/scraper/selectors/`, selector winner logging, `SCRAPE_LAYOUT_CHANGED` drift context, and opt-in `.eclass-mcp/debug/selectors/` snapshots.                                                                                      | C    |
 | [x] **E16** | `npm run doctor` environment and setup health check: Node/npm, build artifact, Playwright Chromium, `.env` and `ECLASS_MCP_SESSION_SECRET`, auth/session hints, Claude Desktop config target, permissions, and parser dependencies.                                                                                                   | D    |
 | [x] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config: preview diff, timestamped backups, backup listing, safe restore from `latest` or a validated path, and atomic Claude config writes.                                                                                                                               | D    |
-| [ ] **E18** | `CHANGELOG.md` + tagging / GitHub Release template                                                                                                                                                                                                                                                                                    | D    |
+| [x] **E18** | `CHANGELOG.md` + full-history commit audit ledger + GitHub Release body/checklist for `v1.0.0-beta.2`; tag creation intentionally stops for user confirmation.                                                                                                                                                                        | D    |
 | [ ] **E19** | Document timeouts, concurrency, rate limits for external calls                                                                                                                                                                                                                                                                        | D    |
 | [ ] **E20** | **Write tools ? pre-ship gates:** **E11** + **E12** complete for every write tool; `SECURITY.md` + README subsection (risks, misuse, no warranty); **opt-in env** (e.g. `ECLASS_MCP_ENABLE_WRITES=1`) ? write tools **not registered** when unset; link to [?2.13](#213-detailed-plan--v12-write-tools--safety-t28-t31)               | C    |
 | [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T25** when present) | C    |
@@ -457,7 +458,7 @@ jobs:
 
 - **E16 `doctor`:** Done. `npm run doctor` is a read-only setup health check covering Node/npm, `dist/index.js`, Playwright Chromium launchability, `.env` and `ECLASS_MCP_SESSION_SECRET`, auth/session hints, Claude Desktop config path/target, project permissions, and parser dependencies.
 - **E17 setup:** Done. `npm run setup -- --dry-run` previews the merged Claude config diff without writing; normal setup creates timestamped backups before overwriting existing config; `--list-backups` and `--restore latest|path` provide reversible config recovery; writes are atomic.
-- **E18 releases:** Keep a `CHANGELOG.md` (Keep a Changelog format); tag `vX.Y.Z`; GitHub Release body = changelog section.
+- **E18 releases:** Done. `CHANGELOG.md` is reconstructed from a full-history commit audit; `docs/releases/1.0.0-beta.2.md` is the GitHub Release body; `docs/releases/release-checklist.md` documents the final tag/push flow. `v1.0.0-beta.2` tagging is intentionally left for explicit user confirmation.
 - **E19:** Document default timeouts per `page.goto`; max concurrent pages; backoff for RMP if HTTP 429.
 
 #### 2.9.7 E20?E21 ? Future write-tool safety
