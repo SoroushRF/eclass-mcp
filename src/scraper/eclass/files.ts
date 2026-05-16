@@ -11,15 +11,43 @@ import {
   logDomSelectorMatch,
   throwSelectorLayoutChanged,
 } from '../selectors';
+import {
+  isAllowedUrlForPolicy,
+  validateFinalUrlForPolicy,
+  validateUrlForPolicy,
+} from '../../security/url-policy';
+
+function getResponseUrl(response: { url?: () => string }): string | undefined {
+  if (typeof response.url !== 'function') return undefined;
+  try {
+    return response.url();
+  } catch {
+    return undefined;
+  }
+}
+
+function getPageUrl(page: { url?: () => string }): string | undefined {
+  if (typeof page.url !== 'function') return undefined;
+  try {
+    return page.url();
+  } catch {
+    return undefined;
+  }
+}
 
 export async function downloadFile(
   session: EClassBrowserSession,
   fileUrl: string
 ): Promise<{ buffer: Buffer; mimeType: string; filename: string }> {
+  const safeFileUrl = validateUrlForPolicy(fileUrl, 'eclass_file');
   const context = await session.getAuthenticatedContext();
   try {
     try {
-      let response = await context.request.get(fileUrl);
+      let response = await context.request.get(safeFileUrl);
+      const initialResponseUrl = getResponseUrl(response);
+      if (initialResponseUrl) {
+        validateFinalUrlForPolicy(initialResponseUrl, 'eclass_attachment');
+      }
       if (!response.ok()) {
         throw upstreamErrorFromHttpStatus(
           response.status(),
@@ -61,6 +89,9 @@ export async function downloadFile(
 
               const ct = res.headers()['content-type'] || '';
               const url = res.url();
+              if (!isAllowedUrlForPolicy(url, 'eclass_attachment')) {
+                return;
+              }
 
               const isFile =
                 ct.includes('application/pdf') ||
@@ -94,10 +125,14 @@ export async function downloadFile(
               }
             });
 
-            await page.goto(fileUrl, {
+            await page.goto(safeFileUrl, {
               waitUntil: 'domcontentloaded',
               timeout: 20000,
             });
+            const currentPageUrl = getPageUrl(page);
+            if (currentPageUrl) {
+              validateFinalUrlForPolicy(currentPageUrl, 'eclass_attachment');
+            }
 
             const isWafChallenge = await page
               .evaluate(
@@ -243,8 +278,15 @@ export async function downloadFile(
         }
 
         if (directUrl) {
-          const resolvedUrl = new URL(directUrl, fileUrl).toString();
+          const resolvedUrl = validateUrlForPolicy(
+            new URL(directUrl, safeFileUrl).toString(),
+            'eclass_attachment'
+          );
           response = await context.request.get(resolvedUrl);
+          const resolvedResponseUrl = getResponseUrl(response);
+          if (resolvedResponseUrl) {
+            validateFinalUrlForPolicy(resolvedResponseUrl, 'eclass_attachment');
+          }
           if (!response.ok()) {
             throw upstreamErrorFromHttpStatus(
               response.status(),
@@ -270,9 +312,12 @@ export async function downloadFile(
 
       if (!filename) {
         try {
-          filename = path.basename(new URL(response.url()).pathname);
+          const finalResponseUrl = getResponseUrl(response);
+          filename = finalResponseUrl
+            ? path.basename(new URL(finalResponseUrl).pathname)
+            : path.basename(safeFileUrl);
         } catch {
-          filename = path.basename(fileUrl);
+          filename = path.basename(safeFileUrl);
         }
       }
 

@@ -6,12 +6,28 @@ import {
   type ExternalPlatformMatch,
 } from './external-platforms';
 import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
+import {
+  validateFinalUrlForPolicy,
+  validateUrlForPolicy,
+} from '../../security/url-policy';
+
+function getPageUrl(page: { url?: () => string }): string | undefined {
+  if (typeof page.url !== 'function') return undefined;
+  try {
+    return page.url();
+  } catch {
+    return undefined;
+  }
+}
 
 export async function getSectionText(
   session: EClassBrowserSession,
   url: string
 ): Promise<SectionTextData> {
-  const targetUrl = sanitizeHttpUrlQueryParams(url);
+  const targetUrl = validateUrlForPolicy(
+    sanitizeHttpUrlQueryParams(url),
+    'eclass_section'
+  );
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
@@ -21,6 +37,10 @@ export async function getSectionText(
       waitUntil: 'domcontentloaded',
       timeout: 30000,
     });
+    const currentPageUrl = getPageUrl(page);
+    if (currentPageUrl) {
+      validateFinalUrlForPolicy(currentPageUrl, 'eclass_section');
+    }
     await checkSession(page);
     await page
       .waitForSelector('#region-main, [role="main"]', { timeout: 15000 })

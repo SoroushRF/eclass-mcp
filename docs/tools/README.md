@@ -1,6 +1,6 @@
 # Tool Documentation Index
 
-This directory contains one folder per currently registered MCP tool in `src/index.ts`.
+This directory contains focused docs for the primary registered MCP tools in `src/index.ts`; small cache-management utilities are summarized from the main README instead of having one folder each.
 
 ## Current tools (24)
 

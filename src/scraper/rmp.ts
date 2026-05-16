@@ -81,6 +81,20 @@ interface GraphQLResponse {
   errors?: Array<{ message?: string }>;
 }
 
+export const DEFAULT_RMP_TIMEOUT_MS = 15000;
+
+export function resolveRmpTimeoutMs(
+  raw: string | undefined = process.env.ECLASS_MCP_RMP_TIMEOUT_MS
+): number {
+  if (!raw || raw.trim() === '') {
+    return DEFAULT_RMP_TIMEOUT_MS;
+  }
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_RMP_TIMEOUT_MS;
+}
+
 function normalizeQueryText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
@@ -378,10 +392,15 @@ export class RMPClient {
     query: string,
     payload: { operationName?: string; variables: any }
   ): Promise<GraphQLResponse> {
+    const timeoutMs = resolveRmpTimeoutMs();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
         headers: this.headers,
+        signal: controller.signal,
         body: JSON.stringify({
           operationName: payload.operationName,
           query,
@@ -418,6 +437,8 @@ export class RMPClient {
       getLogger().error({ err: error }, 'RMP Fetch error');
       if (error instanceof UpstreamError) throw error;
       throw upstreamErrorFromUnknown(error);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }

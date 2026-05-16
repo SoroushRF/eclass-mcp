@@ -19,11 +19,13 @@ import {
 import { getCacheFilePathForKey } from '../cache/store';
 import { SessionExpiredError } from '../scraper/eclass';
 import { getAuthUrl } from '../auth/server';
+import { ValidationError } from '../errors/validation-error';
 import { getCourseContent, getSectionText } from './content';
 import { getFileText } from './files';
 import { PinToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { handleEclassSessionExpired } from './auth-retry';
+import { validateUrlForPolicy } from '../security/url-policy';
 
 function pinToolJson(toolName: string, obj: unknown) {
   return asValidatedMcpText(toolName, PinToolJsonPayloadSchema, obj);
@@ -76,7 +78,7 @@ export async function cachePin(args: {
 }) {
   try {
     const { resource_type, note } = args;
-    const resource_key = canonicalResourceKey(resource_type, args);
+    const normalizedArgs = { ...args };
 
     let cacheKey: string;
     if (resource_type === 'file') {
@@ -87,7 +89,15 @@ export async function cachePin(args: {
           message: 'fileUrl is required for resource_type=file',
         });
       }
-      cacheKey = buildFileCacheKey(args.fileUrl, args.startPage, args.endPage);
+      normalizedArgs.fileUrl = validateUrlForPolicy(
+        args.fileUrl,
+        'eclass_file'
+      );
+      cacheKey = buildFileCacheKey(
+        normalizedArgs.fileUrl,
+        args.startPage,
+        args.endPage
+      );
     } else if (resource_type === 'sectiontext') {
       if (!args.url) {
         return pinToolJson('cache_pin', {
@@ -96,7 +106,8 @@ export async function cachePin(args: {
           message: 'url is required for resource_type=sectiontext',
         });
       }
-      cacheKey = buildSectionTextCacheKey(args.url);
+      normalizedArgs.url = validateUrlForPolicy(args.url, 'eclass_section');
+      cacheKey = buildSectionTextCacheKey(normalizedArgs.url);
     } else {
       if (!args.courseId) {
         return pinToolJson('cache_pin', {
@@ -108,6 +119,7 @@ export async function cachePin(args: {
       cacheKey = buildContentCacheKey(args.courseId);
     }
 
+    const resource_key = canonicalResourceKey(resource_type, normalizedArgs);
     const pinId = computePinId(resource_type, resource_key);
     const fp = getCacheFilePathForKey(cacheKey);
     if (!fs.existsSync(fp)) {
@@ -152,6 +164,14 @@ export async function cachePin(args: {
       },
     });
   } catch (e: unknown) {
+    if (e instanceof ValidationError) {
+      return pinToolJson('cache_pin', {
+        ok: false,
+        reason: 'invalid_args',
+        message: e.message,
+        details: e.details,
+      });
+    }
     const message = e instanceof Error ? e.message : String(e);
     return pinToolJson('cache_pin', { ok: false, reason: 'error', message });
   }
@@ -243,9 +263,14 @@ export async function cacheRefreshPin(
         const { fileUrl, startPage, endPage } = parseFileResourceKey(
           pin.resource_key
         );
-        result = await getFileText('unknown', fileUrl, startPage, endPage);
+        const safeFileUrl = validateUrlForPolicy(fileUrl, 'eclass_file');
+        result = await getFileText('unknown', safeFileUrl, startPage, endPage);
       } else if (pin.resource_type === 'sectiontext') {
-        result = await getSectionText(pin.resource_key);
+        const safeSectionUrl = validateUrlForPolicy(
+          pin.resource_key,
+          'eclass_section'
+        );
+        result = await getSectionText(safeSectionUrl);
       } else {
         result = await getCourseContent(pin.resource_key);
       }
@@ -289,6 +314,14 @@ export async function cacheRefreshPin(
         async () => cacheRefreshPin(args, true),
         fallback
       );
+    }
+    if (e instanceof ValidationError) {
+      return pinToolJson('cache_refresh_pin', {
+        ok: false,
+        reason: 'invalid_args',
+        message: e.message,
+        details: e.details,
+      });
     }
     const message = e instanceof Error ? e.message : String(e);
     return pinToolJson('cache_refresh_pin', {

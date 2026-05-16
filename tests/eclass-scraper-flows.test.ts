@@ -155,11 +155,11 @@ describe('eclass scraper module flows', () => {
 
     const section = await getSectionText(
       session as any,
-      ' https://eclass.yorku.ca/mod/page/view.php?id= 148310 '
+      ' https://eclass.yorku.ca/course/view.php?id= 148310&section=2 '
     );
 
     expect(page.goto).toHaveBeenCalledWith(
-      'https://eclass.yorku.ca/mod/page/view.php?id=148310',
+      'https://eclass.yorku.ca/course/view.php?id=148310&section=2',
       expect.objectContaining({ waitUntil: 'domcontentloaded' })
     );
     expect(section.external_platforms).toEqual([

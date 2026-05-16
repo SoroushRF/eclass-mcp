@@ -1,11 +1,29 @@
 {
   "name": "eclass-mcp",
   "version": "1.0.0-beta.2",
-  "description": "",
+  "description": "Local MCP server for York eClass, SIS, Cengage/WebAssign, course files, and RateMyProfessors.",
   "main": "dist/index.js",
+  "files": [
+    "dist/",
+    "src/",
+    "scripts/setup.mjs",
+    "scripts/doctor.mjs",
+    "scripts/setup-claude.sh",
+    "scripts/lib/",
+    "scripts/README.md",
+    "docs/",
+    ".env.example",
+    "CHANGELOG.md",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "README.md",
+    "SECURITY.md"
+  ],
   "scripts": {
     "dev": "nodemon --exec \"ts-node --transpile-only\" src/index.ts",
     "build": "tsc",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc --noEmit -p tests/tsconfig.json",
     "start": "node dist/index.js",
@@ -19,10 +37,22 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "keywords": [],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "york-university",
+    "eclass",
+    "cengage",
+    "webassign",
+    "rate-my-professors",
+    "playwright"
+  ],
   "author": "Soroush Baraouf",
   "license": "SEE LICENSE IN LICENSE",
   "type": "commonjs",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@napi-rs/canvas": "^0.1.97",
@@ -46,6 +76,7 @@
     "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.8.0",
     "nodemon": "^3.1.14",
     "prettier": "^3.8.1",
     "ts-node": "^10.9.2",

@@ -330,6 +330,7 @@ describe('get cengage assignment details tool', () => {
     expect(payload.status).toBe('error');
     expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
     expect(payload.retry.afterAuth).toBe(false);
+    expect(payload).not.toHaveProperty('assignments');
     expect(openAuthSpy).not.toHaveBeenCalled();
   });
 

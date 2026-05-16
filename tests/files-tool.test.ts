@@ -97,7 +97,12 @@ describe('getFileText tool', () => {
   it('serves cached string and stale block-array file text without downloading', async () => {
     mocks.getWithMeta.mockReturnValueOnce({ data: 'cached text' });
     expect(
-      textBlocks(await getFileText('course', 'https://file.test/a.pdf'))
+      textBlocks(
+        await getFileText(
+          'course',
+          'https://eclass.yorku.ca/pluginfile.php/1/a.pdf'
+        )
+      )
     ).toEqual(['cached text']);
 
     mocks.getWithMeta.mockReturnValueOnce({
@@ -107,7 +112,12 @@ describe('getFileText tool', () => {
         { type: 'image', data: 'abc', mimeType: 'image/png' },
       ],
     });
-    const stale = await getFileText('course', 'https://file.test/a.pdf', 2, 3);
+    const stale = await getFileText(
+      'course',
+      'https://eclass.yorku.ca/pluginfile.php/1/a.pdf',
+      2,
+      3
+    );
     expect(textBlocks(stale)).toEqual([
       '[Pinned cache past TTL — content may be stale. Use cache_refresh_pin to refresh.]',
       'cached block',
@@ -139,13 +149,30 @@ describe('getFileText tool', () => {
     mocks.parsePptx.mockResolvedValue('pptx text');
 
     expect(
-      textBlocks(await getFileText('course', 'https://file.test/lecture', 1, 2))
+      textBlocks(
+        await getFileText(
+          'course',
+          'https://eclass.yorku.ca/pluginfile.php/1/lecture',
+          1,
+          2
+        )
+      )
     ).toEqual(['pdf text']);
     expect(
-      textBlocks(await getFileText('course', 'https://file.test/notes'))
+      textBlocks(
+        await getFileText(
+          'course',
+          'https://eclass.yorku.ca/pluginfile.php/1/notes'
+        )
+      )
     ).toEqual(['docx text']);
     expect(
-      textBlocks(await getFileText('course', 'https://file.test/slides'))
+      textBlocks(
+        await getFileText(
+          'course',
+          'https://eclass.yorku.ca/pluginfile.php/1/slides'
+        )
+      )
     ).toEqual(['pptx text']);
 
     expect(mocks.parsePdfSmart).toHaveBeenCalledWith(Buffer.from('pdf'), 1, 2);
@@ -168,10 +195,20 @@ describe('getFileText tool', () => {
     mocks.parseDocx.mockResolvedValue('');
 
     expect(
-      textBlocks(await getFileText('course', 'https://file.test/grades'))
+      textBlocks(
+        await getFileText(
+          'course',
+          'https://eclass.yorku.ca/pluginfile.php/1/grades'
+        )
+      )
     ).toEqual(['Unsupported file type: text/csv (grades.csv)']);
     expect(
-      textBlocks(await getFileText('course', 'https://file.test/empty'))
+      textBlocks(
+        await getFileText(
+          'course',
+          'https://eclass.yorku.ca/pluginfile.php/1/empty'
+        )
+      )
     ).toEqual([
       '[No text could be extracted from this file. It may be a scanned document or unsupported format.]',
     ]);
@@ -182,7 +219,10 @@ describe('getFileText tool', () => {
       new ScrapeLayoutError('layout moved', { selector: '.missing' })
     );
     let payload = jsonPayload(
-      await getFileText('course', 'https://file.test/layout')
+      await getFileText(
+        'course',
+        'https://eclass.yorku.ca/pluginfile.php/1/layout'
+      )
     );
     expect(payload.status).toBe('error');
     expect(payload.code).toBe('SCRAPE_LAYOUT_CHANGED');
@@ -192,7 +232,10 @@ describe('getFileText tool', () => {
       new UpstreamError('TIMEOUT', 'Moodle timed out', 504)
     );
     payload = jsonPayload(
-      await getFileText('course', 'https://file.test/upstream')
+      await getFileText(
+        'course',
+        'https://eclass.yorku.ca/pluginfile.php/1/upstream'
+      )
     );
     expect(payload.code).toBe('TIMEOUT');
     expect(payload.details.httpStatus).toBe(504);
@@ -201,7 +244,10 @@ describe('getFileText tool', () => {
       new UpstreamError('UPSTREAM_ERROR', 'Moodle broke')
     );
     payload = jsonPayload(
-      await getFileText('course', 'https://file.test/upstream2')
+      await getFileText(
+        'course',
+        'https://eclass.yorku.ca/pluginfile.php/1/upstream2'
+      )
     );
     expect(payload.code).toBe('UPSTREAM_ERROR');
     expect(payload.details).toBeUndefined();
@@ -213,7 +259,10 @@ describe('getFileText tool', () => {
     mocks.downloadFile.mockRejectedValueOnce(sessionError);
     mocks.handleEclassSessionExpired.mockResolvedValue(fallback);
 
-    const result = await getFileText('course', 'https://file.test/auth');
+    const result = await getFileText(
+      'course',
+      'https://eclass.yorku.ca/pluginfile.php/1/auth'
+    );
 
     expect(result).toBe(fallback);
     expect(mocks.handleEclassSessionExpired).toHaveBeenCalledWith(
@@ -221,5 +270,17 @@ describe('getFileText tool', () => {
       expect.any(Function),
       expect.any(Function)
     );
+  });
+
+  it('rejects unsafe file URLs before download', async () => {
+    const result = jsonPayload(
+      await getFileText(
+        'course',
+        'https://eclass.yorku.ca.evil.test/pluginfile.php/1/a.pdf'
+      )
+    );
+
+    expect(result.code).toBe('VALIDATION_FAILED');
+    expect(mocks.downloadFile).not.toHaveBeenCalled();
   });
 });

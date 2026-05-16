@@ -3,12 +3,11 @@
 ## Features
 
 - Fetches structured section/item map for a course.
-- Cache key format: `content_v4_<courseId>`.
+- Cache keys use the shared cache schema helper: `getCacheKey("content", courseId)`, stored as versioned `v1_content_*.json` filenames.
 - Includes links/resources/activities parsed from course page.
 
 ## Known Problems
 
-- Cache key still uses a manual version suffix (`v4`), which is fine for now but not ideal long term.
 - Layout drift in Moodle themes can still require selector updates, but the current implementation is working in Claude.
 
 ## Tests

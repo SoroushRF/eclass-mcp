@@ -619,6 +619,7 @@ describe('get cengage assignments tool on new core', () => {
 
     expect(payload.status).toBe('error');
     expect(payload.code).toBe('SESSION_STORAGE_UNAVAILABLE');
+    expect(payload.assignments).toEqual([]);
     expect(payload.retry).toEqual({ afterAuth: false });
     expect(payload.message).toContain('Secure session storage is unavailable');
     expect(openAuthSpy).not.toHaveBeenCalled();

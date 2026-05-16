@@ -162,7 +162,9 @@ describe('deadlines tool branch behavior', () => {
     const courseId = nextCourseId('empty-hint');
     rememberKey(getCacheKey('deadlines', 'upcoming', courseId, ''));
 
-    vi.spyOn(scraper, 'getDeadlines').mockResolvedValue([] as any);
+    const deadlinesSpy = vi
+      .spyOn(scraper, 'getDeadlines')
+      .mockResolvedValue([] as any);
 
     const payload = parsePayload(
       await getDeadlines({ scope: 'upcoming', courseId })
@@ -172,6 +174,13 @@ describe('deadlines tool branch behavior', () => {
     expect(payload.status).toBe('no_eclass_assignments');
     expect(payload.external_check_recommended).toBe(true);
     expect(payload.recommendedTool).toBe('get_assignments');
+
+    const second = parsePayload(
+      await getDeadlines({ scope: 'upcoming', courseId })
+    );
+    expect(second._cache.hit).toBe(true);
+    expect(second.items).toEqual([]);
+    expect(deadlinesSpy).toHaveBeenCalledTimes(1);
   });
 
   it('getDeadlines month filters by month/year and caches result', async () => {
@@ -221,7 +230,7 @@ describe('deadlines tool branch behavior', () => {
     expect(monthSpy).toHaveBeenCalledTimes(1);
   });
 
-  it('getDeadlines month refetches when cached payload is empty', async () => {
+  it('getDeadlines month treats cached empty payloads as valid results', async () => {
     const courseId = nextCourseId('month-empty');
     const month = 5;
     const year = 2026;
@@ -231,23 +240,15 @@ describe('deadlines tool branch behavior', () => {
 
     cache.set(key, [], TTL.DEADLINES);
 
-    const monthSpy = vi
-      .spyOn(scraper, 'getAllAssignmentDeadlines')
-      .mockResolvedValue([
-        mkDeadlineItem(
-          'x1',
-          'https://eclass.yorku.ca/mod/assign/view.php?id=91',
-          '2026-05-20T00:00:00.000Z'
-        ),
-      ] as any);
+    const monthSpy = vi.spyOn(scraper, 'getAllAssignmentDeadlines');
 
     const payload = parsePayload(
       await getDeadlines({ scope: 'month', courseId, month, year })
     );
 
-    expect(payload._cache.hit).toBe(false);
-    expect(payload.items).toHaveLength(1);
-    expect(monthSpy).toHaveBeenCalledTimes(1);
+    expect(payload._cache.hit).toBe(true);
+    expect(payload.items).toEqual([]);
+    expect(monthSpy).not.toHaveBeenCalled();
   });
 
   it('getDeadlines range filters, dedupes, and caches result', async () => {

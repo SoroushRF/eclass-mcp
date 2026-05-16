@@ -1,4 +1,4 @@
-import { cache } from '../cache/store';
+import { CACHE_SCHEMA_VERSION, cache } from '../cache/store';
 import { getLogger } from '../logging/context';
 import { ClearCacheToolResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
@@ -14,6 +14,15 @@ export type CacheScope =
   | 'files'
   | 'rmp';
 
+function clearVersionedAndLegacyPrefixes(...prefixes: string[]): number {
+  let total = 0;
+  for (const prefix of prefixes) {
+    total += cache.clearByPrefix(`v${CACHE_SCHEMA_VERSION}:${prefix}`);
+    total += cache.clearByPrefix(prefix);
+  }
+  return total;
+}
+
 export async function clearCache(scope: CacheScope = 'all') {
   try {
     getLogger().info({ scope }, 'Manual cache clear requested');
@@ -25,28 +34,31 @@ export async function clearCache(scope: CacheScope = 'all') {
         clearedCount = cache.clearVolatile();
         break;
       case 'deadlines':
-        clearedCount = cache.clearByPrefix('deadlines');
+        clearedCount = clearVersionedAndLegacyPrefixes('deadlines');
         break;
       case 'announcements':
-        clearedCount = cache.clearByPrefix('announcements');
+        clearedCount = clearVersionedAndLegacyPrefixes('announcements');
         break;
       case 'grades':
-        clearedCount = cache.clearByPrefix('grades');
+        clearedCount = clearVersionedAndLegacyPrefixes('grades');
         break;
       case 'content':
-        clearedCount =
-          cache.clearByPrefix('content') + cache.clearByPrefix('sectiontext');
+        clearedCount = clearVersionedAndLegacyPrefixes(
+          'content',
+          'sectiontext'
+        );
         break;
       case 'courses':
-        clearedCount = cache.clearByPrefix('courses');
+        clearedCount = clearVersionedAndLegacyPrefixes('courses');
         break;
       case 'files':
-        clearedCount = cache.clearByPrefix('file');
+        clearedCount = clearVersionedAndLegacyPrefixes('file');
         break;
       case 'rmp':
-        clearedCount =
-          cache.clearByPrefix('rmp_search') +
-          cache.clearByPrefix('rmp_details');
+        clearedCount = clearVersionedAndLegacyPrefixes(
+          'rmp_search',
+          'rmp_details'
+        );
         break;
       case 'all':
       default:

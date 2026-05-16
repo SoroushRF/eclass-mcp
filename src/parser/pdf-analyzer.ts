@@ -40,6 +40,19 @@ export interface PageAnalysis {
   classification: 'text' | 'image';
 }
 
+type PdfPageRange =
+  | {
+      ok: true;
+      firstPage: number;
+      lastPage: number;
+      processedRange: [number, number];
+      isTruncated: boolean;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Configuration
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,6 +62,70 @@ const MAX_TOTAL_PAGES = 50; // Max pages processed in a single call
 const DEFAULT_DPI = 100; // Resolution for image rendering (100 DPI is safe for MCP payloads)
 const MIN_TEXT_FOR_SAFE_TEXT = 250; // Threshold: if text > this, we trust extraction even if logos exist
 const MAX_PAYLOAD_BYTES = 800 * 1024; // 800KB safety limit for the total Base64 payload (MCP limit is 1MB)
+
+export function resolvePdfPageRange(
+  totalPages: number,
+  startPage?: number,
+  endPage?: number
+): PdfPageRange {
+  if (totalPages < 1) {
+    return {
+      ok: false,
+      message: '[Invalid PDF page range: PDF has no pages.]',
+    };
+  }
+
+  if (
+    startPage !== undefined &&
+    (!Number.isInteger(startPage) || startPage < 1)
+  ) {
+    return {
+      ok: false,
+      message:
+        '[Invalid PDF page range: startPage must be a positive integer.]',
+    };
+  }
+
+  if (endPage !== undefined && (!Number.isInteger(endPage) || endPage < 1)) {
+    return {
+      ok: false,
+      message: '[Invalid PDF page range: endPage must be a positive integer.]',
+    };
+  }
+
+  const firstPage = startPage ?? 1;
+  const requestedLastPage = endPage ?? firstPage + MAX_TOTAL_PAGES - 1;
+
+  if (requestedLastPage < firstPage) {
+    return {
+      ok: false,
+      message:
+        '[Invalid PDF page range: endPage must be greater than or equal to startPage.]',
+    };
+  }
+
+  if (firstPage > totalPages) {
+    return {
+      ok: false,
+      message: `[Invalid PDF page range: PDF has ${totalPages} page${totalPages === 1 ? '' : 's'}, but startPage ${firstPage} was requested.]`,
+    };
+  }
+
+  const lastPage = Math.min(
+    requestedLastPage,
+    firstPage + MAX_TOTAL_PAGES - 1,
+    totalPages
+  );
+  const processedRange: [number, number] = [firstPage, lastPage];
+
+  return {
+    ok: true,
+    firstPage,
+    lastPage,
+    processedRange,
+    isTruncated: lastPage < totalPages,
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Overview & Warning Blocks
@@ -123,16 +200,13 @@ export async function parsePdfSmart(
   const pdf = await loadingTask.promise;
   const totalPages = pdf.numPages;
 
-  // Resolve the page range to process
-  const firstPage = Math.max(1, startPage ?? 1);
-  const lastPage = Math.min(
-    endPage ?? firstPage + MAX_TOTAL_PAGES - 1,
-    firstPage + MAX_TOTAL_PAGES - 1,
-    totalPages
-  );
+  const pageRange = resolvePdfPageRange(totalPages, startPage, endPage);
+  if (!pageRange.ok) {
+    await pdf.destroy();
+    return [{ type: 'text', text: pageRange.message }];
+  }
 
-  const isTruncated = lastPage < totalPages;
-  const processedRange: [number, number] = [firstPage, lastPage];
+  const { firstPage, lastPage, processedRange, isTruncated } = pageRange;
 
   // Analyze only the pages in the requested range
   const analysis = await analyzePagesRange(pdf, firstPage, lastPage);

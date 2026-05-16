@@ -36,5 +36,6 @@
 
 - Source: `src/tools/deadlines.ts` (`getDeadlines()`).
 - Uses `scraper.getAllAssignmentDeadlines(courseId)` for month/range.
-- Cache key format: `deadlines_v3_<scope>_<course|all>_<extra>`.
+- Cache keys use the shared cache schema helper: `getCacheKey("deadlines", scope, courseId || "all", extra)`, stored as versioned `v1_deadlines_*.json` filenames.
 - TTL: `TTL.DEADLINES`.
+- Empty eClass result arrays are cached briefly so legitimate "nothing due here" states do not cause repeated scrapes.

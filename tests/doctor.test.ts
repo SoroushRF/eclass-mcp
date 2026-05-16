@@ -32,7 +32,12 @@ interface DoctorModule {
     secret: string,
     now?: Date
   ): { state: string; reason?: string };
-  isNodeVersionAtLeast(version: string, minMajor?: number): boolean;
+  isNodeVersionAtLeast(
+    version: string,
+    minMajor?: number,
+    minMinor?: number,
+    minPatch?: number
+  ): boolean;
   parseAuthPort(value: string | undefined): {
     valid: boolean;
     port?: number;
@@ -114,12 +119,13 @@ afterEach(() => {
 });
 
 describe('doctor pure checks', () => {
-  it('checks the Node.js major version boundary', async () => {
+  it('checks the Node.js version boundary', async () => {
     const doctor = await loadDoctor();
 
-    expect(doctor.isNodeVersionAtLeast('18.0.0')).toBe(true);
+    expect(doctor.isNodeVersionAtLeast('20.18.9')).toBe(false);
+    expect(doctor.isNodeVersionAtLeast('20.19.0')).toBe(true);
     expect(doctor.isNodeVersionAtLeast('25.5.0')).toBe(true);
-    expect(doctor.isNodeVersionAtLeast('17.9.9')).toBe(false);
+    expect(doctor.isNodeVersionAtLeast('19.99.99')).toBe(false);
   });
 
   it('parses AUTH_PORT with the same default and rejects invalid values', async () => {

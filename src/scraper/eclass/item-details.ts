@@ -8,6 +8,19 @@ import type {
   QuizDetails,
 } from './types';
 import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
+import {
+  validateFinalUrlForPolicy,
+  validateUrlForPolicy,
+} from '../../security/url-policy';
+
+function getPageUrl(page: { url?: () => string }): string | undefined {
+  if (typeof page.url !== 'function') return undefined;
+  try {
+    return page.url();
+  } catch {
+    return undefined;
+  }
+}
 
 type RawDescriptionLink = {
   name: string;
@@ -83,19 +96,25 @@ export async function getItemDetails(
   session: EClassBrowserSession,
   url: string
 ): Promise<ItemDetails> {
-  const t = inferItemType(url);
-  if (t === 'quiz') return getQuizDetails(session, url);
-  return getAssignmentDetails(session, url);
+  const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+  const t = inferItemType(safeUrl);
+  if (t === 'quiz') return getQuizDetails(session, safeUrl);
+  return getAssignmentDetails(session, safeUrl);
 }
 
 export async function getAssignmentDetails(
   session: EClassBrowserSession,
   url: string
 ): Promise<AssignmentDetails> {
+  const safeUrl = validateUrlForPolicy(url, 'eclass_item');
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+    await page.goto(safeUrl, { waitUntil: 'load', timeout: 60000 });
+    const currentPageUrl = getPageUrl(page);
+    if (currentPageUrl) {
+      validateFinalUrlForPolicy(currentPageUrl, 'eclass_item');
+    }
 
     const commentLink = await page.$('.comment-link');
     if (commentLink) {
@@ -330,7 +349,7 @@ export async function getAssignmentDetails(
           feedbackText: finalFeedback || undefined,
         };
       },
-      { url, selectors: selectorGroups }
+      { url: safeUrl, selectors: selectorGroups }
     );
 
     if (data.descSelectorMatch) {
@@ -362,7 +381,7 @@ export async function getAssignmentDetails(
     } = data;
     const externalLinks = classifyDescriptionExternalLinks(
       rawDescriptionLinks || [],
-      url
+      safeUrl
     );
 
     return {
@@ -379,10 +398,15 @@ export async function getQuizDetails(
   session: EClassBrowserSession,
   url: string
 ): Promise<QuizDetails> {
+  const safeUrl = validateUrlForPolicy(url, 'eclass_item');
   const context = await session.getAuthenticatedContext();
   const page = await context.newPage();
   try {
-    await page.goto(url, { waitUntil: 'load', timeout: 60000 });
+    await page.goto(safeUrl, { waitUntil: 'load', timeout: 60000 });
+    const currentPageUrl = getPageUrl(page);
+    if (currentPageUrl) {
+      validateFinalUrlForPolicy(currentPageUrl, 'eclass_item');
+    }
     const introSelectors = [
       ...getSelectorGroup('eclass.quiz.intro').candidates,
     ];
@@ -601,7 +625,7 @@ export async function getQuizDetails(
           descSelectorMatch,
         };
       },
-      { pageUrl: url, selectors: introSelectors }
+      { pageUrl: safeUrl, selectors: introSelectors }
     );
 
     if (data.descSelectorMatch) {
@@ -622,7 +646,7 @@ export async function getQuizDetails(
     } = data;
     const externalLinks = classifyDescriptionExternalLinks(
       rawDescriptionLinks || [],
-      url
+      safeUrl
     );
 
     return {

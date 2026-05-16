@@ -29,5 +29,5 @@
 ## Technical Notes
 
 - Source: `src/tools/deadlines.ts` (`getUpcomingDeadlines`).
-- Cache key format: `deadlines_v3_<course|all>`.
+- Cache keys use the shared cache schema helper: `getCacheKey("deadlines", "upcoming", courseId || "all")`, stored as versioned `v1_deadlines_*.json` filenames.
 - TTL: `TTL.DEADLINES`.

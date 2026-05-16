@@ -24,6 +24,6 @@
 ## Technical Notes
 
 - Source: `src/tools/grades.ts`.
-- Cache key format: `grades_v2_<course|all>`.
-- TTL: `TTL.GRADES`.
+- Cache keys use the shared cache schema helper, stored as versioned `v1_grades_*.json` filenames.
+- TTL: `TTL.GRADES` (3 hours).
 - Verified against the current Claude Desktop flow on 2026-03-23.

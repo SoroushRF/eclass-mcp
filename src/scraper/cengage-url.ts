@@ -1,4 +1,6 @@
 import { CengageInvalidInputError } from './cengage-errors';
+import { ValidationError } from '../errors/validation-error';
+import { validateUrlForPolicy } from '../security/url-policy';
 
 export type CengageEntryLinkType =
   | 'eclass_lti'
@@ -17,7 +19,7 @@ export interface CengageEntryClassification {
   pathname: string;
 }
 
-const URL_PATTERN = /https?:\/\/[^\s<>"'\])]+/i;
+const URL_PATTERN = /https:\/\/[^\s<>"'\])]+/i;
 
 function normalizeCandidate(raw: string): string {
   return raw
@@ -33,7 +35,7 @@ function findUrlCandidate(input: string): string | null {
   try {
     // If the whole input is already a URL, use it directly.
     const parsed = new URL(direct);
-    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+    if (parsed.protocol === 'https:') {
       return direct;
     }
   } catch {
@@ -49,11 +51,11 @@ export function classifyCengageUrl(url: URL): CengageEntryLinkType {
   const host = url.hostname.toLowerCase();
   const path = url.pathname.toLowerCase();
 
-  if (host.includes('eclass.yorku.ca') && path.includes('/mod/lti/view.php')) {
+  if (host === 'eclass.yorku.ca' && path === '/mod/lti/view.php') {
     return 'eclass_lti';
   }
 
-  if (host.includes('webassign.net')) {
+  if (host === 'www.webassign.net') {
     const hasCourseKey = url.searchParams.has('courseKey');
     if (path.includes('/v4cgi/login.pl') && hasCourseKey) {
       return 'webassign_course';
@@ -70,7 +72,7 @@ export function classifyCengageUrl(url: URL): CengageEntryLinkType {
     return 'other';
   }
 
-  if (host.includes('getenrolled.com')) {
+  if (host === 'www.getenrolled.com') {
     if (url.searchParams.has('courseKey')) {
       return 'webassign_course';
     }
@@ -78,11 +80,11 @@ export function classifyCengageUrl(url: URL): CengageEntryLinkType {
     return 'other';
   }
 
-  if (host.includes('login.cengage.com')) {
+  if (host === 'login.cengage.com') {
     return 'cengage_login';
   }
 
-  if (host.includes('cengage.com')) {
+  if (host === 'www.cengage.com' || host === 'www.cengage.ca') {
     if (
       path.includes('/login') ||
       path.includes('/signin') ||
@@ -113,15 +115,21 @@ export function normalizeAndClassifyCengageEntry(
 
   if (!candidate) {
     throw new CengageInvalidInputError(
-      'No valid http/https URL found in the provided input.',
+      'No valid https URL found in the provided input.',
       { rawInput }
     );
   }
 
-  let parsed: URL;
+  let normalizedUrl: string;
   try {
-    parsed = new URL(candidate);
-  } catch {
+    normalizedUrl = validateUrlForPolicy(candidate, 'cengage_entry');
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw new CengageInvalidInputError(
+        'Cengage/WebAssign URL is not allowed.',
+        error.details
+      );
+    }
     throw new CengageInvalidInputError(
       'Invalid Cengage/WebAssign URL format.',
       {
@@ -131,16 +139,7 @@ export function normalizeAndClassifyCengageEntry(
     );
   }
 
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new CengageInvalidInputError('URL protocol must be http or https.', {
-      rawInput,
-      candidate,
-      protocol: parsed.protocol,
-    });
-  }
-
-  // Ignore fragments for deterministic navigation and cache keys.
-  parsed.hash = '';
+  const parsed = new URL(normalizedUrl);
 
   return {
     rawInput,

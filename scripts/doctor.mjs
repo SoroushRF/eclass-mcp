@@ -49,11 +49,19 @@ export function skip(name, message, detail) {
   return result('SKIP', name, message, detail);
 }
 
-export function isNodeVersionAtLeast(version, minMajor = 18) {
-  const [major] = String(version)
+export function isNodeVersionAtLeast(
+  version,
+  minMajor = 20,
+  minMinor = 19,
+  minPatch = 0
+) {
+  const [major, minor = 0, patch = 0] = String(version)
     .split('.')
     .map((part) => Number.parseInt(part, 10));
-  return Number.isFinite(major) && major >= minMajor;
+  if (!Number.isFinite(major)) return false;
+  if (major !== minMajor) return major > minMajor;
+  if (minor !== minMinor) return minor > minMinor;
+  return patch >= minPatch;
 }
 
 export function parseAuthPort(value) {
@@ -412,13 +420,13 @@ export function validateClaudeConfig(config, options) {
 function checkNodeVersion() {
   const version = process.versions.node;
   if (isNodeVersionAtLeast(version)) {
-    return pass('Node.js >=18', `v${version}`);
+    return pass('Node.js >=20.19.0', `v${version}`);
   }
   return fail(
-    'Node.js >=18',
+    'Node.js >=20.19.0',
     `found v${version}`,
     undefined,
-    'Install Node.js 18 or newer'
+    'Install Node.js 20.19.0 or newer'
   );
 }
 

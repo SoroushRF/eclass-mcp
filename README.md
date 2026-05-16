@@ -6,7 +6,7 @@
 >
 > The engine versioning and release policy now lives in [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md#engine-versioning--release-policy). The historical core-only release is treated as `0.9.0-core`, and the engine line is versioned separately from the eventual product surfaces.
 
-[![Node.js ≥18](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js ≥20.19](https://img.shields.io/badge/Node.js-%E2%89%A520.19-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MCP SDK](https://img.shields.io/badge/MCP%20SDK-1.27-blueviolet)](https://modelcontextprotocol.io/)
 [![Playwright](https://img.shields.io/badge/Playwright-1.58-45ba4b?logo=playwright&logoColor=white)](https://playwright.dev/)
@@ -20,7 +20,7 @@
 | A local MCP server that lets Claude read your eClass data                     | A public API or cloud service                                |
 | A scraping layer using your own authenticated session                         | A way to bypass any security or act on behalf of other users |
 | A tool for students to get faster, AI-assisted access to their own coursework | A replacement for the eClass website                         |
-| Entirely local — your session and data never leave your machine               | Affiliated with or endorsed by York University               |
+| Local-first — auth state/cache stay on your machine; tool requests go directly to the services you choose to use | Affiliated with or endorsed by York University               |
 
 ---
 
@@ -35,7 +35,7 @@
 - 🎓 **SIS Integration** — personal exam schedules and class timetables (lectures, labs, tutorials)
 - 🔐 **Session Auth** — one-click login via a local browser window; session bridging for both eClass and SIS domains; eClass/SIS tools wait briefly and retry once after re-auth
 - 💾 **Smart Caching** — tiered file-based JSON cache with versioned schemas (Hot 30m, Warm 20m, Course 3h, Stable 48h)
-- 📝 **Cache Transparency** — every tool returns an `_cache` object representing data freshness (hit/miss, fetched_at, expires_at)
+- 📝 **Cache Transparency** — cache-backed JSON tools return an `_cache` object representing data freshness (hit/miss, fetched_at, expires_at)
 - 🧹 **Granular Invalidation** — manual `clear_cache` clears **default** TTL cache only; **user-pinned** entries stay until you `cache_delete_pinned` or `cache_unpin`; automatic volatile clearing on re-auth
 - 📌 **Pinned cache (T27)** — pin files, section text, or course content to keep past TTL; on-disk quota via `ECLASS_MCP_PIN_QUOTA_BYTES` (default 300 MiB)
 
@@ -185,14 +185,14 @@ _For formal E2E test runs, see the **[E2E Handbook](docs/t11-e2e-handbook.md)** 
 
 ### Prerequisites
 
-- Node.js ≥ 18
+- Node.js ≥ 20.19.0
 - [Claude Desktop](https://claude.ai/download) (macOS or Windows)
 - A York University eClass account
 
 ### 1 — Clone & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/eclass-mcp.git
+git clone <your-repo-url>
 cd eclass-mcp
 npm install
 ```
@@ -329,9 +329,9 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | Symptom                       | Fix                                                                                                                                                                      |
 | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Old course data showing up    | Delete `.eclass-mcp/cache/` to force a full refresh                                                                                                                      |
-| File content outdated         | Delete the specific `file_<hash>_v2.json` from `.eclass-mcp/cache/`                                                                                                      |
+| File content outdated         | Use `clear_cache`/pin refresh tools, or delete the relevant versioned `v1_file_*.json` file from `.eclass-mcp/cache/`                                                    |
 | Course platform mapping wrong | Retry `get_assignments` with `platformSelection.cengage.courseId`, `courseKey`, or `courseQuery`; `clear_cache` does not delete `.eclass-mcp/course-platform-index.json` |
-| Grades not updating           | Cache TTL for grades is 12 hours — delete `grades_*.json` to force refresh                                                                                               |
+| Grades not updating           | Cache TTL for grades is 3 hours — use `clear_cache(scope="grades")` or delete the relevant versioned `v1_grades_*.json` file                                            |
 
 ### 🔗 Cengage / WebAssign Dashboard-First and Fallback Issues
 
@@ -426,15 +426,17 @@ All scraping tests require a valid session (`npm run setup` + authenticate via `
 
 ## 🔒 Privacy
 
-Everything runs **entirely on your machine**:
+The MCP server itself runs **entirely on your machine**, and local state stays local:
 
 - Your eClass/SIS cookies are encrypted in `.eclass-mcp/session.json` (gitignored) using `ECLASS_MCP_SESSION_SECRET`
 - Your Cengage/WebAssign browser storage state is encrypted in `.eclass-mcp/cengage-state.json` (gitignored)
 - Parsed file content, cache entries, pins, debug dumps, and course-platform mappings remain plaintext local files under `.eclass-mcp/`
 - Selector debug snapshots are plaintext local debug artifacts and are only written when `ECLASS_MCP_SELECTOR_DEBUG_SNAPSHOTS=1`
 - `http://localhost:<AUTH_PORT>/logout` removes local auth session files only; cache, pins, debug output, and course-platform mappings are left alone
-- No data is sent to any third-party service
-- The MCP server communicates only with Claude Desktop over local stdio and with `eclass.yorku.ca` using your session
+- When you use remote-backed tools, requests are sent directly from your machine to the relevant service: York eClass/SIS, Cengage/WebAssign, or RateMyProfessors.
+- URLs supplied by users or discovered from authenticated pages are restricted to HTTPS allowlisted upstream hosts and expected eClass/Cengage/WebAssign paths before authenticated fetch or navigation. Localhost/private-network URLs, unsafe protocols, embedded credentials, and host-spoofing suffixes are rejected.
+- Pinned cache refresh re-validates stored file and section URLs before re-fetching, including pins created by older versions.
+- No project-owned cloud service receives your data; Claude Desktop communicates with this MCP server over local stdio.
 
 ---
 

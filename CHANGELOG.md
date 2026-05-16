@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - E16 `npm run doctor` environment health check for Node/npm, build artifacts, Playwright Chromium, `.env`, secure-session posture, auth/session hints, Claude Desktop config, permissions, and parser dependencies.
 - E17 safe setup workflow with `--dry-run`, timestamped Claude config backups, backup listing, validated restore, and atomic config writes.
 - Release documentation for `v1.0.0-beta.2`, including a full-history commit audit ledger and reusable release checklist.
+- Lightweight ADRs for the local-first MCP boundary, encrypted local sessions, versioned file cache, and selector registry.
 
 ### Changed
 
@@ -46,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hardened eClass/SIS auth retry behavior so tools can wait through local auth and retry without forcing the user to re-prompt.
 - Updated Claude Desktop setup to preserve unrelated config entries and fail safely on malformed or unsafe config shapes.
 - Updated package and README engine stage to `1.0.0-beta.2`.
+- Updated package metadata, publish allowlist, Node engine requirement (`>=20.19.0`), and pack dry-run checks.
 
 ### Fixed
 
@@ -55,6 +57,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Windows/OneDrive-style course-platform index rename behavior by preserving meaningful filesystem errors and testing transient retry paths.
 - Fixed Passport York/login-state detection and Cengage auth-expired recovery parity.
 - Fixed several Cengage assignment extraction edge cases around prompt sections, rendered media caps, dashboard titles, dedupe identity, and redirect state.
+- Fixed scoped `clear_cache` invalidation for versioned cache keys.
+- Fixed swapped Cengage secure-session response helpers for assignment-list vs assignment-detail tools.
+- Avoided duplicate image downloads in `get_item_details`.
+- Cached legitimate empty eClass course/deadline results briefly to avoid repeated scrapes.
+- Added PDF page-range validation for impossible ranges and an RMP GraphQL request timeout.
 
 ### Security
 
@@ -69,11 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added eClass DOM scraper, file-download, announcements, item-details, auth-retry, secure-session, selector-registry, and parser regression tests.
 - Added doctor/setup script tests that exercise Claude config path resolution, dry-run behavior, backups, restore validation, env checks, and session-file diagnostics without mutating real user config.
 - Added contract and structured-error tests for E11/E12 machine-code response behavior.
+- Added focused property/regression tests for cache keys, Cengage URL normalization, cache invalidation, PDF range validation, and RMP timeouts.
 
 ### Documentation
 
 - Updated README, SECURITY, PROJECT_MASTER, E11/E12 references, E2E handbook, and per-tool docs for Cengage/WebAssign, assignment resolver, secure sessions, selector diagnostics, doctor, and setup recovery.
 - Added release notes, release checklist, and full-history commit audit documentation for the `v1.0.0-beta.2` release candidate.
+- Corrected stale cache-key, privacy, Node runtime, WeBWorK-current-state, and live E2E-status claims.
 
 ## [1.0.0-beta.1] - 2026-03-27
 

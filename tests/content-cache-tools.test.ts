@@ -23,6 +23,7 @@ vi.mock('../src/scraper/eclass', () => {
 });
 
 vi.mock('../src/cache/store', () => ({
+  CACHE_SCHEMA_VERSION: 1,
   cache: {
     getWithMeta: mocks.getWithMeta,
     set: mocks.set,
@@ -98,13 +99,18 @@ describe('content and cache tools', () => {
 
   it('sanitizes section URLs, returns cached section text, and retries auth errors', async () => {
     mocks.getWithMeta.mockReturnValueOnce({
-      data: { url: 'https://eclass.test/section', text: 'cached' },
+      data: {
+        url: 'https://eclass.yorku.ca/course/view.php?id=1&section=2',
+        text: 'cached',
+      },
       fetched_at: '2026-01-01T00:00:00.000Z',
       expires_at: '2026-01-01T00:30:00.000Z',
     });
     expect(
       payload(
-        await getSectionText('https://eclass.test/section?forcedownload=1')
+        await getSectionText(
+          'https://eclass.yorku.ca/course/view.php?id=1%20%20&section=2'
+        )
       )
     ).toMatchObject({
       text: 'cached',
@@ -118,7 +124,11 @@ describe('content and cache tools', () => {
       content: [{ type: 'text', text: JSON.stringify({ status: 'handled' }) }],
     });
     expect(
-      payload(await getSectionText('https://eclass.test/section?x=1'))
+      payload(
+        await getSectionText(
+          'https://eclass.yorku.ca/course/view.php?id=1&section=2'
+        )
+      )
     ).toEqual({ status: 'handled' });
     expect(mocks.handleEclassSessionExpired).toHaveBeenCalledWith(
       sessionError,
@@ -127,19 +137,30 @@ describe('content and cache tools', () => {
     );
   });
 
+  it('rejects unsafe section URLs before scraping', async () => {
+    const result = payload(
+      await getSectionText(
+        'https://eclass.yorku.ca.evil.test/course/view.php?id=1&section=2'
+      )
+    );
+
+    expect(result.code).toBe('VALIDATION_FAILED');
+    expect(mocks.getSectionText).not.toHaveBeenCalled();
+  });
+
   it('clears each cache scope and reports errors', async () => {
     mocks.clearVolatile.mockReturnValue(4);
     expect(payload(await clearCache('volatile')).clearedCount).toBe(4);
 
     mocks.clearByPrefix.mockImplementation((prefix: string) => prefix.length);
     const scopes = [
-      ['deadlines', 9],
-      ['announcements', 13],
-      ['grades', 6],
-      ['content', 18],
-      ['courses', 7],
-      ['files', 4],
-      ['rmp', 21],
+      ['deadlines', 21],
+      ['announcements', 29],
+      ['grades', 15],
+      ['content', 42],
+      ['courses', 17],
+      ['files', 11],
+      ['rmp', 48],
       ['all', 0],
     ] as const;
 

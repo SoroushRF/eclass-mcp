@@ -83,7 +83,7 @@ describe('cengage link discovery', () => {
     const result = discoverCengageLinksFromText({
       text: [
         'Ignore https://example.org/course/123',
-        'Keep https://www.cengage.com/some/unknown/path',
+        'Keep https://www.cengage.com/dashboard/home',
       ].join('\n'),
       source: 'section_text',
       sectionUrl: 'https://eclass.yorku.ca/course/view.php?id=99#section-3',
@@ -92,9 +92,9 @@ describe('cengage link discovery', () => {
     expect(result.status).toBe('ok');
     expect(result.links).toHaveLength(1);
     expect(result.links[0].normalizedUrl).toBe(
-      'https://www.cengage.com/some/unknown/path'
+      'https://www.cengage.com/dashboard/home'
     );
-    expect(result.links[0].linkType).toBe('other');
+    expect(result.links[0].linkType).toBe('cengage_dashboard');
     expect(result.links[0].sourceHint).toContain('sectionUrl:');
   });
 

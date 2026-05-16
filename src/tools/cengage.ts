@@ -668,11 +668,10 @@ export async function getCengageAssignmentDetails(
     );
   } catch (error: unknown) {
     if (error instanceof SecureSessionStorageError) {
-      return asAssignmentsToolResponse({
+      return asAssignmentDetailsToolResponse({
         status: 'error',
         code: 'SESSION_STORAGE_UNAVAILABLE',
         entryUrl,
-        assignments: [],
         message: cengageSessionStorageUnavailableMessage(),
         retry: { afterAuth: false },
       });
@@ -1140,10 +1139,11 @@ export async function getCengageAssignments(
     );
   } catch (error: unknown) {
     if (error instanceof SecureSessionStorageError) {
-      return asAssignmentDetailsToolResponse({
+      return asAssignmentsToolResponse({
         status: 'error',
         code: 'SESSION_STORAGE_UNAVAILABLE',
         entryUrl,
+        assignments: [],
         message: cengageSessionStorageUnavailableMessage(),
         retry: { afterAuth: false },
       });

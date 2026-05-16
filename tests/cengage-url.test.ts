@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   classifyCengageUrl,
@@ -6,6 +7,15 @@ import {
 import { CengageInvalidInputError } from '../src/scraper/cengage-errors';
 
 describe('cengage URL classifier', () => {
+  const urlToken = fc
+    .array(
+      fc.constantFrom(
+        ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-'
+      ),
+      { minLength: 1, maxLength: 24 }
+    )
+    .map((chars) => chars.join(''));
+
   it('classifies eClass LTI launch links', () => {
     const parsed = normalizeAndClassifyCengageEntry(
       'https://eclass.yorku.ca/mod/lti/view.php?id=12345'
@@ -48,6 +58,17 @@ describe('cengage URL classifier', () => {
     expect(parsed.linkType).toBe('cengage_dashboard');
   });
 
+  it('classifies Cengage Canada dashboard and MindTap links', () => {
+    expect(
+      normalizeAndClassifyCengageEntry('https://www.cengage.ca/dashboard/home')
+        .linkType
+    ).toBe('cengage_dashboard');
+    expect(
+      normalizeAndClassifyCengageEntry('https://www.cengage.ca/mindtap/course')
+        .linkType
+    ).toBe('cengage_dashboard');
+  });
+
   it('classifies getenrolled WebAssign registration links with course keys', () => {
     const parsed = normalizeAndClassifyCengageEntry(
       'https://www.getenrolled.com/?courseKey=yorku.ca73866101'
@@ -80,6 +101,23 @@ describe('cengage URL classifier', () => {
     );
   });
 
+  it('normalizes generated WebAssign course URLs without fragments', () => {
+    fc.assert(
+      fc.property(urlToken, urlToken, (pid, courseKey) => {
+        const parsed = normalizeAndClassifyCengageEntry(
+          `https://www.webassign.net/v4cgi/login.pl?pid=${pid}&amp;courseKey=${courseKey}#section`
+        );
+        const normalized = new URL(parsed.normalizedUrl);
+
+        expect(parsed.linkType).toBe('webassign_course');
+        expect(normalized.protocol).toBe('https:');
+        expect(normalized.hash).toBe('');
+        expect(normalized.searchParams.get('pid')).toBe(pid);
+        expect(normalized.searchParams.get('courseKey')).toBe(courseKey);
+      })
+    );
+  });
+
   it('throws for input with no URL', () => {
     expect(() =>
       normalizeAndClassifyCengageEntry('please open my cengage')
@@ -89,6 +127,22 @@ describe('cengage URL classifier', () => {
   it('throws for unsupported protocols', () => {
     expect(() =>
       normalizeAndClassifyCengageEntry('ftp://login.cengage.com')
+    ).toThrow(CengageInvalidInputError);
+  });
+
+  it('throws for HTTP and host-spoofed Cengage/WebAssign URLs', () => {
+    expect(() =>
+      normalizeAndClassifyCengageEntry('http://login.cengage.com')
+    ).toThrow(CengageInvalidInputError);
+    expect(() =>
+      normalizeAndClassifyCengageEntry(
+        'https://www.webassign.net.evil.test/v4cgi/login.pl?courseKey=x'
+      )
+    ).toThrow(CengageInvalidInputError);
+    expect(() =>
+      normalizeAndClassifyCengageEntry(
+        'https://eclass.yorku.ca.evil.test/mod/lti/view.php?id=1'
+      )
     ).toThrow(CengageInvalidInputError);
   });
 

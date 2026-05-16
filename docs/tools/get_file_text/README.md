@@ -6,12 +6,12 @@
 - PDF path uses the shipped hybrid analyzer (`text` + rendered images when needed).
 - T22 PDF pipeline work is complete: page-level image detection, payload strategy, and mixed content blocks are implemented.
 - Supports page ranges via `startPage` / `endPage`.
-- Cache key format: `file_<md5(url)>_v2[_pX-Y]`.
+- Cache keys use the shared cache schema helper: `getCacheKey("file", fileUrl, optionalPageRange)`, stored as versioned `v1_file_*.json` filenames under `.eclass-mcp/cache/`.
 
 ## Known Problems
 
 - Very large files can produce big payloads.
-- Cached schema still uses manual version suffix (`v2`); this is a separate cache task, not a PDF pipeline gap.
+- PDF page ranges are now validated before extraction; impossible ranges return a controlled message instead of processing invalid pages.
 
 ## Tests
 

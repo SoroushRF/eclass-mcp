@@ -86,14 +86,14 @@ This repository now treats the MCP server as an **engine line** that can stay op
 
 - `1.0.0-beta.2`
   - Current engine stage in this repo.
-  - Cengage and WeBWorK assignment platform integration.
+  - Cengage/WebAssign assignment platform integration.
   - Platform discovery engine: passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
-  - Per-platform and per-instance auth endpoints; per-hostname WeBWorK session model.
+  - Cengage auth endpoint and durable course-platform mapping; WeBWorK remains pending under T32-T35.
   - Blocking poll / auto-retry pattern retrofitted to eClass and SIS (T36) so those tools respond seamlessly without requiring a re-prompt after login.
 
 - `1.0.0`
   - First stable engine release.
-  - All read-only tools are dependable — eClass, SIS, RMP, Cengage, and WeBWorK.
+  - All completed read-only tool families are dependable — eClass, SIS, RMP, Cengage/WebAssign, and any platform additions completed before stable.
   - Seamless auth across all platforms: tools block and auto-retry during login; no re-prompt ever needed.
   - Version contracts, docs, and release discipline are in place.
 
@@ -143,7 +143,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
   - timetable logic
   - professor enrichment
   - read-only workflow helpers
-  - local auth/session handling (all platforms — eClass, SIS, Cengage, WeBWorK)
+  - local auth/session handling (implemented: eClass, SIS, Cengage; pending: WeBWorK)
   - platform discovery engine (passive detection of external platform links from eClass course content)
   - per-platform and per-instance session management
 
@@ -807,7 +807,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 ### 3.2 Technology and runtime (canonical)
 
-- **Language / runtime:** TypeScript on Node.js (? 18).
+- **Language / runtime:** TypeScript on Node.js (>=20.19.0).
 - **MCP:** `@modelcontextprotocol/sdk`, stdio transport to the host (e.g. Claude Desktop).
 - **Scraping:** Playwright (Chromium); **auth** flow uses a **visible** browser; **data** scraping uses **headless** contexts with session cookies.
 - **Parsers:** PDF (including pdfjs-based pipeline where implemented), DOCX (mammoth), PPTX (ZIP/XML extraction).
@@ -1029,7 +1029,7 @@ for (const sisUrl of SIS_URLS) {
 
 ### 11.1 Executive summary
 
-The project scores roughly **8.7/10** on engineering maturity after completing the E01?E20 roadmap; the original gaps (CI/CD, tests, security hardening, structured errors, observability, and release discipline) are now addressed. The remaining open item is **E21** (post-write audit log + cache invalidation).
+The historical internal self-assessment after the E01-E20 roadmap placed the project around **8.7/10** on engineering maturity. Treat that as a dated planning snapshot, not an objective current score; current reviews should re-score the repository from the code, tests, docs, and release state that exist today. The remaining open item is **E21** (post-write audit log + cache invalidation).
 
 ### 11.2 Scored rubric (0?10)
 

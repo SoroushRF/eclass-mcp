@@ -638,8 +638,8 @@ console.error(
   targeted calls, without ever hitting the 50-page limit.
 - The bookend warnings use instruction-style language ("You MUST inform the user") which
   Claude tends to respect, though we can't guarantee it.
-- When `startPage`/`endPage` are provided, caching should use a range-aware cache key
-  (e.g., `file_<hash>_p5-20`) to avoid collisions with full-file cache entries.
+- When `startPage`/`endPage` are provided, caching uses a range-aware `getCacheKey("file", fileUrl, "pX-Y")`
+  logical key to avoid collisions with full-file cache entries.
 
 ---
 
@@ -703,15 +703,15 @@ console.error(
 
 ### Current
 
-| What's cached  | Format   | TTL    | Location                            |
-| -------------- | -------- | ------ | ----------------------------------- |
-| Extracted text | `string` | 7 days | `.eclass-mcp/cache/file_<md5>.json` |
+| What's cached  | Format   | TTL         | Location                                  |
+| -------------- | -------- | ----------- | ----------------------------------------- |
+| Extracted text | `string` | historical  | versioned `.eclass-mcp/cache/v1_file_*.json` |
 
 ### After Implementation
 
-| What's cached                         | Format           | TTL    | Location                            |
-| ------------------------------------- | ---------------- | ------ | ----------------------------------- |
-| Content blocks (text + base64 images) | `ContentBlock[]` | 7 days | `.eclass-mcp/cache/file_<md5>.json` |
+| What's cached                         | Format           | TTL          | Location                                  |
+| ------------------------------------- | ---------------- | ------------ | ----------------------------------------- |
+| Content blocks (text + base64 images) | `ContentBlock[]` | `TTL.FILES`  | versioned `.eclass-mcp/cache/v1_file_*.json` |
 
 ### Cache Invalidation
 

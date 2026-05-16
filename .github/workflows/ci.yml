@@ -36,6 +36,9 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Package Dry Run
+        run: npm pack --dry-run
+
       - name: Typecheck (No Emit)
         run: npm run typecheck
 

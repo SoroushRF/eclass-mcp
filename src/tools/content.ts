@@ -4,10 +4,13 @@ import {
   CourseContent,
   SectionTextData,
 } from '../scraper/eclass';
-import { sanitizeHttpUrlQueryParams } from '../scraper/eclass/helpers';
 import { getAuthUrl } from '../auth/server';
-import { sessionExpiredPayload } from '../errors/tool-error';
-import { EclassToolJsonPayloadSchema } from './eclass-contracts';
+import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
+import { ValidationError } from '../errors/validation-error';
+import {
+  EclassToolErrorResponseSchema,
+  EclassToolJsonPayloadSchema,
+} from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import {
@@ -19,6 +22,7 @@ import {
   isScrapeLayoutChanged,
   scrapeLayoutChangedResponse,
 } from './scrape-layout-response';
+import { redactUrlForLog, validateUrlForPolicy } from '../security/url-policy';
 
 export async function getCourseContent(courseId: string) {
   const run = async () => {
@@ -85,9 +89,9 @@ export async function getCourseContent(courseId: string) {
 
 export async function getSectionText(url: string) {
   const run = async () => {
-    const targetUrl = sanitizeHttpUrlQueryParams(url);
+    const targetUrl = validateUrlForPolicy(url, 'eclass_section');
     console.error(
-      `[MCP Server] Claude requested section text for: ${targetUrl}`
+      `[MCP Server] Claude requested section text for: ${redactUrlForLog(targetUrl)}`
     );
     const cacheKey = getCacheKey('sectiontext', targetUrl);
     const cached = cache.getWithMeta<SectionTextData>(cacheKey);
@@ -144,6 +148,15 @@ export async function getSectionText(url: string) {
             authUrl: getAuthUrl('eclass'),
           })
         )
+      );
+    }
+    if (e instanceof ValidationError) {
+      return asValidatedMcpText(
+        'get_section_text',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('VALIDATION_FAILED', e.message, {
+          ...(e.details ? { details: e.details } : {}),
+        })
       );
     }
     throw e;

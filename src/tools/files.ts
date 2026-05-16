@@ -6,6 +6,7 @@ import {
 } from '../scraper/eclass';
 import { getAuthUrl } from '../auth/server';
 import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
+import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
   EclassAuthRequiredSchema,
@@ -25,6 +26,7 @@ import {
   isSessionStorageUnavailable,
   sessionStorageUnavailableResponse,
 } from './auth-retry';
+import { validateUrlForPolicy } from '../security/url-policy';
 
 export async function getFileText(
   courseId: string,
@@ -33,12 +35,13 @@ export async function getFileText(
   endPage?: number
 ) {
   const run = async () => {
+    const safeFileUrl = validateUrlForPolicy(fileUrl, 'eclass_file');
     // Build a cache key
-    let cacheKey = getCacheKey('file', fileUrl);
+    let cacheKey = getCacheKey('file', safeFileUrl);
     if (startPage || endPage) {
       cacheKey = getCacheKey(
         'file',
-        fileUrl,
+        safeFileUrl,
         `p${startPage ?? 1}-${endPage ?? 'end'}`
       );
     }
@@ -76,7 +79,8 @@ export async function getFileText(
       }
     }
 
-    const { buffer, mimeType, filename } = await scraper.downloadFile(fileUrl);
+    const { buffer, mimeType, filename } =
+      await scraper.downloadFile(safeFileUrl);
 
     const ext = path.extname(filename).toLowerCase();
     let blocks: ContentBlock[];
@@ -152,6 +156,15 @@ export async function getFileText(
           ...(e.httpStatus !== undefined
             ? { details: { httpStatus: e.httpStatus } }
             : {}),
+        })
+      );
+    }
+    if (e instanceof ValidationError) {
+      return asValidatedMcpText(
+        'get_file_text',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('VALIDATION_FAILED', e.message, {
+          ...(e.details ? { details: e.details } : {}),
         })
       );
     }

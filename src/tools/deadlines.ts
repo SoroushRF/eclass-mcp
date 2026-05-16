@@ -20,6 +20,7 @@ import {
   isScrapeLayoutChanged,
   scrapeLayoutChangedResponse,
 } from './scrape-layout-response';
+import { validateUrlForPolicy } from '../security/url-policy';
 
 function attachEclassDeadlinePayload(
   items: unknown[],
@@ -140,7 +141,8 @@ function detailsCacheKey(url: string) {
 async function getDetailsWithMeta(
   url: string
 ): Promise<{ data: ItemDetails; meta: any }> {
-  const key = detailsCacheKey(url);
+  const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+  const key = detailsCacheKey(safeUrl);
   const cached = cache.getWithMeta<ItemDetails>(key);
 
   if (cached) {
@@ -154,7 +156,7 @@ async function getDetailsWithMeta(
     };
   }
 
-  const details = await scraper.getItemDetails(url);
+  const details = await scraper.getItemDetails(safeUrl);
   cache.set(key, details, TTL.DETAILS);
 
   const now = new Date();
@@ -300,7 +302,9 @@ export async function getItemDetails(
     const csvPreviewLines = params?.csvPreviewLines ?? 200;
     const maxCsvAttachments = params?.maxCsvAttachments ?? 3;
 
-    const { data: details, meta: cacheMeta } = await getDetailsWithMeta(url);
+    const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+    const { data: details, meta: cacheMeta } =
+      await getDetailsWithMeta(safeUrl);
 
     // Backwards compatible mode: return only the JSON payload + cache meta
     if (!includeImages && !includeCsv) {
@@ -337,7 +341,11 @@ export async function getItemDetails(
       );
       for (const att of limitedCsv) {
         try {
-          const downloaded = await scraper.downloadFile(att.url);
+          const safeAttachmentUrl = validateUrlForPolicy(
+            att.url,
+            'eclass_attachment'
+          );
+          const downloaded = await scraper.downloadFile(safeAttachmentUrl);
           const bytes = downloaded.buffer.length;
 
           const truncatedBySize = bytes > maxCsvBytes;
@@ -415,6 +423,7 @@ export async function getItemDetails(
     let imagesRemainingCount = 0;
     let nextImageOffset = 0;
     let usedBase64BytesEstimate = 0;
+    const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
 
     if (includeImages) {
       const allImageUrls = details.descriptionImageUrls ?? [];
@@ -441,7 +450,6 @@ export async function getItemDetails(
       const offset = Math.max(0, imageOffset);
       const slice = allImageUrls.slice(offset);
 
-      const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
       let usedBytes = 0;
       let attemptedCount = 0;
 
@@ -453,7 +461,11 @@ export async function getItemDetails(
 
         const imageUrl = slice[i];
         try {
-          const { buffer, mimeType } = await scraper.downloadFile(imageUrl);
+          const safeImageUrl = validateUrlForPolicy(
+            imageUrl,
+            'eclass_attachment'
+          );
+          const { buffer, mimeType } = await scraper.downloadFile(safeImageUrl);
           const urlLower = imageUrl.toLowerCase();
           const isImageByMime = mimeType.startsWith('image/');
           const isImageByExt =
@@ -504,47 +516,7 @@ export async function getItemDetails(
     }
 
     if (includeImages) {
-      // Attach images after metadata JSON and CSV blocks.
-      const allImageUrls = details.descriptionImageUrls ?? [];
-      const offset = Math.max(0, imageOffset);
-      const slice = allImageUrls.slice(offset);
-
-      const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
-      let usedBytes = 0;
-      for (let i = 0; i < slice.length; i++) {
-        if (downloadedImages.length >= maxImages) break;
-        const imageUrl = slice[i];
-        try {
-          const { buffer, mimeType } = await scraper.downloadFile(imageUrl);
-          const urlLower = imageUrl.toLowerCase();
-          const isImageByMime = mimeType.startsWith('image/');
-          const isImageByExt =
-            urlLower.endsWith('.png') ||
-            urlLower.endsWith('.jpg') ||
-            urlLower.endsWith('.jpeg') ||
-            urlLower.endsWith('.gif') ||
-            urlLower.endsWith('.webp') ||
-            urlLower.includes('.png?') ||
-            urlLower.includes('.jpg?') ||
-            urlLower.includes('.jpeg?') ||
-            urlLower.includes('.gif?') ||
-            urlLower.includes('.webp?');
-
-          if (!isImageByMime && !isImageByExt) {
-            continue;
-          }
-          const base64 = buffer.toString('base64');
-          const estBytes = base64.length;
-          if (usedBytes + estBytes > maxTotalImageBytes) {
-            break;
-          }
-          downloadedImages.push({ base64, mimeType });
-          usedBytes += estBytes;
-        } catch {
-          // skip failed image download
-        }
-      }
-
+      // Attach the images downloaded during the metadata pass after text/CSV blocks.
       for (const img of downloadedImages) {
         content.push({
           type: 'image' as const,

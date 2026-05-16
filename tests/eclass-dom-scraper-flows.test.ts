@@ -634,7 +634,8 @@ describe('eclass DOM scraper flows', () => {
   it('getSectionText extracts summary and tab content and classifies external links', async () => {
     vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
 
-    const targetUrl = 'https://eclass.yorku.ca/mod/page/view.php?id=321';
+    const targetUrl =
+      'https://eclass.yorku.ca/course/view.php?id=321&section=4';
     const page = createDomPage({
       htmlByUrl: {
         [targetUrl]: `
@@ -681,7 +682,8 @@ describe('eclass DOM scraper flows', () => {
   it('getSectionText falls back to panel titles when nav tabs are absent', async () => {
     vi.spyOn(helpers, 'checkSession').mockResolvedValue(undefined);
 
-    const targetUrl = 'https://eclass.yorku.ca/mod/page/view.php?id=654';
+    const targetUrl =
+      'https://eclass.yorku.ca/course/view.php?id=654&section=6';
     const page = createDomPage({
       htmlByUrl: {
         [targetUrl]: `

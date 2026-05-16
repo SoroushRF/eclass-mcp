@@ -75,7 +75,7 @@ function payload(result: { content: Array<{ text?: string }> }) {
 const PIN = {
   pinId: 'pin-1',
   resource_type: 'file' as const,
-  resource_key: 'https://example.test/file.pdf|p2-end',
+  resource_key: 'https://eclass.yorku.ca/pluginfile.php/1/file.pdf|p2-end',
   cacheKey: 'file-cache',
   pinned_at: '2026-01-01T00:00:00.000Z',
   note: 'keep',
@@ -123,7 +123,7 @@ describe('pin tool layer', () => {
     let result = payload(
       await cachePin({
         resource_type: 'file',
-        fileUrl: 'https://example.test/file.pdf',
+        fileUrl: 'https://eclass.yorku.ca/pluginfile.php/1/file.pdf',
       })
     );
     expect(result.reason).toBe('not_cached');
@@ -138,7 +138,7 @@ describe('pin tool layer', () => {
     result = payload(
       await cachePin({
         resource_type: 'sectiontext',
-        url: 'https://eclass.test/section',
+        url: 'https://eclass.yorku.ca/course/view.php?id=1&section=2',
       })
     );
     expect(result.reason).toBe('quota_exceeded');
@@ -203,7 +203,7 @@ describe('pin tool layer', () => {
     );
     expect(mocks.getFileText).toHaveBeenCalledWith(
       'unknown',
-      'https://example.test/file.pdf',
+      'https://eclass.yorku.ca/pluginfile.php/1/file.pdf',
       2,
       undefined
     );
@@ -211,7 +211,7 @@ describe('pin tool layer', () => {
     mocks.getPinById.mockReturnValueOnce({
       ...PIN,
       resource_type: 'sectiontext',
-      resource_key: 'https://eclass.test/section',
+      resource_key: 'https://eclass.yorku.ca/course/view.php?id=1&section=2',
     });
     mocks.getSectionText.mockResolvedValueOnce({ content: [{ text: 'ok' }] });
     expect(payload(await cacheRefreshPin({ pinId: 'pin-1' })).ok).toBe(true);
@@ -238,6 +238,27 @@ describe('pin tool layer', () => {
     expect(payload(await cacheRefreshPin({ pinId: 'pin-1' })).reason).toBe(
       'error'
     );
+  });
+
+  it('rejects unsafe pin creation and legacy pinned URLs', async () => {
+    expect(
+      payload(
+        await cachePin({
+          resource_type: 'file',
+          fileUrl: 'https://eclass.yorku.ca.evil.test/pluginfile.php/1/a.pdf',
+        })
+      ).reason
+    ).toBe('invalid_args');
+
+    mocks.getPinById.mockReturnValueOnce({
+      ...PIN,
+      resource_key:
+        'https://eclass.yorku.ca.evil.test/pluginfile.php/1/a.pdf|p1-end',
+    });
+    expect(payload(await cacheRefreshPin({ pinId: 'pin-1' })).reason).toBe(
+      'invalid_args'
+    );
+    expect(mocks.getFileText).not.toHaveBeenCalled();
   });
 
   it('returns direct auth fallback on refresh retry attempts', async () => {

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import fc from 'fast-check';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as pins from '../src/cache/pins';
 import {
@@ -14,6 +15,7 @@ import {
   sanitizeCacheKeyForFilename,
   isCacheEntryExpired,
 } from '../src/cache/store';
+import { clearCache } from '../src/tools/cache';
 
 const touchedFiles = new Set<string>();
 
@@ -23,6 +25,10 @@ function writeEntryFile(key: string, entry: Record<string, unknown>): string {
   fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
   touchedFiles.add(filePath);
   return filePath;
+}
+
+function parseToolPayload(result: { content: Array<{ text?: string }> }) {
+  return JSON.parse(result.content[0].text || '{}');
 }
 
 afterEach(() => {
@@ -51,6 +57,27 @@ describe('cache key + expiry helpers', () => {
       'deadlines_foo_bar'
     );
     expect(sanitizeCacheKeyForFilename('plain_key')).toBe('plain_key');
+  });
+
+  it('keeps arbitrary cache filenames within the portable safe alphabet', () => {
+    fc.assert(
+      fc.property(fc.string(), (key) => {
+        const sanitized = sanitizeCacheKeyForFilename(key);
+        expect(sanitized).toMatch(/^[a-z0-9_-]*$/i);
+        expect(sanitizeCacheKeyForFilename(sanitized)).toBe(sanitized);
+      })
+    );
+  });
+
+  it('generates schema-versioned cache keys for arbitrary segments', () => {
+    fc.assert(
+      fc.property(fc.array(fc.string(), { maxLength: 5 }), (segments) => {
+        const key = getCacheKey('vitest-prefix', ...segments);
+        expect(key.startsWith(`v${CACHE_SCHEMA_VERSION}:vitest-prefix`)).toBe(
+          true
+        );
+      })
+    );
   });
 
   it('detects expired cache entries', () => {
@@ -232,6 +259,32 @@ describe('cache key + expiry helpers', () => {
     expect(clearSpy).toHaveBeenCalledWith('announcements');
     expect(clearSpy).toHaveBeenCalledWith(`v${CACHE_SCHEMA_VERSION}:grades`);
     expect(clearSpy).toHaveBeenCalledWith('grades');
+  });
+
+  it('clearCache removes versioned and legacy scoped keys', async () => {
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([
+      'v1_deadlines_upcoming_vitest-clear.json',
+      'deadlines_legacy-vitest-clear.json',
+      'v1_grades_vitest-clear.json',
+    ] as any);
+    vi.spyOn(pins, 'getPinnedCacheFilenames').mockReturnValue(new Set());
+    const unlinkSpy = vi.spyOn(fs, 'unlinkSync').mockImplementation(() => {
+      return undefined;
+    });
+
+    const result = parseToolPayload(await clearCache('deadlines'));
+
+    expect(result.clearedCount).toBe(2);
+    expect(unlinkSpy).toHaveBeenCalledWith(
+      path.join(CACHE_DIR, 'v1_deadlines_upcoming_vitest-clear.json')
+    );
+    expect(unlinkSpy).toHaveBeenCalledWith(
+      path.join(CACHE_DIR, 'deadlines_legacy-vitest-clear.json')
+    );
+    expect(unlinkSpy).not.toHaveBeenCalledWith(
+      path.join(CACHE_DIR, 'v1_grades_vitest-clear.json')
+    );
   });
 
   it('clear removes non-pinned JSON files only', () => {

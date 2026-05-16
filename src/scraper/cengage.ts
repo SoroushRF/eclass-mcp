@@ -2,9 +2,11 @@ import { chromium, type Browser, type Locator, type Page } from 'playwright';
 import {
   CengageAuthRequiredError,
   CengageCourseActivationError,
+  CengageInvalidInputError,
   CengageNavigationError,
   CengageParseError,
 } from './cengage-errors';
+import { ValidationError } from '../errors/validation-error';
 import {
   inferCourseFromCurrentPage,
   type CengageDashboardCourse,
@@ -37,6 +39,11 @@ import {
 } from './cengage/course-context';
 import { getLogger } from '../logging/context';
 import { getSelectorGroup, logDomSelectorMatch } from './selectors';
+import {
+  isAllowedUrlForPolicy,
+  validateFinalUrlForPolicy,
+  validateUrlForPolicy,
+} from '../security/url-policy';
 
 // Canonical homes are attempted in order when bootstrapping from a saved session.
 const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
@@ -46,6 +53,31 @@ const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
   'https://www.webassign.net/v4cgi/student',
   'https://login.cengage.com/',
 ];
+
+function validateCengageFinalUrl(url: string, message: string): string {
+  try {
+    return validateFinalUrlForPolicy(url, 'cengage_page');
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw new CengageNavigationError(message, error.details);
+    }
+    throw error;
+  }
+}
+
+function validateCengagePageTargetUrl(url: string): string {
+  try {
+    return validateUrlForPolicy(url, 'cengage_page');
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      throw new CengageInvalidInputError(
+        'Cengage/WebAssign target URL is not allowed.',
+        error.details
+      );
+    }
+    throw error;
+  }
+}
 
 const ASSIGNMENT_TAB_SELECTOR_GROUPS = [
   'Past Assignments',
@@ -595,14 +627,25 @@ export class CengageScraper {
     await targetPage
       .waitForLoadState('domcontentloaded', { timeout: 45000 })
       .catch(() => null);
+    if (targetPage.url() !== 'about:blank') {
+      validateCengageFinalUrl(
+        targetPage.url(),
+        'Link activation reached a URL outside the allowed Cengage/WebAssign boundary.'
+      );
+    }
 
     if (
       !popup &&
       href &&
-      !/webassign\.net/i.test(targetPage.url()) &&
-      /webassign\.net/i.test(href)
+      !isAllowedUrlForPolicy(targetPage.url(), 'cengage_page') &&
+      isAllowedUrlForPolicy(href, 'cengage_page')
     ) {
-      await targetPage.goto(href, { waitUntil: 'load', timeout: 45000 });
+      const safeHref = validateCengagePageTargetUrl(href);
+      await targetPage.goto(safeHref, { waitUntil: 'load', timeout: 45000 });
+      validateCengageFinalUrl(
+        targetPage.url(),
+        'WebAssign link fallback reached a URL outside the allowed boundary.'
+      );
     }
 
     return targetPage;
@@ -728,6 +771,10 @@ export class CengageScraper {
     for (const entryUrl of CENGAGE_CANONICAL_HOME_URLS) {
       try {
         await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+        validateCengageFinalUrl(
+          page.url(),
+          'Canonical Cengage/WebAssign bootstrap reached a URL outside the allowed boundary.'
+        );
       } catch (error) {
         lastRecoverableError = new CengageNavigationError(
           'Failed to open canonical Cengage/WebAssign bootstrap URL.',
@@ -804,6 +851,10 @@ export class CengageScraper {
             waitUntil: 'load',
             timeout: 45000,
           });
+          validateCengageFinalUrl(
+            page.url(),
+            'Provided Cengage/WebAssign URL reached a URL outside the allowed boundary.'
+          );
         } catch (error) {
           throw new CengageNavigationError(
             'Failed to open the provided Cengage/WebAssign URL.',
@@ -849,6 +900,10 @@ export class CengageScraper {
       console.error(`[Cengage] Navigating to SSO URL...`);
       try {
         await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+        validateCengageFinalUrl(
+          page.url(),
+          'Provided Cengage/WebAssign URL reached a URL outside the allowed boundary.'
+        );
       } catch (error) {
         throw new CengageNavigationError(
           'Failed to open the provided Cengage/WebAssign URL.',
@@ -920,6 +975,10 @@ export class CengageScraper {
         getBrowser: () => this.getBrowser(),
         callback: async (page) => {
           await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+          validateCengageFinalUrl(
+            page.url(),
+            'Cengage dashboard reached a URL outside the allowed boundary.'
+          );
           await waitForCengagePageState(page, {
             timeoutMs: 9000,
             pollIntervalMs: 300,
@@ -1001,6 +1060,10 @@ export class CengageScraper {
       console.error(`[Cengage] Navigating to assignment source URL...`);
       try {
         await page.goto(entryUrl, { waitUntil: 'load', timeout: 45000 });
+        validateCengageFinalUrl(
+          page.url(),
+          'Provided Cengage/WebAssign URL reached a URL outside the allowed boundary.'
+        );
       } catch (error) {
         throw new CengageNavigationError(
           'Failed to open the provided Cengage/WebAssign URL.',
@@ -1180,10 +1243,16 @@ export class CengageScraper {
       }
 
       try {
-        await page.goto(targetAssignmentUrl, {
+        const safeTargetAssignmentUrl =
+          validateCengagePageTargetUrl(targetAssignmentUrl);
+        await page.goto(safeTargetAssignmentUrl, {
           waitUntil: 'load',
           timeout: 45000,
         });
+        validateCengageFinalUrl(
+          page.url(),
+          'Selected WebAssign assignment page reached a URL outside the allowed boundary.'
+        );
       } catch (error) {
         throw new CengageNavigationError(
           'Failed to open the selected WebAssign assignment page.',

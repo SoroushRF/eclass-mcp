@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { redactCookieSubstrings, safeString } from '../src/logging/redact';
+import {
+  redactCookieSubstrings,
+  redactUrlForLog,
+  safeString,
+} from '../src/logging/redact';
 import { getLogger, runWithToolContext } from '../src/logging/context';
 
 describe('redactCookieSubstrings', () => {
@@ -20,6 +24,30 @@ describe('redactCookieSubstrings', () => {
     expect(r).toContain('wstoken=[Redacted]');
     expect(r).not.toContain('SECRET123');
     expect(r).not.toContain('TOKEN456');
+  });
+
+  it('redacts additional sensitive URL query params case-insensitively', () => {
+    const s =
+      'https://x.com?a=1&Token=t1&UserPass=p1&SAMLResponse=saml&RelayState=relay&ok=2';
+    const r = redactCookieSubstrings(s);
+    expect(r).toContain('Token=[Redacted]');
+    expect(r).toContain('UserPass=[Redacted]');
+    expect(r).toContain('SAMLResponse=[Redacted]');
+    expect(r).toContain('RelayState=[Redacted]');
+    expect(r).not.toContain('t1');
+    expect(r).not.toContain('p1');
+    expect(r).not.toContain('saml');
+    expect(r).not.toContain('relay');
+  });
+
+  it('redacts URL credentials and sensitive query params for logs', () => {
+    const r = redactUrlForLog(
+      'https://user:pass@eclass.yorku.ca/mod/lti/view.php?code=abc&ok=1'
+    );
+    expect(r).not.toContain('user');
+    expect(r).not.toContain('pass');
+    expect(r).not.toContain('abc');
+    expect(r).toContain('code=%5BRedacted%5D');
   });
 
   it('safeString is an alias', () => {

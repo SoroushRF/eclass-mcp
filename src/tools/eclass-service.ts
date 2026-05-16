@@ -5,6 +5,8 @@ import type { DeadlineItem } from '../types/deadlines';
 
 export type DeadlineScope = 'upcoming' | 'month' | 'range';
 
+const EMPTY_RESULT_TTL_MINUTES = 5;
+
 export interface GetEclassDeadlineParams {
   courseId?: string;
   scope?: DeadlineScope;
@@ -73,10 +75,6 @@ export function deadlineCacheKey(
   return getCacheKey('deadlines', scope, coursePart, extra || '');
 }
 
-function hasUsableItems<T>(value: T[] | null): value is T[] {
-  return Array.isArray(value) && value.length > 0;
-}
-
 function inferTypeFromUrl(url: string): 'assign' | 'quiz' | 'other' {
   const u = (url || '').toLowerCase();
   if (u.includes('/mod/assign/')) return 'assign';
@@ -97,6 +95,10 @@ function freshCacheMeta(ttlMinutes: number): CacheMetadata {
     fetched_at: now.toISOString(),
     expires_at: new Date(now.getTime() + ttlMinutes * 60000).toISOString(),
   };
+}
+
+function ttlForList<T>(items: T[], normalTtlMinutes: number): number {
+  return items.length > 0 ? normalTtlMinutes : EMPTY_RESULT_TTL_MINUTES;
 }
 
 function hitCacheMeta(cached: {
@@ -124,13 +126,12 @@ export async function getEclassCoursesWithCache(): Promise<EclassCoursesWithCach
   }
 
   const courses = await scraper.getCourses();
-  if (courses.length > 0) {
-    cache.set(cacheKey, courses, TTL.COURSES);
-  }
+  const ttlMinutes = ttlForList(courses, TTL.COURSES);
+  cache.set(cacheKey, courses, ttlMinutes);
 
   return {
     courses,
-    cacheMeta: freshCacheMeta(TTL.COURSES),
+    cacheMeta: freshCacheMeta(ttlMinutes),
   };
 }
 
@@ -142,7 +143,7 @@ export async function getEclassDeadlineItems(
   if (scope === 'upcoming') {
     const key = deadlineCacheKey('upcoming', courseId);
     const cached = cache.getWithMeta<Assignment[]>(key);
-    if (cached && hasUsableItems(cached.data)) {
+    if (cached) {
       return {
         items: toDeadlineItems(cached.data),
         cacheMeta: hitCacheMeta(cached),
@@ -150,10 +151,11 @@ export async function getEclassDeadlineItems(
     }
 
     const deadlines = await scraper.getDeadlines(courseId);
-    cache.set(key, deadlines, TTL.DEADLINES);
+    const ttlMinutes = ttlForList(deadlines, TTL.DEADLINES);
+    cache.set(key, deadlines, ttlMinutes);
     return {
       items: toDeadlineItems(deadlines),
-      cacheMeta: freshCacheMeta(TTL.DEADLINES),
+      cacheMeta: freshCacheMeta(ttlMinutes),
     };
   }
 
@@ -163,7 +165,7 @@ export async function getEclassDeadlineItems(
     const extra = `${y}_${m}`;
     const key = deadlineCacheKey('month', courseId, extra);
     const cached = cache.getWithMeta<DeadlineItem[]>(key);
-    if (cached && hasUsableItems(cached.data)) {
+    if (cached) {
       return {
         items: cached.data,
         cacheMeta: hitCacheMeta(cached),
@@ -175,8 +177,9 @@ export async function getEclassDeadlineItems(
       const d = parseEClassDate(it.dueDate);
       return d ? isSameMonthYear(d, m, y) : false;
     });
-    cache.set(key, items, TTL.DEADLINES);
-    return { items, cacheMeta: freshCacheMeta(TTL.DEADLINES) };
+    const ttlMinutes = ttlForList(items, TTL.DEADLINES);
+    cache.set(key, items, ttlMinutes);
+    return { items, cacheMeta: freshCacheMeta(ttlMinutes) };
   }
 
   if (!from || !to) {
@@ -203,7 +206,7 @@ export async function getEclassDeadlineItems(
     .slice(0, 10)}`;
   const key = deadlineCacheKey('range', courseId, extra);
   const cached = cache.getWithMeta<DeadlineItem[]>(key);
-  if (cached && hasUsableItems(cached.data)) {
+  if (cached) {
     return {
       items: cached.data,
       cacheMeta: hitCacheMeta(cached),
@@ -225,6 +228,7 @@ export async function getEclassDeadlineItems(
     return true;
   });
 
-  cache.set(key, items, TTL.DEADLINES);
-  return { items, cacheMeta: freshCacheMeta(TTL.DEADLINES) };
+  const ttlMinutes = ttlForList(items, TTL.DEADLINES);
+  cache.set(key, items, ttlMinutes);
+  return { items, cacheMeta: freshCacheMeta(ttlMinutes) };
 }

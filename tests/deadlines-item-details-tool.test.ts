@@ -194,16 +194,17 @@ describe('deadlines getItemDetails media and csv branches', () => {
       url,
       title: 'Image test',
       descriptionImageUrls: [
-        'https://cdn.example.com/not-image.bin',
-        'https://cdn.example.com/image-1.png',
-        'https://cdn.example.com/image-2.jpg?token=abc',
-        'https://cdn.example.com/fail.webp',
-        'https://cdn.example.com/large.png',
+        'https://eclass.yorku.ca/pluginfile.php/3/not-image.bin',
+        'https://eclass.yorku.ca/pluginfile.php/3/image-1.png',
+        'https://eclass.yorku.ca/pluginfile.php/3/image-2.jpg?token=abc',
+        'https://eclass.yorku.ca/pluginfile.php/3/fail.webp',
+        'https://eclass.yorku.ca/pluginfile.php/3/large.png',
       ],
     } as any);
 
-    vi.spyOn(scraper, 'downloadFile').mockImplementation(
-      async (downloadUrl) => {
+    const downloadSpy = vi
+      .spyOn(scraper, 'downloadFile')
+      .mockImplementation(async (downloadUrl) => {
         if (downloadUrl.includes('not-image.bin')) {
           return {
             buffer: Buffer.from('bin'),
@@ -236,8 +237,7 @@ describe('deadlines getItemDetails media and csv branches', () => {
           } as any;
         }
         throw new Error('unexpected image URL');
-      }
-    );
+      });
 
     const result = await getItemDetails({
       url,
@@ -263,6 +263,7 @@ describe('deadlines getItemDetails media and csv branches', () => {
     expect(
       imageBlocks.every((block: any) => typeof block.data === 'string')
     ).toBe(true);
+    expect(downloadSpy).toHaveBeenCalledTimes(5);
   });
 
   it('maps SessionExpiredError to auth_required for getItemDetails', async () => {
@@ -287,6 +288,16 @@ describe('deadlines getItemDetails media and csv branches', () => {
     expect(payload.code).toBe('SESSION_EXPIRED');
     expect(payload.retry?.authUrl).toBe('http://localhost:3000/auth');
     expect(openAuthSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects unsafe item URLs before scraping', async () => {
+    const result = await getItemDetails({
+      url: 'https://eclass.yorku.ca.evil.test/mod/assign/view.php?id=1',
+    });
+    const payload = parseMeta(result);
+
+    expect(payload.code).toBe('VALIDATION_FAILED');
+    expect(payload.details.host).toBe('eclass.yorku.ca.evil.test');
   });
 
   it('retries getItemDetails after auth completes', async () => {

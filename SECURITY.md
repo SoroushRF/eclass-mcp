@@ -26,6 +26,14 @@ Session encryption protects against casual copying of `.eclass-mcp/session.json`
 
 The local `/logout` route performs best-effort auth-session deletion and overwrite before unlinking. Secure wipe cannot be guaranteed on SSDs, journaling filesystems, OneDrive/cloud sync, backups, or other copy-on-write storage.
 
+## Remote URL boundary
+
+User-supplied or page-derived URLs that can trigger authenticated fetches or browser navigation are checked against a central allowlist before use. The server permits HTTPS-only requests to the expected upstream services for the relevant tool: York eClass, Cengage/WebAssign/GetEnrolled, and RateMyProfessors where applicable.
+
+The URL boundary rejects unsupported protocols, embedded credentials, spoofed hosts such as `eclass.yorku.ca.evil.test`, localhost/private-network hosts, IP literals in private ranges, and off-policy paths. Pinned-cache refresh re-validates stored resource URLs before re-fetching, so older pins cannot bypass the current policy.
+
+Validation errors redact sensitive query parameters such as `sesskey`, `wstoken`, `token`, `code`, `SAMLResponse`, and `RelayState` before logging or returning details.
+
 ## Future write-tool risk model
 
 Future upload/submission/calendar tools may perform actions that are difficult or impossible to undo in normal eClass, Cengage/WebAssign, or Moodle use. Users remain responsible for confirming the target course, assignment, due date, submission state, and local files before a write.

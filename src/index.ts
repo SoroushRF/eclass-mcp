@@ -55,7 +55,7 @@ const bootstrapLog = rootLogger.child({ component: 'bootstrap' });
 // Create the MCP server
 const server = new McpServer({
   name: 'eclass-mcp',
-  version: '1.0.0-beta.1',
+  version: '1.0.0-beta.2',
 });
 
 // Register all tools with any casting to bypass literal-type inference issues
@@ -101,10 +101,14 @@ server.tool(
     fileUrl: z.string().describe('The file URL'),
     startPage: z
       .number()
+      .int()
+      .min(1)
       .optional()
       .describe('Start page for PDF extraction (1-indexed, default: 1)'),
     endPage: z
       .number()
+      .int()
+      .min(1)
       .optional()
       .describe(
         'End page for PDF extraction (1-indexed, default: startPage + 49)'
