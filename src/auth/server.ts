@@ -1,5 +1,5 @@
 import http from 'http';
-import { chromium } from 'playwright';
+import { chromium, type Browser } from 'playwright';
 import { saveSession, isSessionValid, type Cookie } from '../scraper/session';
 import {
   CENGAGE_STATE_PATH,
@@ -26,6 +26,7 @@ export const DEFAULT_AUTH_POLL_INTERVAL_MS = 1000;
 
 let authServerInstance: http.Server | null = null;
 let authServerPort: number | null = null;
+const activeAuthBrowsers = new Set<Browser>();
 
 function getAuthServerPort(): number {
   return authServerPort ?? AUTH_PORT;
@@ -140,6 +141,68 @@ function listenOnPort(server: http.Server, port: number): Promise<number> {
   });
 }
 
+function trackAuthBrowser(browser: Browser): Browser {
+  activeAuthBrowsers.add(browser);
+  return browser;
+}
+
+async function closeTrackedAuthBrowser(browser: Browser): Promise<void> {
+  if (!activeAuthBrowsers.delete(browser)) {
+    return;
+  }
+
+  try {
+    await browser.close();
+  } catch {
+    // Browser may already be closed by the user or Playwright.
+  }
+}
+
+function scheduleAuthBrowserClose(browser: Browser, delayMs: number): void {
+  const timeout = setTimeout(() => {
+    void closeTrackedAuthBrowser(browser);
+  }, delayMs);
+  timeout.unref?.();
+}
+
+export async function closeAuthBrowsers(): Promise<void> {
+  const browsers = Array.from(activeAuthBrowsers);
+  activeAuthBrowsers.clear();
+
+  await Promise.allSettled(
+    browsers.map(async (browser) => {
+      try {
+        await browser.close();
+      } catch {
+        // Best-effort cleanup during shutdown.
+      }
+    })
+  );
+}
+
+function closeHttpServer(server: http.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    server.close((error) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+export async function stopAuthServer(): Promise<void> {
+  const server = authServerInstance;
+  authServerInstance = null;
+  authServerPort = null;
+
+  await Promise.all([
+    server ? closeHttpServer(server).catch(() => undefined) : Promise.resolve(),
+    closeAuthBrowsers(),
+  ]);
+}
+
 function secureSessionConfigHtml(error: unknown): string {
   const message =
     error instanceof Error
@@ -180,9 +243,10 @@ export async function startAuthServer() {
           </html>
         `);
     } else if (parsedUrl.pathname === '/auth') {
+      let browser: Browser | null = null;
       try {
         assertSecureSessionConfigured();
-        const browser = await chromium.launch({ headless: false });
+        browser = trackAuthBrowser(await chromium.launch({ headless: false }));
         const context = await browser.newContext();
         const page = await context.newPage();
 
@@ -235,13 +299,8 @@ export async function startAuthServer() {
           </html>
         `);
 
-        setTimeout(async () => {
-          try {
-            await browser.close();
-          } catch (_error) {
-            // Browser may already be closed.
-          }
-        }, 3000);
+        scheduleAuthBrowserClose(browser, 3000);
+        browser = null;
       } catch (error) {
         if (error instanceof SecureSessionStorageError) {
           res.writeHead(503, { 'Content-Type': 'text/html' });
@@ -254,11 +313,16 @@ export async function startAuthServer() {
             : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(`<h2>Authentication failed: ${message}</h2>`);
+      } finally {
+        if (browser) {
+          await closeTrackedAuthBrowser(browser);
+        }
       }
     } else if (parsedUrl.pathname === '/auth-cengage') {
+      let browser: Browser | null = null;
       try {
         assertSecureSessionConfigured();
-        const browser = await chromium.launch({ headless: false });
+        browser = trackAuthBrowser(await chromium.launch({ headless: false }));
         const context = await browser.newContext();
         const page = await context.newPage();
 
@@ -290,13 +354,8 @@ export async function startAuthServer() {
           </html>
         `);
 
-        setTimeout(async () => {
-          try {
-            await browser.close();
-          } catch (_error) {
-            // Browser may already be closed.
-          }
-        }, 3000);
+        scheduleAuthBrowserClose(browser, 3000);
+        browser = null;
       } catch (error) {
         if (error instanceof SecureSessionStorageError) {
           res.writeHead(503, { 'Content-Type': 'text/html' });
@@ -309,6 +368,10 @@ export async function startAuthServer() {
             : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(`<h2>Cengage Authentication failed: ${message}</h2>`);
+      } finally {
+        if (browser) {
+          await closeTrackedAuthBrowser(browser);
+        }
       }
     } else if (parsedUrl.pathname === '/status') {
       const secureSessionConfigured = isSecureSessionConfigured();

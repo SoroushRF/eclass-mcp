@@ -1,7 +1,28 @@
 import { loadSession, SessionExpiredError } from './session';
-import { chromium, Page } from 'playwright';
+import { chromium, type Browser, type Page } from 'playwright';
 
 export { SessionExpiredError };
+
+const activeSisBrowsers = new Set<Browser>();
+
+function trackSisBrowser(browser: Browser): Browser {
+  activeSisBrowsers.add(browser);
+  return browser;
+}
+
+async function closeTrackedSisBrowser(browser: Browser): Promise<void> {
+  if (!activeSisBrowsers.delete(browser)) {
+    return;
+  }
+
+  await browser.close();
+}
+
+export async function closeActiveSisBrowsers(): Promise<void> {
+  const browsers = Array.from(activeSisBrowsers);
+  activeSisBrowsers.clear();
+  await Promise.allSettled(browsers.map((browser) => browser.close()));
+}
 
 export interface SISExam {
   courseCode: string;
@@ -43,15 +64,17 @@ export class SISScraper {
       throw new SessionExpiredError();
     }
 
-    const browser = await chromium.launch({
-      headless: true,
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-first-run',
-        '--no-default-browser-check',
-        '--disable-infobars',
-      ],
-    });
+    const browser = trackSisBrowser(
+      await chromium.launch({
+        headless: true,
+        args: [
+          '--disable-blink-features=AutomationControlled',
+          '--no-first-run',
+          '--no-default-browser-check',
+          '--disable-infobars',
+        ],
+      })
+    );
     const context = await browser.newContext({
       userAgent:
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -67,7 +90,7 @@ export class SISScraper {
     return {
       page,
       close: async () => {
-        await browser.close();
+        await closeTrackedSisBrowser(browser);
       },
     };
   }

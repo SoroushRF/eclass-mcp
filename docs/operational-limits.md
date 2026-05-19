@@ -41,6 +41,8 @@ No global Playwright concurrency limiter exists today.
 
 Most scraper flows create one Playwright page/context per tool operation and close it at the end of that operation. Cengage/WebAssign also tends to process canonical bootstrap candidates sequentially, because each page state affects the next decision.
 
+The stdio runtime installs best-effort shutdown cleanup for MCP disconnects, `SIGINT`, and `SIGTERM`: it closes the local auth HTTP server, visible auth browsers, the eClass browser singleton, and any tracked Cengage/SIS scraper browsers. This is resource cleanup only; it does not change request concurrency or retry behavior.
+
 The notable bounded fan-out path is `get_deadlines` with `includeDetails=true`: it expands up to `maxDetails` items, defaulting to 7, using `Promise.all`. This is bounded by user/tool input, not by a global scheduler.
 
 The MCP server currently relies on host/tool invocation patterns and per-flow page cleanup rather than a central queue. Future heavier external calls should add explicit per-host concurrency caps before increasing fan-out.

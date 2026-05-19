@@ -13,7 +13,8 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env'), quiet: true });
 
 import { isSessionValid } from './scraper/session';
-import { startAuthServer, openAuthWindow } from './auth/server';
+import { scraper as eclassScraper } from './scraper/eclass';
+import { startAuthServer, openAuthWindow, stopAuthServer } from './auth/server';
 import { listCourses } from './tools/courses';
 import { getCourseContent, getSectionText } from './tools/content';
 import { getFileText } from './tools/files';
@@ -54,8 +55,12 @@ import {
   SecureSessionStorageError,
   isSecureSessionConfigured,
 } from './security/secure-session-store';
+import { createShutdownController } from './runtime/shutdown';
+import { closeActiveCengageScrapers } from './scraper/cengage';
+import { closeActiveSisBrowsers } from './scraper/sis';
 
 const bootstrapLog = rootLogger.child({ component: 'bootstrap' });
+const shutdownLog = rootLogger.child({ component: 'shutdown' });
 
 function asCallToolResult(result: unknown): CallToolResult {
   return result as CallToolResult;
@@ -602,39 +607,78 @@ export function createMcpServer(): McpServer {
 }
 
 /* v8 ignore start -- CLI auth/stdio startup is exercised manually by MCP hosts. */
-async function main() {
-  // Always start auth server in background so it's ready for redirects
-  await startAuthServer();
+async function cleanupStartupFailure(): Promise<void> {
+  await Promise.allSettled([
+    stopAuthServer(),
+    eclassScraper.close(),
+    closeActiveCengageScrapers(),
+    closeActiveSisBrowsers(),
+  ]);
+}
 
-  if (!isSecureSessionConfigured()) {
-    bootstrapLog.error(
-      'Secure session storage is not configured. Set ECLASS_MCP_SESSION_SECRET in .env before authenticating.'
-    );
-  } else {
-    try {
-      if (!isSessionValid()) {
-        bootstrapLog.warn(
-          'eClass session not found or stale. Opening login window...'
-        );
-        openAuthWindow();
-      } else {
-        bootstrapLog.info('eClass session check: Local session file found.');
-      }
-    } catch (error) {
-      if (error instanceof SecureSessionStorageError) {
-        bootstrapLog.error(
-          { reason: error.reason },
-          'Secure session storage is unavailable. Clear old auth sessions or check ECLASS_MCP_SESSION_SECRET.'
-        );
-      } else {
-        throw error;
+async function main() {
+  let shutdown: ReturnType<typeof createShutdownController> | undefined =
+    undefined;
+
+  try {
+    // Always start auth server in background so it's ready for redirects
+    await startAuthServer();
+
+    if (!isSecureSessionConfigured()) {
+      bootstrapLog.error(
+        'Secure session storage is not configured. Set ECLASS_MCP_SESSION_SECRET in .env before authenticating.'
+      );
+    } else {
+      try {
+        if (!isSessionValid()) {
+          bootstrapLog.warn(
+            'eClass session not found or stale. Opening login window...'
+          );
+          openAuthWindow();
+        } else {
+          bootstrapLog.info('eClass session check: Local session file found.');
+        }
+      } catch (error) {
+        if (error instanceof SecureSessionStorageError) {
+          bootstrapLog.error(
+            { reason: error.reason },
+            'Secure session storage is unavailable. Clear old auth sessions or check ECLASS_MCP_SESSION_SECRET.'
+          );
+        } else {
+          throw error;
+        }
       }
     }
-  }
 
-  const transport = new StdioServerTransport();
-  const server = createMcpServer();
-  await server.connect(transport);
+    const transport = new StdioServerTransport();
+    const server = createMcpServer();
+    shutdown = createShutdownController({
+      logger: shutdownLog,
+      exit: (code) => process.exit(code),
+      closers: [
+        { name: 'mcp_server', close: () => server.close() },
+        { name: 'stdio_transport', close: () => transport.close() },
+        { name: 'auth_server', close: () => stopAuthServer() },
+        { name: 'eclass_scraper', close: () => eclassScraper.close() },
+        {
+          name: 'cengage_scrapers',
+          close: () => closeActiveCengageScrapers(),
+        },
+        { name: 'sis_browsers', close: () => closeActiveSisBrowsers() },
+      ],
+    });
+    shutdown.bindOnClose(transport);
+    shutdown.installSignalHandlers();
+
+    await server.connect(transport);
+  } catch (error) {
+    if (shutdown) {
+      await shutdown.shutdown('startup_error');
+    } else {
+      await cleanupStartupFailure();
+    }
+    throw error;
+  }
 }
 
 if (require.main === module) {

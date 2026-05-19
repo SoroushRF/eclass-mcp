@@ -54,6 +54,13 @@ const CENGAGE_CANONICAL_HOME_URLS: readonly string[] = [
   'https://login.cengage.com/',
 ];
 
+const activeCengageScrapers = new Set<CengageScraper>();
+
+export async function closeActiveCengageScrapers(): Promise<void> {
+  const scrapers = Array.from(activeCengageScrapers);
+  await Promise.allSettled(scrapers.map((scraper) => scraper.close()));
+}
+
 function validateCengageFinalUrl(url: string, message: string): string {
   try {
     return validateFinalUrlForPolicy(url, 'cengage_page');
@@ -336,6 +343,10 @@ export function resolveAssignmentSelection(params: {
 
 export class CengageScraper {
   private browser: Browser | null = null;
+
+  constructor() {
+    activeCengageScrapers.add(this);
+  }
 
   private async collectAssignmentRowsWithTabFallback(
     page: Page
@@ -1325,9 +1336,12 @@ export class CengageScraper {
   }
 
   async close() {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
+    activeCengageScrapers.delete(this);
+    const browser = this.browser;
+    this.browser = null;
+
+    if (browser) {
+      await browser.close();
     }
   }
 }
