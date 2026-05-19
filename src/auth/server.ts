@@ -1,6 +1,6 @@
 import http from 'http';
 import { chromium } from 'playwright';
-import { saveSession, isSessionValid } from '../scraper/session';
+import { saveSession, isSessionValid, type Cookie } from '../scraper/session';
 import {
   CENGAGE_STATE_PATH,
   getCengageSessionValidity,
@@ -219,8 +219,8 @@ export async function startAuthServer() {
           }
         }
 
-        const cookies = await context.cookies();
-        saveSession(cookies as any);
+        const cookies: Cookie[] = await context.cookies();
+        saveSession(cookies);
         const { cache } = await import('../cache/store');
         cache.clearVolatile();
 
@@ -242,14 +242,18 @@ export async function startAuthServer() {
             // Browser may already be closed.
           }
         }, 3000);
-      } catch (error: any) {
+      } catch (error) {
         if (error instanceof SecureSessionStorageError) {
           res.writeHead(503, { 'Content-Type': 'text/html' });
           res.end(secureSessionConfigHtml(error));
           return;
         }
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
-        res.end(`<h2>Authentication failed: ${error.message}</h2>`);
+        res.end(`<h2>Authentication failed: ${message}</h2>`);
       }
     } else if (parsedUrl.pathname === '/auth-cengage') {
       try {
@@ -293,14 +297,18 @@ export async function startAuthServer() {
             // Browser may already be closed.
           }
         }, 3000);
-      } catch (error: any) {
+      } catch (error) {
         if (error instanceof SecureSessionStorageError) {
           res.writeHead(503, { 'Content-Type': 'text/html' });
           res.end(secureSessionConfigHtml(error));
           return;
         }
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
-        res.end(`<h2>Cengage Authentication failed: ${error.message}</h2>`);
+        res.end(`<h2>Cengage Authentication failed: ${message}</h2>`);
       }
     } else if (parsedUrl.pathname === '/status') {
       const secureSessionConfigured = isSecureSessionConfigured();

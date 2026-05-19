@@ -140,6 +140,17 @@ export interface ExtractedAssignmentDetails {
   questions: ExtractedAssignmentQuestion[];
 }
 
+type QuestionDisplayScoreShape = {
+  score?: unknown;
+  total?: unknown;
+  summary?: {
+    total?: {
+      score?: unknown;
+      total?: unknown;
+    };
+  };
+};
+
 export interface CaptureAssignmentRenderedMediaOptions {
   maxRenderedImages?: number;
   maxCaptureUnits?: number;
@@ -933,16 +944,19 @@ export async function extractAssignmentDetails(
               : ''
           );
 
-          const questionDisplayAny = questionDisplay as any;
+          const questionDisplayScore = questionDisplay as
+            | QuestionDisplayScoreShape
+            | null
+            | undefined;
 
           const pointsFromDisplay = {
             earned: toNumber(
-              questionDisplayAny?.score ||
-                questionDisplayAny?.summary?.total?.score
+              questionDisplayScore?.score ??
+                questionDisplayScore?.summary?.total?.score
             ),
             possible: toNumber(
-              questionDisplayAny?.total ||
-                questionDisplayAny?.summary?.total?.total
+              questionDisplayScore?.total ??
+                questionDisplayScore?.summary?.total?.total
             ),
           };
 

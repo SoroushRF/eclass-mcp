@@ -2,6 +2,8 @@ import type { EClassBrowserSession } from './browser-session';
 import { inferItemType } from './helpers';
 import { normalizeAndClassifyCengageEntry } from '../cengage-url';
 import type {
+  Attachment,
+  AttachmentKind,
   AssignmentDetails,
   ItemDetails,
   ItemDetailsBase,
@@ -143,8 +145,14 @@ export async function getAssignmentDetails(
             ''
           ).trim() || 'Assignment';
 
+        const moodleWindow = window as Window & {
+          M?: { cfg?: { courseId?: unknown } };
+        };
+        const rawCourseId = moodleWindow.M?.cfg?.courseId;
         const courseId =
-          (window as any).M?.cfg?.courseId?.toString() ||
+          (typeof rawCourseId === 'string' || typeof rawCourseId === 'number'
+            ? rawCourseId.toString()
+            : '') ||
           document.body.className.match(/course-(\d+)/)?.[1] ||
           '';
 
@@ -198,14 +206,9 @@ export async function getAssignmentDetails(
         const pluginAnchors = Array.from(
           document.querySelectorAll('a[href*="pluginfile.php"]')
         ) as HTMLAnchorElement[];
-        const attachments: Array<{
-          url: string;
-          kind: any;
-          name?: string;
-          hint?: string;
-        }> = [];
+        const attachments: Attachment[] = [];
 
-        const classifyKind = (href: string): any => {
+        const classifyKind = (href: string): AttachmentKind => {
           const h = href.toLowerCase();
           if (h.includes('.pdf')) return 'pdf';
           if (h.includes('.docx')) return 'docx';
@@ -238,12 +241,7 @@ export async function getAssignmentDetails(
           });
         }
 
-        const uniqueAttachments: Array<{
-          url: string;
-          kind: any;
-          name?: string;
-          hint?: string;
-        }> = [];
+        const uniqueAttachments: Attachment[] = [];
         const seen = new Set<string>();
         for (const att of attachments) {
           if (seen.has(att.url)) continue;
@@ -341,9 +339,7 @@ export async function getAssignmentDetails(
           rawDescriptionLinks,
           descSelectorMatch,
           tableSelectorMatch,
-          attachments: uniqueAttachments.length
-            ? (uniqueAttachments as any)
-            : undefined,
+          attachments: uniqueAttachments.length ? uniqueAttachments : undefined,
           fields: Object.keys(fields).length ? fields : undefined,
           grade: grade || undefined,
           feedbackText: finalFeedback || undefined,
@@ -418,8 +414,14 @@ export async function getQuizDetails(
             document.title ||
             ''
           ).trim() || 'Quiz';
+        const moodleWindow = window as Window & {
+          M?: { cfg?: { courseId?: unknown } };
+        };
+        const rawCourseId = moodleWindow.M?.cfg?.courseId;
         const courseId =
-          (window as any).M?.cfg?.courseId?.toString() ||
+          (typeof rawCourseId === 'string' || typeof rawCourseId === 'number'
+            ? rawCourseId.toString()
+            : '') ||
           document.body.className.match(/course-(\d+)/)?.[1] ||
           '';
 
@@ -473,14 +475,9 @@ export async function getQuizDetails(
         const pluginAnchors = Array.from(
           document.querySelectorAll('a[href*="pluginfile.php"]')
         ) as HTMLAnchorElement[];
-        const attachments: Array<{
-          url: string;
-          kind: any;
-          name?: string;
-          hint?: string;
-        }> = [];
+        const attachments: Attachment[] = [];
 
-        const classifyKind = (href: string): any => {
+        const classifyKind = (href: string): AttachmentKind => {
           const h = href.toLowerCase();
           if (h.includes('.pdf')) return 'pdf';
           if (h.includes('.docx')) return 'docx';
@@ -513,12 +510,7 @@ export async function getQuizDetails(
           });
         }
 
-        const uniqueAttachments: Array<{
-          url: string;
-          kind: any;
-          name?: string;
-          hint?: string;
-        }> = [];
+        const uniqueAttachments: Attachment[] = [];
         const seen = new Set<string>();
         for (const att of attachments) {
           if (seen.has(att.url)) continue;
@@ -616,9 +608,7 @@ export async function getQuizDetails(
             ? descriptionImageUrlsUnique
             : undefined,
           rawDescriptionLinks,
-          attachments: uniqueAttachments.length
-            ? (uniqueAttachments as any)
-            : undefined,
+          attachments: uniqueAttachments.length ? uniqueAttachments : undefined,
           fields: Object.keys(fields).length ? fields : undefined,
           grade: grade || undefined,
           feedbackText: feedbackText || undefined,

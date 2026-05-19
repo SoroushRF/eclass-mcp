@@ -10,6 +10,7 @@ import {
   getSelectorGroup,
   logDomSelectorMatch,
   throwSelectorLayoutChanged,
+  type SelectorGroupId,
 } from '../selectors';
 import {
   isAllowedUrlForPolicy,
@@ -33,6 +34,13 @@ function getPageUrl(page: { url?: () => string }): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isFileSelectorGroupId(value: string): value is SelectorGroupId {
+  return (
+    value === 'eclass.files.embedded_resource' ||
+    value === 'eclass.files.direct_download_link'
+  );
 }
 
 export async function downloadFile(
@@ -135,10 +143,12 @@ export async function downloadFile(
             }
 
             const isWafChallenge = await page
-              .evaluate(
-                () =>
-                  typeof (window as any).awsWafCookieDomainList !== 'undefined'
-              )
+              .evaluate(() => {
+                const wafWindow = window as Window & {
+                  awsWafCookieDomainList?: unknown;
+                };
+                return typeof wafWindow.awsWafCookieDomainList !== 'undefined';
+              })
               .catch(() => false);
 
             if (isWafChallenge) {
@@ -250,11 +260,12 @@ export async function downloadFile(
             if (
               typeof directResult !== 'string' &&
               directResult !== null &&
-              directResult.selectorMatch
+              directResult.selectorMatch &&
+              isFileSelectorGroupId(directResult.selectorMatch.groupId)
             ) {
               logDomSelectorMatch({
                 pageType: 'eclass.files',
-                groupId: directResult.selectorMatch.groupId as any,
+                groupId: directResult.selectorMatch.groupId,
                 candidateId: directResult.selectorMatch.candidateId,
                 selector: directResult.selectorMatch.selector,
                 matchCount: directResult.selectorMatch.count,

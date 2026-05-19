@@ -7,19 +7,30 @@
  */
 
 // Type-only imports (stripped at compile time – safe in CJS)
-import type { PDFDocumentProxy } from 'pdfjs-dist/types/src/display/api';
+import type {
+  PDFDocumentProxy,
+  RenderParameters,
+  TextItem,
+  TextMarkedContent,
+} from 'pdfjs-dist/types/src/display/api';
 import { createCanvas } from '@napi-rs/canvas';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lazy-loaded pdfjs-dist (ESM-only, must use dynamic import in CJS projects)
 // ─────────────────────────────────────────────────────────────────────────────
-let _pdfjs: any = null;
+let _pdfjs: typeof import('pdfjs-dist/legacy/build/pdf.mjs') | null = null;
 
-async function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
+async function getPdfjs(): Promise<
+  typeof import('pdfjs-dist/legacy/build/pdf.mjs')
+> {
   if (!_pdfjs) {
-    _pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs' as any);
+    _pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
   }
   return _pdfjs;
+}
+
+function isTextItem(item: TextItem | TextMarkedContent): item is TextItem {
+  return 'str' in item && Array.isArray(item.transform);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,7 +339,7 @@ async function analyzePagesRange(
     // 1. Get text content char count
     const textContent = await page.getTextContent();
     const textLength = textContent.items.reduce(
-      (acc: number, item: any) => acc + (item.str?.length || 0),
+      (acc, item) => acc + (isTextItem(item) ? item.str.length : 0),
       0
     );
 
@@ -402,9 +413,10 @@ async function extractPageText(
   const page = await pdf.getPage(pageNum);
   const textContent = await page.getTextContent();
 
-  const lines: { [y: number]: any[] } = {};
+  const lines: Record<number, TextItem[]> = {};
 
-  for (const item of textContent.items as any[]) {
+  for (const item of textContent.items) {
+    if (!isTextItem(item)) continue;
     const y = Math.round((item.transform[5] || 0) / 2) * 2;
     if (!lines[y]) lines[y] = [];
     lines[y].push(item);
@@ -421,7 +433,7 @@ async function extractPageText(
       (a, b) => (a.transform[4] || 0) - (b.transform[4] || 0)
     );
     const lineText = lineItems
-      .map((item: any) => item.str)
+      .map((item) => item.str)
       .join(' ')
       .trim();
     if (lineText) {
@@ -459,10 +471,12 @@ async function renderPageAsImage(
   );
   const ctx = canvas.getContext('2d');
 
-  await (page as any).render({
-    canvasContext: ctx,
-    viewport: viewport,
-  }).promise;
+  const renderParams: RenderParameters = {
+    canvas: null,
+    canvasContext: ctx as unknown as CanvasRenderingContext2D,
+    viewport,
+  };
+  await page.render(renderParams).promise;
 
   return Buffer.from(canvas.toBuffer('image/png'));
 }

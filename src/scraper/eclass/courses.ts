@@ -6,7 +6,20 @@ import {
   classifyExternalPlatformCandidate,
   type ExternalPlatformMatch,
 } from './external-platforms';
-import { getSelectorGroup, logDomSelectorMatch } from '../selectors';
+import {
+  getSelectorGroup,
+  logDomSelectorMatch,
+  type SelectorGroupId,
+} from '../selectors';
+
+type CourseContentSection = CourseContent['sections'][number];
+
+function isDashboardSelectorGroupId(value: string): value is SelectorGroupId {
+  return (
+    value === 'eclass.dashboard.course_cards' ||
+    value === 'eclass.dashboard.course_links'
+  );
+}
 
 export async function getCourses(
   session: EClassBrowserSession
@@ -161,10 +174,13 @@ export async function getCourses(
       { cardSelectors: courseCardSelectors, linkSelectors: courseLinkSelectors }
     );
 
-    if (courseResult.selectorMatch) {
+    if (
+      courseResult.selectorMatch &&
+      isDashboardSelectorGroupId(courseResult.selectorMatch.groupId)
+    ) {
       logDomSelectorMatch({
         pageType: 'eclass.dashboard',
-        groupId: courseResult.selectorMatch.groupId as any,
+        groupId: courseResult.selectorMatch.groupId,
         candidateId: courseResult.selectorMatch.candidateId,
         selector: courseResult.selectorMatch.selector,
         matchCount: courseResult.selectorMatch.count,
@@ -246,7 +262,7 @@ export async function getCourseContent(
       return null;
     });
 
-    let sectionsData = indexSectionsData as any[] | null;
+    let sectionsData: CourseContentSection[] | null = indexSectionsData;
 
     if (!sectionsData || sectionsData.length === 0) {
       const isOneSectionPerPage = await page.evaluate(() => {
@@ -269,7 +285,7 @@ export async function getCourseContent(
           return Array.from(new Set(links.map((a) => a.href)));
         });
 
-        const gatheredSections: any[] = [];
+        const gatheredSections: CourseContentSection[] = [];
         for (const link of sectionLinks) {
           try {
             await page.goto(link, { waitUntil: 'load' });
@@ -374,7 +390,7 @@ export async function getCourseContent(
 
     const result: CourseContent = {
       courseId,
-      sections: (sectionsData || []) as any,
+      sections: sectionsData || [],
     };
 
     const platforms: ExternalPlatformMatch[] = [];

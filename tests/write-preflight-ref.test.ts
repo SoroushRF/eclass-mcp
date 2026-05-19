@@ -64,8 +64,11 @@ describe('write preflight reference signing', () => {
     const { ref } = createPreflightRef({
       targetFacts: { assignment: { title: 'Original' } },
     });
-    const replacement = ref.endsWith('x') ? 'y' : 'x';
-    const tampered = `${ref.slice(0, -1)}${replacement}`;
+    const parts = ref.split('.');
+    const signature = parts[2];
+    const replacement = signature.startsWith('A') ? 'B' : 'A';
+    parts[2] = `${replacement}${signature.slice(1)}`;
+    const tampered = parts.join('.');
 
     expect(() => verifyPreflightRef(tampered)).toThrow(WritePreflightRefError);
     try {
