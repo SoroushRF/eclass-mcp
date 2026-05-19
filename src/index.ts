@@ -57,16 +57,12 @@ import {
 
 const bootstrapLog = rootLogger.child({ component: 'bootstrap' });
 
-const server = new McpServer({
-  name: 'eclass-mcp',
-  version: '1.0.0-beta.2',
-});
-
 function asCallToolResult(result: unknown): CallToolResult {
   return result as CallToolResult;
 }
 
 function registerNoInputTool(
+  server: McpServer,
   name: string,
   description: string,
   handler: () => unknown | Promise<unknown>
@@ -78,6 +74,7 @@ function registerNoInputTool(
 }
 
 function registerInputTool<const InputSchema extends ZodRawShapeCompat>(
+  server: McpServer,
   name: string,
   description: string,
   inputSchema: InputSchema,
@@ -331,135 +328,143 @@ const cacheDeletePinnedInputSchema = {
   resource_type: pinResourceEnum.optional(),
 } satisfies ZodRawShapeCompat;
 
-registerNoInputTool(
-  'list_courses',
-  'Lists all courses the student is enrolled in on eClass.',
-  () => listCourses()
-);
+function registerMcpTools(server: McpServer): void {
+  registerNoInputTool(
+    server,
+    'list_courses',
+    'Lists all courses the student is enrolled in on eClass.',
+    () => listCourses()
+  );
 
-registerInputTool(
-  'get_course_content',
-  'Gets full content of a specific course.',
-  courseIdInputSchema,
-  ({ courseId }) => getCourseContent(courseId)
-);
+  registerInputTool(
+    server,
+    'get_course_content',
+    'Gets full content of a specific course.',
+    courseIdInputSchema,
+    ({ courseId }) => getCourseContent(courseId)
+  );
 
-registerInputTool(
-  'get_section_text',
-  'Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.',
-  sectionTextInputSchema,
-  ({ url }) => getSectionText(url)
-);
+  registerInputTool(
+    server,
+    'get_section_text',
+    'Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.',
+    sectionTextInputSchema,
+    ({ url }) => getSectionText(url)
+  );
 
-registerInputTool(
-  'get_file_text',
-  'Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. ' +
-    'For large PDFs, returns a partial result with an overview and instructions to fetch ' +
-    'remaining pages using startPage/endPage parameters.',
-  getFileTextInputSchema,
-  ({ courseId, fileUrl, startPage, endPage }) =>
-    getFileText(courseId || 'unknown', fileUrl, startPage, endPage)
-);
+  registerInputTool(
+    server,
+    'get_file_text',
+    'Extracts content from a course file (PDF, DOCX, PPTX). Returns text and/or images. ' +
+      'For large PDFs, returns a partial result with an overview and instructions to fetch ' +
+      'remaining pages using startPage/endPage parameters.',
+    getFileTextInputSchema,
+    ({ courseId, fileUrl, startPage, endPage }) =>
+      getFileText(courseId || 'unknown', fileUrl, startPage, endPage)
+  );
 
-registerInputTool(
-  'get_assignments',
-  'Canonical assignment resolver. Use this first for homework, assignments, due dates, or deadlines because it checks eClass and, when needed, Cengage/WebAssign via the permanent course-platform index. It verifies active WebAssign course context and may return needs_course_activation instead of treating wrong-course landing as no assignments or auth expiry.',
-  getAssignmentsInputSchema,
-  (args) => getAssignments(args)
-);
+  registerInputTool(
+    server,
+    'get_assignments',
+    'Canonical assignment resolver. Use this first for homework, assignments, due dates, or deadlines because it checks eClass and, when needed, Cengage/WebAssign via the permanent course-platform index. It verifies active WebAssign course context and may return needs_course_activation instead of treating wrong-course landing as no assignments or auth expiry.',
+    getAssignmentsInputSchema,
+    (args) => getAssignments(args)
+  );
 
-registerInputTool(
-  'get_upcoming_deadlines',
-  'Returns upcoming eClass-only assignment/quiz deadlines. If this is empty for a course, call get_assignments before concluding there are no assignments.',
-  getUpcomingDeadlinesInputSchema,
-  ({ daysAhead, courseId }) => getUpcomingDeadlines(daysAhead, courseId)
-);
+  registerInputTool(
+    server,
+    'get_upcoming_deadlines',
+    'Returns upcoming eClass-only assignment/quiz deadlines. If this is empty for a course, call get_assignments before concluding there are no assignments.',
+    getUpcomingDeadlinesInputSchema,
+    ({ daysAhead, courseId }) => getUpcomingDeadlines(daysAhead, courseId)
+  );
 
-registerInputTool(
-  'get_deadlines',
-  'Returns eClass-only assignment/quiz deadlines for upcoming, month, or date range scopes. For complete cross-platform answers, use get_assignments.',
-  getDeadlinesInputSchema,
-  (args) => getDeadlines(args)
-);
+  registerInputTool(
+    server,
+    'get_deadlines',
+    'Returns eClass-only assignment/quiz deadlines for upcoming, month, or date range scopes. For complete cross-platform answers, use get_assignments.',
+    getDeadlinesInputSchema,
+    (args) => getDeadlines(args)
+  );
 
-registerInputTool(
-  'get_item_details',
-  'Fetches assignment/quiz page details, optionally attaching vision instruction images (no OCR) with strict payload caps.',
-  getItemDetailsInputSchema,
-  (args) => getItemDetails(args)
-);
+  registerInputTool(
+    server,
+    'get_item_details',
+    'Fetches assignment/quiz page details, optionally attaching vision instruction images (no OCR) with strict payload caps.',
+    getItemDetailsInputSchema,
+    (args) => getItemDetails(args)
+  );
 
-registerInputTool(
-  'get_grades',
-  "Returns the student's grades.",
-  optionalCourseIdInputSchema,
-  ({ courseId }) => getGrades(courseId)
-);
+  registerInputTool(
+    server,
+    'get_grades',
+    "Returns the student's grades.",
+    optionalCourseIdInputSchema,
+    ({ courseId }) => getGrades(courseId)
+  );
 
-registerInputTool(
-  'get_announcements',
-  'Returns recent course announcements.',
-  getAnnouncementsInputSchema,
-  ({ courseId, limit }) => getAnnouncements(courseId, limit)
-);
+  registerInputTool(
+    server,
+    'get_announcements',
+    'Returns recent course announcements.',
+    getAnnouncementsInputSchema,
+    ({ courseId, limit }) => getAnnouncements(courseId, limit)
+  );
 
-registerNoInputTool(
-  'get_exam_schedule',
-  "Fetches the current student's personal exam schedule from York SIS.",
-  () => getExamSchedule()
-);
+  registerNoInputTool(
+    server,
+    'get_exam_schedule',
+    "Fetches the current student's personal exam schedule from York SIS.",
+    () => getExamSchedule()
+  );
 
-registerNoInputTool(
-  'get_class_timetable',
-  "Fetches the current student's personal class timetable from York SIS for the current session.",
-  () => getClassTimetable()
-);
+  registerNoInputTool(
+    server,
+    'get_class_timetable',
+    "Fetches the current student's personal class timetable from York SIS for the current session.",
+    () => getClassTimetable()
+  );
 
-registerInputTool(
-  'search_professors',
-  'Finds professor profiles on RateMyProfessors for York University campuses.',
-  searchProfessorsInputSchema,
-  (args) => searchProfessorsTool(args)
-);
+  registerInputTool(
+    server,
+    'search_professors',
+    'Finds professor profiles on RateMyProfessors for York University campuses.',
+    searchProfessorsInputSchema,
+    (args) => searchProfessorsTool(args)
+  );
 
-registerInputTool(
-  'get_professor_details',
-  'Fetches detailed ratings, difficulty, and student comments for a specific professor from RateMyProfessors.',
-  getProfessorDetailsInputSchema,
-  (args) => getProfessorDetailsTool(args)
-);
+  registerInputTool(
+    server,
+    'get_professor_details',
+    'Fetches detailed ratings, difficulty, and student comments for a specific professor from RateMyProfessors.',
+    getProfessorDetailsInputSchema,
+    (args) => getProfessorDetailsTool(args)
+  );
 
-registerInputTool(
-  'discover_cengage_links',
-  'Scans raw text for Cengage/WebAssign URLs and returns normalized, classified link candidates with source hints.',
-  discoverCengageLinksInputSchema,
-  ({ text, source, courseId, sectionUrl, sourceFile }) =>
-    discoverCengageLinks({ text, source, courseId, sectionUrl, sourceFile })
-);
+  registerInputTool(
+    server,
+    'discover_cengage_links',
+    'Scans raw text for Cengage/WebAssign URLs and returns normalized, classified link candidates with source hints.',
+    discoverCengageLinksInputSchema,
+    ({ text, source, courseId, sectionUrl, sourceFile }) =>
+      discoverCengageLinks({ text, source, courseId, sectionUrl, sourceFile })
+  );
 
-registerInputTool(
-  'list_cengage_courses',
-  'Lists visible Cengage dashboard course materials from saved session state or a provided entry URL, including WebAssign and OWLv2/CengageNOW cards. OWLv2 courses are reported but assignment scraping is currently WebAssign-only.',
-  listCengageCoursesInputSchema,
-  ({ entryUrl, discoveredLink, courseQuery }) =>
-    listCengageCourses({ entryUrl, discoveredLink, courseQuery })
-);
+  registerInputTool(
+    server,
+    'list_cengage_courses',
+    'Lists visible Cengage dashboard course materials from saved session state or a provided entry URL, including WebAssign and OWLv2/CengageNOW cards. OWLv2 courses are reported but assignment scraping is currently WebAssign-only.',
+    listCengageCoursesInputSchema,
+    ({ entryUrl, discoveredLink, courseQuery }) =>
+      listCengageCourses({ entryUrl, discoveredLink, courseQuery })
+  );
 
-registerInputTool(
-  'get_cengage_assignments',
-  'Fetches assignment list and deadlines from WebAssign-backed Cengage courses using direct course/LTI links first when provided, otherwise dashboard/index selection. Verifies the active WebAssign course context before returning rows; OWLv2/CengageNOW courses can be listed but return unsupported assignment extraction instead of being hidden.',
-  getCengageAssignmentsInputSchema,
-  ({
-    entryUrl,
-    ssoUrl,
-    courseId,
-    courseKey,
-    courseQuery,
-    allCourses,
-    maxCourses,
-    maxAssignmentsPerCourse,
-  }) =>
-    getCengageAssignments({
+  registerInputTool(
+    server,
+    'get_cengage_assignments',
+    'Fetches assignment list and deadlines from WebAssign-backed Cengage courses using direct course/LTI links first when provided, otherwise dashboard/index selection. Verifies the active WebAssign course context before returning rows; OWLv2/CengageNOW courses can be listed but return unsupported assignment extraction instead of being hidden.',
+    getCengageAssignmentsInputSchema,
+    ({
       entryUrl,
       ssoUrl,
       courseId,
@@ -468,39 +473,25 @@ registerInputTool(
       allCourses,
       maxCourses,
       maxAssignmentsPerCourse,
-    })
-);
+    }) =>
+      getCengageAssignments({
+        entryUrl,
+        ssoUrl,
+        courseId,
+        courseKey,
+        courseQuery,
+        allCourses,
+        maxCourses,
+        maxAssignmentsPerCourse,
+      })
+  );
 
-registerInputTool(
-  'get_cengage_assignment_details',
-  'Opens a specific Cengage/WebAssign assignment and extracts question-level prompts, scoring hints, answers, and resource links. Verifies active WebAssign course context before selecting details; needs_course_activation means WebAssign landed in the wrong course.',
-  getCengageAssignmentDetailsInputSchema,
-  ({
-    entryUrl,
-    ssoUrl,
-    courseId,
-    courseKey,
-    courseQuery,
-    assignmentUrl,
-    assignmentId,
-    assignmentQuery,
-    includeAnswers,
-    includeResources,
-    includeAssetInventory,
-    includeRenderedMedia,
-    maxRenderedImages,
-    maxCaptureUnits,
-    maxCapturePerQuestion,
-    maxInteractiveAssets,
-    maxMediaAssets,
-    maxMediaPayloadBytes,
-    minTextForSafeText,
-    captureDpi,
-    maxQuestions,
-    maxQuestionTextChars,
-    maxAnswerTextChars,
-  }) =>
-    getCengageAssignmentDetails({
+  registerInputTool(
+    server,
+    'get_cengage_assignment_details',
+    'Opens a specific Cengage/WebAssign assignment and extracts question-level prompts, scoring hints, answers, and resource links. Verifies active WebAssign course context before selecting details; needs_course_activation means WebAssign landed in the wrong course.',
+    getCengageAssignmentDetailsInputSchema,
+    ({
       entryUrl,
       ssoUrl,
       courseId,
@@ -524,51 +515,93 @@ registerInputTool(
       maxQuestions,
       maxQuestionTextChars,
       maxAnswerTextChars,
-    })
-);
+    }) =>
+      getCengageAssignmentDetails({
+        entryUrl,
+        ssoUrl,
+        courseId,
+        courseKey,
+        courseQuery,
+        assignmentUrl,
+        assignmentId,
+        assignmentQuery,
+        includeAnswers,
+        includeResources,
+        includeAssetInventory,
+        includeRenderedMedia,
+        maxRenderedImages,
+        maxCaptureUnits,
+        maxCapturePerQuestion,
+        maxInteractiveAssets,
+        maxMediaAssets,
+        maxMediaPayloadBytes,
+        minTextForSafeText,
+        captureDpi,
+        maxQuestions,
+        maxQuestionTextChars,
+        maxAnswerTextChars,
+      })
+  );
 
-registerInputTool(
-  'clear_cache',
-  'Clears default (TTL) cache for the given scope. User-pinned entries are never removed; use cache_delete_pinned to remove pinned data. Response states that pins are unchanged.',
-  clearCacheInputSchema,
-  ({ scope }) => clearCache(scope)
-);
+  registerInputTool(
+    server,
+    'clear_cache',
+    'Clears default (TTL) cache for the given scope. User-pinned entries are never removed; use cache_delete_pinned to remove pinned data. Response states that pins are unchanged.',
+    clearCacheInputSchema,
+    ({ scope }) => clearCache(scope)
+  );
 
-registerInputTool(
-  'cache_pin',
-  'Pin a cached resource (file, section text, or course content) so it is kept past TTL until unpinned. Requires the resource to already exist in cache. Subject to ECLASS_MCP_PIN_QUOTA_BYTES. For file: fileUrl (+ optional startPage/endPage). For sectiontext: url. For content: courseId.',
-  cachePinInputSchema,
-  (args) => cachePin(args)
-);
+  registerInputTool(
+    server,
+    'cache_pin',
+    'Pin a cached resource (file, section text, or course content) so it is kept past TTL until unpinned. Requires the resource to already exist in cache. Subject to ECLASS_MCP_PIN_QUOTA_BYTES. For file: fileUrl (+ optional startPage/endPage). For sectiontext: url. For content: courseId.',
+    cachePinInputSchema,
+    (args) => cachePin(args)
+  );
 
-registerInputTool(
-  'cache_unpin',
-  'Remove a pin from the registry without deleting the cache file. Use cache_delete_pinned to remove stored bytes.',
-  cacheUnpinInputSchema,
-  ({ pinId }) => cacheUnpin({ pinId })
-);
+  registerInputTool(
+    server,
+    'cache_unpin',
+    'Remove a pin from the registry without deleting the cache file. Use cache_delete_pinned to remove stored bytes.',
+    cacheUnpinInputSchema,
+    ({ pinId }) => cacheUnpin({ pinId })
+  );
 
-registerInputTool(
-  'cache_list_pins',
-  'List pinned resources and quota usage (used_bytes vs limit_bytes).',
-  cacheListPinsInputSchema,
-  ({ resource_type }) => cacheListPins({ resource_type })
-);
+  registerInputTool(
+    server,
+    'cache_list_pins',
+    'List pinned resources and quota usage (used_bytes vs limit_bytes).',
+    cacheListPinsInputSchema,
+    ({ resource_type }) => cacheListPins({ resource_type })
+  );
 
-registerInputTool(
-  'cache_refresh_pin',
-  'Re-fetch and refresh the underlying cached data for a pin (resets TTL for that cache entry).',
-  cacheRefreshPinInputSchema,
-  ({ pinId }) => cacheRefreshPin({ pinId })
-);
+  registerInputTool(
+    server,
+    'cache_refresh_pin',
+    'Re-fetch and refresh the underlying cached data for a pin (resets TTL for that cache entry).',
+    cacheRefreshPinInputSchema,
+    ({ pinId }) => cacheRefreshPin({ pinId })
+  );
 
-registerInputTool(
-  'cache_delete_pinned',
-  'Explicitly delete pinned cache files and remove pin records. Pass pinId for one item, or mode=all to clear all pins, or mode=by_type with resource_type.',
-  cacheDeletePinnedInputSchema,
-  (args) => cacheDeletePinned(args)
-);
+  registerInputTool(
+    server,
+    'cache_delete_pinned',
+    'Explicitly delete pinned cache files and remove pin records. Pass pinId for one item, or mode=all to clear all pins, or mode=by_type with resource_type.',
+    cacheDeletePinnedInputSchema,
+    (args) => cacheDeletePinned(args)
+  );
+}
 
+export function createMcpServer(): McpServer {
+  const server = new McpServer({
+    name: 'eclass-mcp',
+    version: '1.0.0-beta.2',
+  });
+  registerMcpTools(server);
+  return server;
+}
+
+/* v8 ignore start -- CLI auth/stdio startup is exercised manually by MCP hosts. */
 async function main() {
   // Always start auth server in background so it's ready for redirects
   await startAuthServer();
@@ -600,10 +633,14 @@ async function main() {
   }
 
   const transport = new StdioServerTransport();
+  const server = createMcpServer();
   await server.connect(transport);
 }
 
-main().catch((error) => {
-  rootLogger.fatal({ err: error }, 'Fatal error in MCP server');
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    rootLogger.fatal({ err: error }, 'Fatal error in MCP server');
+    process.exit(1);
+  });
+}
+/* v8 ignore stop */
