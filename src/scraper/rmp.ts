@@ -4,6 +4,10 @@ import {
   upstreamErrorFromUnknown,
 } from './scrape-errors';
 import { getLogger } from '../logging/context';
+import {
+  CircuitBreaker,
+  CircuitBreakerOpenError,
+} from '../runtime/circuit-breaker';
 
 /**
  * RMP API Client for GraphQL interactions
@@ -82,6 +86,22 @@ interface GraphQLResponse {
 }
 
 export const DEFAULT_RMP_TIMEOUT_MS = 15000;
+export const RMP_CIRCUIT_FAILURE_THRESHOLD = 3;
+export const RMP_CIRCUIT_COOLDOWN_MS = 60_000;
+
+const rmpCircuitBreaker = new CircuitBreaker({
+  name: 'rmp',
+  failureThreshold: RMP_CIRCUIT_FAILURE_THRESHOLD,
+  cooldownMs: RMP_CIRCUIT_COOLDOWN_MS,
+});
+
+export function resetRmpCircuitBreaker(): void {
+  rmpCircuitBreaker.reset();
+}
+
+export function getRmpCircuitBreakerSnapshot() {
+  return rmpCircuitBreaker.snapshot();
+}
 
 export function resolveRmpTimeoutMs(
   raw: string | undefined = process.env.ECLASS_MCP_RMP_TIMEOUT_MS
@@ -97,6 +117,25 @@ export function resolveRmpTimeoutMs(
 
 function normalizeQueryText(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
+}
+
+function isRmpCircuitBreakerFailure(error: unknown): boolean {
+  return (
+    error instanceof UpstreamError &&
+    (error.code === 'RATE_LIMITED' ||
+      error.code === 'TIMEOUT' ||
+      error.code === 'UPSTREAM_ERROR')
+  );
+}
+
+function rmpCircuitOpenError(error: CircuitBreakerOpenError): UpstreamError {
+  const retryAfterSeconds = Math.max(1, Math.ceil(error.retryAfterMs / 1000));
+  return new UpstreamError(
+    'RATE_LIMITED',
+    `RMP requests are temporarily paused after repeated upstream failures. Retry after ${retryAfterSeconds} second${retryAfterSeconds === 1 ? '' : 's'}.`,
+    undefined,
+    error
+  );
 }
 
 export class RMPClient {
@@ -268,16 +307,6 @@ export class RMPClient {
             count: 10,
           },
         });
-        if (data?.errors?.length) {
-          const message = data.errors
-            .map((err) => err.message || 'unknown RMP error')
-            .join('; ');
-          throw new UpstreamError(
-            'UPSTREAM_ERROR',
-            `RMP GraphQL errors: ${message}`
-          );
-        }
-
         const teachers = data?.data?.newSearch?.teachers?.edges || [];
         if (teachers.length === 0) {
           getLogger().debug(
@@ -352,15 +381,6 @@ export class RMPClient {
     const data = await this.fetchGraphQL(query, {
       variables: { id: teacherId },
     });
-    if (data?.errors?.length) {
-      const message = data.errors
-        .map((err) => err.message || 'unknown RMP error')
-        .join('; ');
-      throw new UpstreamError(
-        'UPSTREAM_ERROR',
-        `RMP GraphQL errors: ${message}`
-      );
-    }
     const teacher = data?.data?.node;
 
     if (!teacher || teacher.__typename !== 'Teacher') {
@@ -389,6 +409,27 @@ export class RMPClient {
   }
 
   private async fetchGraphQL(
+    query: string,
+    payload: { operationName?: string; variables: any }
+  ): Promise<GraphQLResponse> {
+    try {
+      return await rmpCircuitBreaker.execute(
+        () => this.fetchGraphQLOnce(query, payload),
+        { shouldRecordFailure: isRmpCircuitBreakerFailure }
+      );
+    } catch (error) {
+      if (error instanceof CircuitBreakerOpenError) {
+        getLogger().warn(
+          { err: error, retryAfterMs: error.retryAfterMs },
+          '[RMP] circuit breaker blocked request'
+        );
+        throw rmpCircuitOpenError(error);
+      }
+      throw error;
+    }
+  }
+
+  private async fetchGraphQLOnce(
     query: string,
     payload: { operationName?: string; variables: any }
   ): Promise<GraphQLResponse> {
@@ -429,6 +470,13 @@ export class RMPClient {
         getLogger().debug(
           { errors: parsed.errors },
           '[RMP] GraphQL response errors'
+        );
+        const message = parsed.errors
+          .map((err) => err.message || 'unknown RMP error')
+          .join('; ');
+        throw new UpstreamError(
+          'UPSTREAM_ERROR',
+          `RMP GraphQL errors: ${message}`
         );
       }
 

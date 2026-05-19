@@ -25,7 +25,7 @@ Timeouts should be treated as platform health signals, auth state signals, or se
 | Cengage assignment-source URL |        30s URL wait, then 7s state fallback | If URL matching times out, the scraper checks page state and may recover if the page is already on dashboard, course, student-home, or assignments.                  | [`src/scraper/cengage.ts`](../src/scraper/cengage.ts)                           |
 | Cengage page-state polling    |                  Default 12s, 350ms polling | Page-state detection waits for stable login/dashboard/course/assignment markers. Call sites may use 7-10s narrower budgets.                                          | [`src/scraper/cengage-state.ts`](../src/scraper/cengage-state.ts)               |
 | Selector wait helper          |                  Default 15s, 250ms polling | `waitForAnySelector` polls registered selector candidates and reports selector drift on required failure.                                                            | [`src/scraper/selectors/playwright.ts`](../src/scraper/selectors/playwright.ts) |
-| RMP HTTP requests             |                   No explicit timeout today | Uses `fetch`; HTTP 429 maps to `RATE_LIMITED`, invalid JSON and non-OK HTTP map to upstream errors.                                                                  | [`src/scraper/rmp.ts`](../src/scraper/rmp.ts)                                   |
+| RMP HTTP requests             |                      15s default fetch abort | Uses `fetch` with `ECLASS_MCP_RMP_TIMEOUT_MS`; HTTP 429 maps to `RATE_LIMITED`, timeouts map to `TIMEOUT`, invalid JSON and non-OK HTTP map to upstream errors.      | [`src/scraper/rmp.ts`](../src/scraper/rmp.ts)                                   |
 
 ## Auth Waits
 
@@ -57,11 +57,11 @@ File downloads treat WAF reloads as best effort. If the wrapper cannot expose fi
 
 ## Rate Limits
 
-RMP 429 is classified as `RATE_LIMITED`, but automatic backoff is not implemented yet.
+RMP 429 is classified as `RATE_LIMITED`, and repeated RMP upstream failures now open a process-local circuit breaker after 3 consecutive failures. While open, RMP calls fail fast with `RATE_LIMITED` for 60 seconds instead of sending more GraphQL requests.
 
-Successful RMP search/detail responses use cache entries, which reduces repeated calls during normal use. When RMP returns HTTP 429 or an explicit rate-limit signal, the tool returns structured error JSON instead of sleeping and retrying.
+Successful RMP search/detail responses use cache entries, which reduces repeated calls during normal use. Cache hits do not touch the circuit breaker or RMP network path. When RMP returns HTTP 429, an explicit rate-limit signal, repeated timeouts, or repeated upstream errors, the tool returns structured error JSON instead of sleeping and retrying.
 
-The current engine does not have a global external-HTTP backoff layer. That is acceptable for the current read-oriented scale, but it should be added before heavier automated polling or future write-adjacent workflows.
+The current engine does not have a global external-HTTP backoff layer. The RMP circuit breaker is intentionally narrow and in-memory; it resets on server restart and does not apply to eClass, SIS, Cengage, or WebAssign browser flows.
 
 ## Error Mapping
 
@@ -80,7 +80,7 @@ These are recommended defaults, not currently enforced:
 - Add a global browser page concurrency cap of 2-3 pages.
 - Add a per-host external HTTP concurrency cap of 1-2 requests.
 - Add RMP 429 retry backoff of 1s, 2s, and 4s with jitter, max 3 attempts.
-- Add `AbortSignal.timeout(...)` or equivalent around RMP fetch calls.
+- Consider replacing the current RMP timeout controller with `AbortSignal.timeout(...)` when the supported Node baseline makes that simpler.
 - Avoid automatic retry for future non-idempotent write tools unless there is an audit log, explicit safety policy, and cache invalidation story.
 
 Future write tools must not automatically retry non-idempotent operations without an audit log and explicit safety policy.

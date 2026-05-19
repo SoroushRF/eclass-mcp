@@ -25,7 +25,7 @@ Defined in [`src/errors/codes.ts`](../src/errors/codes.ts) as `MACHINE_CODES` / 
 | `SESSION_STORAGE_UNAVAILABLE`  | Local encrypted session storage cannot be used because `ECLASS_MCP_SESSION_SECRET` is missing/too short, the secret is wrong, or a legacy plaintext/malformed session file was found. |
 | `SCRAPE_LAYOUT_CHANGED`        | HTML/DOM no longer matches scraper expectations (Moodle layout drift).                                                                                                                |
 | `UPSTREAM_ERROR`               | Generic network or upstream failure (non-429, non-timeout classification).                                                                                                            |
-| `RATE_LIMITED`                 | HTTP 429 or explicit rate-limit signals.                                                                                                                                              |
+| `RATE_LIMITED`                 | HTTP 429, explicit rate-limit signals, or local protection such as the RMP circuit breaker.                                                                                            |
 | `TIMEOUT`                      | Timeouts, `TimeoutError`, `AbortError`, HTTP 408/504 where mapped.                                                                                                                    |
 | `VALIDATION_FAILED`            | Tool arguments failed **business** validation (missing required fields, bad date range, etc.).                                                                                        |
 | `COURSE_CONTEXT_MISMATCH`      | Cengage/WebAssign opened a different active course than the selected course; tools return `needs_course_activation`, not auth retry.                                                  |
@@ -84,7 +84,7 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 ### Phase 3 — Network (`UPSTREAM_ERROR`, `RATE_LIMITED`, `TIMEOUT`)
 
 - **`UpstreamError`** + **`upstreamErrorFromHttpStatus`** + **`upstreamErrorFromUnknown`** in [`src/scraper/scrape-errors.ts`](../src/scraper/scrape-errors.ts).
-- **RMP** ([`src/scraper/rmp.ts`](../src/scraper/rmp.ts)): `fetch` failures, non-OK HTTP, invalid JSON, GraphQL `errors` in the response body.
+- **RMP** ([`src/scraper/rmp.ts`](../src/scraper/rmp.ts)): `fetch` failures, non-OK HTTP, invalid JSON, GraphQL `errors` in the response body, and local circuit-breaker fail-fast protection after repeated upstream failures.
 - **File download** ([`src/scraper/eclass/files.ts`](../src/scraper/eclass/files.ts)): Playwright `request.get` non-OK responses; other Playwright/network errors mapped via **`upstreamErrorFromUnknown`**.
 - Runtime timeout, concurrency, retry, and rate-limit posture is documented in [`docs/operational-limits.md`](./operational-limits.md).
 - **Tools:** [`src/tools/rmp.ts`](../src/tools/rmp.ts), [`src/tools/files.ts`](../src/tools/files.ts) return **`EclassToolErrorResponseSchema`** with **`toErrorPayload(error.code, …)`** and optional **`details.httpStatus`**.
