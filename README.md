@@ -59,7 +59,7 @@ Local eClass/SIS cookies and Cengage/WebAssign Playwright storage state are encr
 
 ### Logging (E14)
 
-Structured **JSON logs** go to **stderr** (stdout stays clean for MCP stdio). Each tool call gets a **`requestId`** and **`tool`** name via `runWithToolContext` in `src/index.ts`. Set **`ECLASS_MCP_LOG_LEVEL`** (`trace` … `silent`, default `info`) to control verbosity. Details: [`docs/logging.md`](docs/logging.md).
+Structured **JSON logs** go to **stderr** (stdout stays clean for MCP stdio). Each tool call gets a **`requestId`**, **`traceId`**, **`spanId`**, and **`tool`** name via `runWithToolContext` in `src/index.ts`; high-value nested operations use `runWithSpan`. Set **`ECLASS_MCP_LOG_LEVEL`** (`trace` … `silent`, default `info`) to control verbosity. Details: [`docs/logging.md`](docs/logging.md).
 
 ### Selector drift diagnostics (E15)
 

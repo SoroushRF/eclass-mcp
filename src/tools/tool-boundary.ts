@@ -12,6 +12,7 @@ import { EclassToolErrorResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { sessionStorageUnavailableResponse } from './auth-retry';
 import type { z } from 'zod';
+import { logTraceEvent, runWithSpan } from '../logging/context';
 
 type AuthPlatform = 'eclass' | 'cengage';
 
@@ -104,16 +105,41 @@ export function sessionExpiredResponse(
 export async function runEclassToolBoundary<T extends McpToolResult>(
   options: ToolBoundaryOptions<T>
 ): Promise<T> {
+  return runWithSpan(
+    'tool.boundary',
+    () => runEclassToolBoundaryInner(options),
+    {
+      component: 'tool-boundary',
+      fields: { toolName: options.toolName },
+    }
+  );
+}
+
+async function runEclassToolBoundaryInner<T extends McpToolResult>(
+  options: ToolBoundaryOptions<T>
+): Promise<T> {
   try {
     return await options.run();
   } catch (error) {
     if (error instanceof SecureSessionStorageError) {
+      logTraceEvent(
+        'warn',
+        'tool_boundary_error_mapped',
+        { toolName: options.toolName, code: error.code },
+        'Tool boundary mapped error'
+      );
       return toBoundaryResult<T>(
         sessionStorageUnavailableResponse(options.toolName)
       );
     }
 
     if (error instanceof SessionExpiredError && options.onSessionExpired) {
+      logTraceEvent(
+        'warn',
+        'tool_boundary_error_mapped',
+        { toolName: options.toolName, code: error.code },
+        'Tool boundary mapped error'
+      );
       const { attempted, retry, fallback } = options.onSessionExpired;
       if (attempted) {
         return fallback(error);
@@ -122,6 +148,12 @@ export async function runEclassToolBoundary<T extends McpToolResult>(
     }
 
     if (error instanceof ValidationError) {
+      logTraceEvent(
+        'warn',
+        'tool_boundary_error_mapped',
+        { toolName: options.toolName, code: error.code },
+        'Tool boundary mapped error'
+      );
       if (options.onValidationError) {
         return options.onValidationError(error);
       }
@@ -131,6 +163,12 @@ export async function runEclassToolBoundary<T extends McpToolResult>(
     }
 
     if (error instanceof ScrapeLayoutError) {
+      logTraceEvent(
+        'warn',
+        'tool_boundary_error_mapped',
+        { toolName: options.toolName, code: error.code },
+        'Tool boundary mapped error'
+      );
       if (options.onScrapeLayoutError) {
         return options.onScrapeLayoutError(error);
       }
@@ -140,6 +178,12 @@ export async function runEclassToolBoundary<T extends McpToolResult>(
     }
 
     if (error instanceof UpstreamError) {
+      logTraceEvent(
+        'warn',
+        'tool_boundary_error_mapped',
+        { toolName: options.toolName, code: error.code },
+        'Tool boundary mapped error'
+      );
       if (options.onUpstreamError) {
         return options.onUpstreamError(error);
       }
@@ -149,9 +193,21 @@ export async function runEclassToolBoundary<T extends McpToolResult>(
     }
 
     if (options.onUnknownError) {
+      logTraceEvent(
+        'error',
+        'tool_boundary_unknown_error_mapped',
+        { toolName: options.toolName },
+        'Tool boundary mapped unknown error'
+      );
       return options.onUnknownError(error);
     }
 
+    logTraceEvent(
+      'error',
+      'tool_boundary_unknown_error',
+      { toolName: options.toolName },
+      'Tool boundary rethrowing unknown error'
+    );
     throw error;
   }
 }

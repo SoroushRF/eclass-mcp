@@ -54,11 +54,32 @@ export function createShutdownController(
     options.signalShutdownTimeoutMs ?? DEFAULT_SIGNAL_SHUTDOWN_TIMEOUT_MS;
 
   async function runShutdown(reason: string): Promise<void> {
-    options.logger?.info?.({ reason }, 'Shutting down runtime resources');
+    options.logger?.info?.(
+      { component: 'shutdown', event: 'shutdown_start', reason },
+      'Shutting down runtime resources'
+    );
 
     const results = await Promise.allSettled(
       options.closers.map(async (closer) => {
+        options.logger?.info?.(
+          {
+            component: 'shutdown',
+            event: 'shutdown_resource_close_start',
+            resource: closer.name,
+            reason,
+          },
+          'Closing shutdown resource'
+        );
         await closer.close();
+        options.logger?.info?.(
+          {
+            component: 'shutdown',
+            event: 'shutdown_resource_close_end',
+            resource: closer.name,
+            reason,
+          },
+          'Closed shutdown resource'
+        );
       })
     );
 
@@ -70,6 +91,8 @@ export function createShutdownController(
 
       options.logger?.warn?.(
         {
+          component: 'shutdown',
+          event: 'shutdown_resource_close_error',
           err: errorForLog(result.reason),
           resource: options.closers[i]?.name ?? 'unknown',
           reason,
@@ -119,7 +142,12 @@ export function createShutdownController(
 
           if (result === 'timeout') {
             options.logger?.warn?.(
-              { signal, timeoutMs: signalShutdownTimeoutMs },
+              {
+                component: 'shutdown',
+                event: 'shutdown_timeout',
+                signal,
+                timeoutMs: signalShutdownTimeoutMs,
+              },
               'Shutdown timed out before process exit'
             );
           }

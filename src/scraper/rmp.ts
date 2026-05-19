@@ -3,10 +3,11 @@ import {
   upstreamErrorFromHttpStatus,
   upstreamErrorFromUnknown,
 } from './scrape-errors';
-import { getLogger } from '../logging/context';
+import { getLogger, logTraceEvent, runWithSpan } from '../logging/context';
 import {
   CircuitBreaker,
   CircuitBreakerOpenError,
+  type CircuitBreakerEvent,
 } from '../runtime/circuit-breaker';
 
 /**
@@ -89,10 +90,18 @@ export const DEFAULT_RMP_TIMEOUT_MS = 15000;
 export const RMP_CIRCUIT_FAILURE_THRESHOLD = 3;
 export const RMP_CIRCUIT_COOLDOWN_MS = 60_000;
 
+function logRmpCircuitEvent(circuitEvent: CircuitBreakerEvent): void {
+  const { event, ...fields } = circuitEvent;
+  const level =
+    event === 'circuit_open' || event === 'circuit_blocked' ? 'warn' : 'info';
+  logTraceEvent(level, event, fields, '[RMP] circuit breaker event');
+}
+
 const rmpCircuitBreaker = new CircuitBreaker({
   name: 'rmp',
   failureThreshold: RMP_CIRCUIT_FAILURE_THRESHOLD,
   cooldownMs: RMP_CIRCUIT_COOLDOWN_MS,
+  onEvent: logRmpCircuitEvent,
 });
 
 export function resetRmpCircuitBreaker(): void {
@@ -379,6 +388,7 @@ export class RMPClient {
         `;
 
     const data = await this.fetchGraphQL(query, {
+      operationName: 'TeacherRatingsPageQuery',
       variables: { id: teacherId },
     });
     const teacher = data?.data?.node;
@@ -412,28 +422,44 @@ export class RMPClient {
     query: string,
     payload: { operationName?: string; variables: any }
   ): Promise<GraphQLResponse> {
-    try {
-      return await rmpCircuitBreaker.execute(
-        () => this.fetchGraphQLOnce(query, payload),
-        { shouldRecordFailure: isRmpCircuitBreakerFailure }
-      );
-    } catch (error) {
-      if (error instanceof CircuitBreakerOpenError) {
-        getLogger().warn(
-          { err: error, retryAfterMs: error.retryAfterMs },
-          '[RMP] circuit breaker blocked request'
-        );
-        throw rmpCircuitOpenError(error);
+    const timeoutMs = resolveRmpTimeoutMs();
+    const operationName = payload.operationName ?? 'anonymous';
+    return runWithSpan(
+      'rmp.graphql',
+      async () => {
+        try {
+          return await rmpCircuitBreaker.execute(
+            () => this.fetchGraphQLOnce(query, payload, timeoutMs),
+            { shouldRecordFailure: isRmpCircuitBreakerFailure }
+          );
+        } catch (error) {
+          if (error instanceof CircuitBreakerOpenError) {
+            getLogger().warn(
+              { err: error, retryAfterMs: error.retryAfterMs },
+              '[RMP] circuit breaker blocked request'
+            );
+            throw rmpCircuitOpenError(error);
+          }
+          throw error;
+        }
+      },
+      {
+        component: 'rmp',
+        fields: {
+          operationName,
+          timeoutMs,
+          circuitState: rmpCircuitBreaker.snapshot().state,
+        },
       }
-      throw error;
-    }
+    );
   }
 
   private async fetchGraphQLOnce(
     query: string,
-    payload: { operationName?: string; variables: any }
+    payload: { operationName?: string; variables: any },
+    timeoutMs: number
   ): Promise<GraphQLResponse> {
-    const timeoutMs = resolveRmpTimeoutMs();
+    const operationName = payload.operationName ?? 'anonymous';
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -448,6 +474,18 @@ export class RMPClient {
           variables: payload.variables,
         }),
       });
+
+      logTraceEvent(
+        'debug',
+        'rmp_graphql_response',
+        {
+          operationName,
+          httpStatus: response.status,
+          ok: response.ok,
+          circuitState: rmpCircuitBreaker.snapshot().state,
+        },
+        '[RMP] GraphQL response received'
+      );
 
       const raw = await response.text();
       if (!response.ok) {

@@ -71,6 +71,8 @@ vi.mock('../src/tools/auth-retry', () => ({
 
 vi.mock('../src/logging/context', () => ({
   getLogger: () => ({ info: mocks.loggerInfo }),
+  logTraceEvent: vi.fn(),
+  runWithSpan: (_span: string, fn: () => Promise<unknown>) => fn(),
 }));
 
 import { SessionExpiredError } from '../src/scraper/eclass';

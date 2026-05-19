@@ -32,9 +32,18 @@ export const rootLogger: pino.Logger = pino(
   pino.destination({ fd: 2 })
 );
 
+export interface ToolLoggerBindings {
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
+  span?: string;
+  component?: string;
+}
+
 export function createChildForTool(
   tool: string,
-  requestId: string
+  requestId: string,
+  bindings: ToolLoggerBindings = {}
 ): pino.Logger {
-  return rootLogger.child({ tool, requestId });
+  return rootLogger.child({ tool, requestId, ...bindings });
 }

@@ -15,10 +15,28 @@ export interface CircuitBreakerOptions {
   failureThreshold: number;
   cooldownMs: number;
   now?: () => number;
+  onEvent?: (event: CircuitBreakerEvent) => void;
 }
 
 export interface CircuitBreakerExecuteOptions {
   shouldRecordFailure?: (error: unknown) => boolean;
+}
+
+export type CircuitBreakerEventName =
+  | 'circuit_open'
+  | 'circuit_blocked'
+  | 'circuit_half_open'
+  | 'circuit_closed';
+
+export interface CircuitBreakerEvent {
+  event: CircuitBreakerEventName;
+  service: string;
+  state: CircuitBreakerState;
+  consecutiveFailures: number;
+  failureThreshold: number;
+  cooldownMs: number;
+  retryAfterMs?: number;
+  previousState?: CircuitBreakerState;
 }
 
 export class CircuitBreakerOpenError extends Error {
@@ -97,6 +115,7 @@ export class CircuitBreaker {
     if (this.state === 'open') {
       const retryAfterMs = this.retryAfterMs(now);
       if (retryAfterMs > 0) {
+        this.emit('circuit_blocked', { retryAfterMs });
         throw new CircuitBreakerOpenError(
           this.options.name,
           retryAfterMs,
@@ -105,10 +124,12 @@ export class CircuitBreaker {
       }
       this.state = 'half_open';
       this.halfOpenInFlight = false;
+      this.emit('circuit_half_open');
     }
 
     if (this.state === 'half_open') {
       if (this.halfOpenInFlight) {
+        this.emit('circuit_blocked', { retryAfterMs: 0 });
         throw new CircuitBreakerOpenError(
           this.options.name,
           0,
@@ -123,9 +144,14 @@ export class CircuitBreaker {
   }
 
   private recordSuccess(): void {
+    const previousState = this.state;
+    const hadFailures = this.consecutiveFailures > 0;
     this.state = 'closed';
     this.consecutiveFailures = 0;
     this.openedAtMs = null;
+    if (previousState !== 'closed' || hadFailures) {
+      this.emit('circuit_closed', { previousState });
+    }
   }
 
   private recordFailure(): void {
@@ -141,9 +167,11 @@ export class CircuitBreaker {
   }
 
   private open(): void {
+    const previousState = this.state;
     this.state = 'open';
     this.openedAtMs = this.now();
     this.halfOpenInFlight = false;
+    this.emit('circuit_open', { previousState });
   }
 
   private retryAfterMs(now: number): number {
@@ -152,5 +180,22 @@ export class CircuitBreaker {
     }
     const elapsedMs = now - this.openedAtMs;
     return Math.max(0, this.options.cooldownMs - elapsedMs);
+  }
+
+  private emit(
+    event: CircuitBreakerEventName,
+    extra: Partial<
+      Pick<CircuitBreakerEvent, 'retryAfterMs' | 'previousState'>
+    > = {}
+  ): void {
+    this.options.onEvent?.({
+      event,
+      service: this.options.name,
+      state: this.state,
+      consecutiveFailures: this.consecutiveFailures,
+      failureThreshold: this.options.failureThreshold,
+      cooldownMs: this.options.cooldownMs,
+      ...extra,
+    });
   }
 }

@@ -1,15 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   CircuitBreaker,
+  type CircuitBreakerEvent,
   CircuitBreakerOpenError,
 } from '../src/runtime/circuit-breaker';
 
-function makeBreaker(nowRef: { value: number }, failureThreshold = 3) {
+function makeBreaker(
+  nowRef: { value: number },
+  failureThreshold = 3,
+  events?: CircuitBreakerEvent[]
+) {
   return new CircuitBreaker({
     name: 'test-service',
     failureThreshold,
     cooldownMs: 1_000,
     now: () => nowRef.value,
+    ...(events ? { onEvent: (event) => events.push(event) } : {}),
   });
 }
 
@@ -144,5 +150,39 @@ describe('CircuitBreaker', () => {
 
     gate.resolve('recovered');
     await expect(firstProbe).resolves.toBe('recovered');
+  });
+
+  it('emits structured state-change events', async () => {
+    const nowRef = { value: 1_000 };
+    const events: CircuitBreakerEvent[] = [];
+    const breaker = makeBreaker(nowRef, 1, events);
+
+    await expect(
+      breaker.execute(async () => {
+        throw new Error('first failure');
+      })
+    ).rejects.toThrow('first failure');
+    await expect(breaker.execute(async () => 'blocked')).rejects.toBeInstanceOf(
+      CircuitBreakerOpenError
+    );
+
+    nowRef.value += 1_001;
+    await expect(breaker.execute(async () => 'recovered')).resolves.toBe(
+      'recovered'
+    );
+
+    expect(events.map((event) => event.event)).toEqual([
+      'circuit_open',
+      'circuit_blocked',
+      'circuit_half_open',
+      'circuit_closed',
+    ]);
+    expect(events[0]).toMatchObject({
+      service: 'test-service',
+      state: 'open',
+      previousState: 'closed',
+      failureThreshold: 1,
+    });
+    expect(events[1]?.retryAfterMs).toBe(1_000);
   });
 });

@@ -4,7 +4,13 @@ import {
   redactUrlForLog,
   safeString,
 } from '../src/logging/redact';
-import { getLogger, runWithToolContext } from '../src/logging/context';
+import {
+  getLogger,
+  getTraceContext,
+  runWithSpan,
+  runWithToolContext,
+} from '../src/logging/context';
+import { rootLogger } from '../src/logging/logger';
 
 describe('redactCookieSubstrings', () => {
   it('redacts Set-Cookie and Cookie header lines', () => {
@@ -61,8 +67,17 @@ describe('runWithToolContext', () => {
   it('exposes child logger with tool binding inside fn', async () => {
     await runWithToolContext('test_tool', async () => {
       const log = getLogger();
+      const trace = getTraceContext();
       expect(log.bindings().tool).toBe('test_tool');
       expect(typeof log.bindings().requestId).toBe('string');
+      expect(typeof log.bindings().traceId).toBe('string');
+      expect(typeof log.bindings().spanId).toBe('string');
+      expect(log.bindings().span).toBe('mcp.tool');
+      expect(log.bindings().component).toBe('mcp');
+      expect(trace?.tool).toBe('test_tool');
+      expect(trace?.requestId).toBe(log.bindings().requestId);
+      expect(trace?.traceId).toBe(trace?.requestId);
+      expect(trace?.spanId).toBe(log.bindings().spanId);
     });
   });
 
@@ -72,5 +87,49 @@ describe('runWithToolContext', () => {
         throw new Error('boom');
       })
     ).rejects.toThrow('boom');
+  });
+});
+
+describe('trace spans', () => {
+  it('returns root logger and no trace outside a context', () => {
+    expect(getLogger()).toBe(rootLogger);
+    expect(getTraceContext()).toBeNull();
+  });
+
+  it('preserves trace identity and restores parent context after nested spans', async () => {
+    await runWithToolContext('trace_tool', async () => {
+      const parentTrace = getTraceContext();
+      expect(parentTrace).not.toBeNull();
+
+      await runWithSpan(
+        'child.operation',
+        async () => {
+          const childTrace = getTraceContext();
+          const childBindings = getLogger().bindings();
+
+          expect(childTrace?.requestId).toBe(parentTrace?.requestId);
+          expect(childTrace?.traceId).toBe(parentTrace?.traceId);
+          expect(childTrace?.spanId).not.toBe(parentTrace?.spanId);
+          expect(childTrace?.parentSpanId).toBe(parentTrace?.spanId);
+          expect(childTrace?.span).toBe('child.operation');
+          expect(childTrace?.component).toBe('rmp');
+          expect(childBindings.parentSpanId).toBe(parentTrace?.spanId);
+        },
+        { component: 'rmp', fields: { safeField: 'ok' } }
+      );
+
+      expect(getTraceContext()?.spanId).toBe(parentTrace?.spanId);
+      expect(getTraceContext()?.span).toBe(parentTrace?.span);
+    });
+  });
+
+  it('rethrows errors from nested spans', async () => {
+    await expect(
+      runWithToolContext('trace_error_tool', async () =>
+        runWithSpan('child.failure', async () => {
+          throw new Error('span boom');
+        })
+      )
+    ).rejects.toThrow('span boom');
   });
 });
