@@ -1,27 +1,8 @@
-import {
-  scraper,
-  SessionExpiredError,
-  CourseContent,
-  SectionTextData,
-} from '../scraper/eclass';
-import { getAuthUrl } from '../auth/server';
-import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
-import { ValidationError } from '../errors/validation-error';
-import {
-  EclassToolErrorResponseSchema,
-  EclassToolJsonPayloadSchema,
-} from './eclass-contracts';
+import { scraper, CourseContent, SectionTextData } from '../scraper/eclass';
+import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
-import {
-  handleEclassSessionExpired,
-  isSessionStorageUnavailable,
-  sessionStorageUnavailableResponse,
-} from './auth-retry';
-import {
-  isScrapeLayoutChanged,
-  scrapeLayoutChangedResponse,
-} from './scrape-layout-response';
+import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { redactUrlForLog, validateUrlForPolicy } from '../security/url-policy';
 
 export async function getCourseContent(courseId: string) {
@@ -62,29 +43,19 @@ export async function getCourseContent(courseId: string) {
     );
   };
 
-  try {
-    return await run();
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_course_content');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('get_course_content', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(e, run, (error) =>
-        asValidatedMcpText(
+  return runEclassToolBoundary({
+    toolName: 'get_course_content',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_course_content',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        )
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }
 
 export async function getSectionText(url: string) {
@@ -129,36 +100,17 @@ export async function getSectionText(url: string) {
     );
   };
 
-  try {
-    return await run();
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_section_text');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('get_section_text', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(e, run, (error) =>
-        asValidatedMcpText(
+  return runEclassToolBoundary({
+    toolName: 'get_section_text',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_section_text',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        )
-      );
-    }
-    if (e instanceof ValidationError) {
-      return asValidatedMcpText(
-        'get_section_text',
-        EclassToolErrorResponseSchema,
-        toErrorPayload('VALIDATION_FAILED', e.message, {
-          ...(e.details ? { details: e.details } : {}),
-        })
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }

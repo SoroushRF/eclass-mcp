@@ -1,15 +1,11 @@
-import { SISScraper, SessionExpiredError } from '../scraper/sis';
+import { SISScraper } from '../scraper/sis';
 import { getAuthUrl } from '../auth/server';
 import {
   SisExamScheduleResponseSchema,
   SisTimetableResponseSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import {
-  handleEclassSessionExpired,
-  isSessionStorageUnavailable,
-  sessionStorageUnavailableResponse,
-} from './auth-retry';
+import { runEclassToolBoundary } from './tool-boundary';
 
 const scraper = new SISScraper();
 
@@ -39,14 +35,12 @@ export async function getExamSchedule() {
     );
   };
 
-  try {
-    return await run();
-  } catch (error: unknown) {
-    if (isSessionStorageUnavailable(error)) {
-      return sessionStorageUnavailableResponse('get_exam_schedule');
-    }
-    if (error instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(error, run, () =>
+  return runEclassToolBoundary({
+    toolName: 'get_exam_schedule',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: () =>
         asValidatedMcpText('get_exam_schedule', SisExamScheduleResponseSchema, {
           status: 'auth_required',
           code: 'SESSION_EXPIRED',
@@ -56,19 +50,20 @@ export async function getExamSchedule() {
             afterAuth: true,
             authUrl: getAuthUrl('eclass'),
           },
-        })
+        }),
+    },
+    onUnknownError: (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return asValidatedMcpText(
+        'get_exam_schedule',
+        SisExamScheduleResponseSchema,
+        {
+          status: 'error',
+          message: `Error fetching exam schedule: ${message}`,
+        }
       );
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return asValidatedMcpText(
-      'get_exam_schedule',
-      SisExamScheduleResponseSchema,
-      {
-        status: 'error',
-        message: `Error fetching exam schedule: ${message}`,
-      }
-    );
-  }
+    },
+  });
 }
 
 export async function getClassTimetable() {
@@ -98,14 +93,12 @@ export async function getClassTimetable() {
     );
   };
 
-  try {
-    return await run();
-  } catch (error: unknown) {
-    if (isSessionStorageUnavailable(error)) {
-      return sessionStorageUnavailableResponse('get_class_timetable');
-    }
-    if (error instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(error, run, () =>
+  return runEclassToolBoundary({
+    toolName: 'get_class_timetable',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: () =>
         asValidatedMcpText('get_class_timetable', SisTimetableResponseSchema, {
           status: 'auth_required',
           code: 'SESSION_EXPIRED',
@@ -115,17 +108,18 @@ export async function getClassTimetable() {
             afterAuth: true,
             authUrl: getAuthUrl('eclass'),
           },
-        })
+        }),
+    },
+    onUnknownError: (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      return asValidatedMcpText(
+        'get_class_timetable',
+        SisTimetableResponseSchema,
+        {
+          status: 'error',
+          message: `Error fetching class timetable: ${message}`,
+        }
       );
-    }
-    const message = error instanceof Error ? error.message : String(error);
-    return asValidatedMcpText(
-      'get_class_timetable',
-      SisTimetableResponseSchema,
-      {
-        status: 'error',
-        message: `Error fetching class timetable: ${message}`,
-      }
-    );
-  }
+    },
+  });
 }

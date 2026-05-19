@@ -1,31 +1,15 @@
-import {
-  scraper,
-  ScrapeLayoutError,
-  SessionExpiredError,
-  UpstreamError,
-} from '../scraper/eclass';
-import { getAuthUrl } from '../auth/server';
-import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
-import { ValidationError } from '../errors/validation-error';
+import { scraper } from '../scraper/eclass';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
   EclassAuthRequiredSchema,
-  EclassToolErrorResponseSchema,
   GetFileTextMcpResultSchema,
 } from './eclass-contracts';
-import {
-  asValidatedMcpResult,
-  asValidatedMcpText,
-} from './mcp-validated-response';
+import { asValidatedMcpResult } from './mcp-validated-response';
 import { parsePdfSmart, ContentBlock } from '../parser/pdf-analyzer';
 import { parseDocx } from '../parser/docx';
 import { parsePptx } from '../parser/pptx';
 import path from 'path';
-import {
-  handleEclassSessionExpired,
-  isSessionStorageUnavailable,
-  sessionStorageUnavailableResponse,
-} from './auth-retry';
+import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { validateUrlForPolicy } from '../security/url-policy';
 
 export async function getFileText(
@@ -121,53 +105,17 @@ export async function getFileText(
     });
   };
 
-  try {
-    return await run();
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_file_text');
-    }
-    if (e instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(e, run, (error) =>
-        asValidatedMcpText(
+  return runEclassToolBoundary({
+    toolName: 'get_file_text',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_file_text',
           EclassAuthRequiredSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        )
-      );
-    }
-    if (e instanceof ScrapeLayoutError) {
-      return asValidatedMcpText(
-        'get_file_text',
-        EclassToolErrorResponseSchema,
-        toErrorPayload('SCRAPE_LAYOUT_CHANGED', e.message, {
-          details: e.context,
-        })
-      );
-    }
-    if (e instanceof UpstreamError) {
-      return asValidatedMcpText(
-        'get_file_text',
-        EclassToolErrorResponseSchema,
-        toErrorPayload(e.code, e.message, {
-          ...(e.httpStatus !== undefined
-            ? { details: { httpStatus: e.httpStatus } }
-            : {}),
-        })
-      );
-    }
-    if (e instanceof ValidationError) {
-      return asValidatedMcpText(
-        'get_file_text',
-        EclassToolErrorResponseSchema,
-        toErrorPayload('VALIDATION_FAILED', e.message, {
-          ...(e.details ? { details: e.details } : {}),
-        })
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }

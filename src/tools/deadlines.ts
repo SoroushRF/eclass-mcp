@@ -1,25 +1,14 @@
-import { scraper, SessionExpiredError, Assignment } from '../scraper/eclass';
-import { getAuthUrl } from '../auth/server';
-import { sessionExpiredPayload, toErrorPayload } from '../errors/tool-error';
+import { scraper, Assignment } from '../scraper/eclass';
 import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { ItemDetails } from '../types/deadlines';
 import {
-  EclassToolErrorResponseSchema,
   EclassToolJsonPayloadSchema,
   ItemDetailsMetaSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import {
-  handleEclassSessionExpired,
-  isSessionStorageUnavailable,
-  sessionStorageUnavailableResponse,
-} from './auth-retry';
+import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { getEclassDeadlineItems, type DeadlineScope } from './eclass-service';
-import {
-  isScrapeLayoutChanged,
-  scrapeLayoutChangedResponse,
-} from './scrape-layout-response';
 import { validateUrlForPolicy } from '../security/url-policy';
 
 function attachEclassDeadlinePayload(
@@ -54,7 +43,7 @@ export async function getUpcomingDeadlines(
   courseId?: string,
   authRetryAttempted: boolean = false
 ): Promise<any> {
-  try {
+  const run = async () => {
     const cacheKey = getCacheKey('deadlines', 'upcoming', courseId || 'all');
     const cached = cache.getWithMeta<Assignment[]>(cacheKey);
 
@@ -95,41 +84,22 @@ export async function getUpcomingDeadlines(
       EclassToolJsonPayloadSchema,
       resp
     );
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_upcoming_deadlines');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('get_upcoming_deadlines', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      const fallback = (error: SessionExpiredError) =>
-        asValidatedMcpText(
+  };
+
+  return runEclassToolBoundary({
+    toolName: 'get_upcoming_deadlines',
+    run,
+    onSessionExpired: {
+      attempted: authRetryAttempted,
+      retry: () => getUpcomingDeadlines(_daysAhead, courseId, true),
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_upcoming_deadlines',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        );
-      if (!authRetryAttempted) {
-        return handleEclassSessionExpired(
-          e,
-          () => getUpcomingDeadlines(_daysAhead, courseId, true),
-          fallback
-        );
-      }
-      return asValidatedMcpText(
-        'get_upcoming_deadlines',
-        EclassToolJsonPayloadSchema,
-        sessionExpiredPayload(e.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }
 
 function detailsCacheKey(url: string) {
@@ -195,7 +165,7 @@ export async function getDeadlines(
     maxDetails = 7,
   } = params || {};
 
-  try {
+  const run = async () => {
     const deadlineResult = await getEclassDeadlineItems({
       courseId,
       scope,
@@ -231,43 +201,22 @@ export async function getDeadlines(
       EclassToolJsonPayloadSchema,
       resp
     );
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_deadlines');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('get_deadlines', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      const fallback = (error: SessionExpiredError) =>
-        asValidatedMcpText(
+  };
+
+  return runEclassToolBoundary({
+    toolName: 'get_deadlines',
+    run,
+    onSessionExpired: {
+      attempted: authRetryAttempted,
+      retry: () => getDeadlines(params, true),
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_deadlines',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        );
-      if (!authRetryAttempted) {
-        return handleEclassSessionExpired(
-          e,
-          () => getDeadlines(params, true),
-          fallback
-        );
-      }
-      return fallback(e);
-    }
-    if (e instanceof ValidationError) {
-      return asValidatedMcpText(
-        'get_deadlines',
-        EclassToolErrorResponseSchema,
-        toErrorPayload('VALIDATION_FAILED', e.message, {
-          ...(e.details ? { details: e.details } : {}),
-        })
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }
 
 export async function getItemDetails(
@@ -285,7 +234,7 @@ export async function getItemDetails(
   },
   authRetryAttempted: boolean = false
 ): Promise<any> {
-  try {
+  const run = async () => {
     const url = params?.url;
     if (!url) {
       throw new ValidationError('url is required', { field: 'url' });
@@ -417,17 +366,11 @@ export async function getItemDetails(
     meta.csvSkippedCount = csvSkippedCount;
 
     // --- Image vision inlining (optional) ---
-    let imageTotalCount = 0;
-    let imagesReturnedCount = 0;
-    let imagesSkippedByBudget = 0;
-    let imagesRemainingCount = 0;
-    let nextImageOffset = 0;
-    let usedBase64BytesEstimate = 0;
     const downloadedImages: Array<{ base64: string; mimeType: string }> = [];
 
     if (includeImages) {
       const allImageUrls = details.descriptionImageUrls ?? [];
-      imageTotalCount = allImageUrls.length;
+      const imageTotalCount = allImageUrls.length;
 
       if (!allImageUrls.length) {
         meta.imageTotalCount = 0;
@@ -452,8 +395,7 @@ export async function getItemDetails(
 
       let usedBytes = 0;
       let attemptedCount = 0;
-
-      imagesSkippedByBudget = 0;
+      let imagesSkippedByBudget = 0;
 
       for (let i = 0; i < slice.length; i++) {
         attemptedCount = i + 1;
@@ -499,10 +441,12 @@ export async function getItemDetails(
         }
       }
 
-      imagesReturnedCount = downloadedImages.length;
-      nextImageOffset = offset + attemptedCount;
-      imagesRemainingCount = Math.max(0, imageTotalCount - nextImageOffset);
-      usedBase64BytesEstimate = usedBytes;
+      const imagesReturnedCount = downloadedImages.length;
+      const nextImageOffset = offset + attemptedCount;
+      const imagesRemainingCount = Math.max(
+        0,
+        imageTotalCount - nextImageOffset
+      );
 
       meta.imageTotalCount = imageTotalCount;
       meta.imageOffset = offset;
@@ -512,7 +456,7 @@ export async function getItemDetails(
       meta.nextImageOffset = nextImageOffset;
       meta.maxImages = maxImages;
       meta.maxTotalImageBytes = maxTotalImageBytes;
-      meta.usedBase64BytesEstimate = usedBase64BytesEstimate;
+      meta.usedBase64BytesEstimate = usedBytes;
     }
 
     if (includeImages) {
@@ -535,41 +479,20 @@ export async function getItemDetails(
     content.unshift(metaBlockFinal.content[0]);
 
     return { content };
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_item_details');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('get_item_details', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      const fallback = (error: SessionExpiredError) =>
-        asValidatedMcpText(
+  };
+
+  return runEclassToolBoundary({
+    toolName: 'get_item_details',
+    run,
+    onSessionExpired: {
+      attempted: authRetryAttempted,
+      retry: () => getItemDetails(params, true),
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_item_details',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        );
-      if (!authRetryAttempted) {
-        return handleEclassSessionExpired(
-          e,
-          () => getItemDetails(params, true),
-          fallback
-        );
-      }
-      return fallback(e);
-    }
-    if (e instanceof ValidationError) {
-      return asValidatedMcpText(
-        'get_item_details',
-        EclassToolErrorResponseSchema,
-        toErrorPayload('VALIDATION_FAILED', e.message, {
-          ...(e.details ? { details: e.details } : {}),
-        })
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }

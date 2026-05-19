@@ -1,19 +1,9 @@
-import { SessionExpiredError } from '../scraper/eclass';
 import { getAuthUrl } from '../auth/server';
 import { attachCacheMeta } from '../cache/store';
-import { sessionExpiredPayload } from '../errors/tool-error';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import {
-  handleEclassSessionExpired,
-  isSessionStorageUnavailable,
-  sessionStorageUnavailableResponse,
-} from './auth-retry';
+import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { getEclassCoursesWithCache } from './eclass-service';
-import {
-  isScrapeLayoutChanged,
-  scrapeLayoutChangedResponse,
-} from './scrape-layout-response';
 
 export async function listCourses() {
   const run = async () => {
@@ -41,27 +31,17 @@ export async function listCourses() {
     );
   };
 
-  try {
-    return await run();
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('list_courses');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('list_courses', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(e, run, (error) =>
-        asValidatedMcpText(
+  return runEclassToolBoundary({
+    toolName: 'list_courses',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: (error) =>
+        sessionExpiredResponse(
           'list_courses',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        )
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }

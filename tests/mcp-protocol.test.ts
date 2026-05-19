@@ -317,6 +317,24 @@ describe('MCP protocol integration', () => {
     expect(mocks.scraper.getItemDetails).not.toHaveBeenCalled();
   });
 
+  it('keeps migrated validation failures visible through protocol callTool', async () => {
+    harness = await createProtocolHarness();
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'get_section_text',
+        arguments: {
+          url: 'https://eclass.yorku.ca.evil.test/course/view.php?id=1&section=2',
+        },
+      })
+    );
+
+    expect(payload.status).toBe('error');
+    expect(payload.code).toBe('VALIDATION_FAILED');
+    expect(typeof payload.message).toBe('string');
+    expect(mocks.scraper.getSectionText).not.toHaveBeenCalled();
+  });
+
   it('returns a valid MCP content response for clear_cache', async () => {
     harness = await createProtocolHarness();
 

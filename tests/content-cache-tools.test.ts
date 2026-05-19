@@ -13,12 +13,30 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('../src/scraper/eclass', () => {
   class SessionExpiredError extends Error {}
+  class ScrapeLayoutError extends Error {
+    context?: Record<string, unknown>;
+    constructor(message: string, context?: Record<string, unknown>) {
+      super(message);
+      this.context = context;
+    }
+  }
+  class UpstreamError extends Error {
+    code: string;
+    httpStatus?: number;
+    constructor(code: string, message: string, httpStatus?: number) {
+      super(message);
+      this.code = code;
+      this.httpStatus = httpStatus;
+    }
+  }
   return {
     scraper: {
       getCourseContent: mocks.getCourseContent,
       getSectionText: mocks.getSectionText,
     },
     SessionExpiredError,
+    ScrapeLayoutError,
+    UpstreamError,
   };
 });
 

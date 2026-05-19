@@ -1,18 +1,8 @@
-import { scraper, SessionExpiredError, Grade } from '../scraper/eclass';
-import { getAuthUrl } from '../auth/server';
-import { sessionExpiredPayload } from '../errors/tool-error';
+import { scraper, Grade } from '../scraper/eclass';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import {
-  handleEclassSessionExpired,
-  isSessionStorageUnavailable,
-  sessionStorageUnavailableResponse,
-} from './auth-retry';
-import {
-  isScrapeLayoutChanged,
-  scrapeLayoutChangedResponse,
-} from './scrape-layout-response';
+import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 
 export async function getGrades(courseId?: string) {
   const run = async () => {
@@ -46,27 +36,17 @@ export async function getGrades(courseId?: string) {
     return asValidatedMcpText('get_grades', EclassToolJsonPayloadSchema, resp);
   };
 
-  try {
-    return await run();
-  } catch (e) {
-    if (isSessionStorageUnavailable(e)) {
-      return sessionStorageUnavailableResponse('get_grades');
-    }
-    if (isScrapeLayoutChanged(e)) {
-      return scrapeLayoutChangedResponse('get_grades', e);
-    }
-    if (e instanceof SessionExpiredError) {
-      return handleEclassSessionExpired(e, run, (error) =>
-        asValidatedMcpText(
+  return runEclassToolBoundary({
+    toolName: 'get_grades',
+    run,
+    onSessionExpired: {
+      retry: run,
+      fallback: (error) =>
+        sessionExpiredResponse(
           'get_grades',
           EclassToolJsonPayloadSchema,
-          sessionExpiredPayload(error.message, {
-            afterAuth: true,
-            authUrl: getAuthUrl('eclass'),
-          })
-        )
-      );
-    }
-    throw e;
-  }
+          error
+        ),
+    },
+  });
 }
