@@ -25,7 +25,7 @@ Timeouts should be treated as platform health signals, auth state signals, or se
 | Cengage assignment-source URL |        30s URL wait, then 7s state fallback | If URL matching times out, the scraper checks page state and may recover if the page is already on dashboard, course, student-home, or assignments.                  | [`src/scraper/cengage.ts`](../src/scraper/cengage.ts)                           |
 | Cengage page-state polling    |                  Default 12s, 350ms polling | Page-state detection waits for stable login/dashboard/course/assignment markers. Call sites may use 7-10s narrower budgets.                                          | [`src/scraper/cengage-state.ts`](../src/scraper/cengage-state.ts)               |
 | Selector wait helper          |                  Default 15s, 250ms polling | `waitForAnySelector` polls registered selector candidates and reports selector drift on required failure.                                                            | [`src/scraper/selectors/playwright.ts`](../src/scraper/selectors/playwright.ts) |
-| RMP HTTP requests             |                      15s default fetch abort | Uses `fetch` with `ECLASS_MCP_RMP_TIMEOUT_MS`; HTTP 429 maps to `RATE_LIMITED`, timeouts map to `TIMEOUT`, invalid JSON and non-OK HTTP map to upstream errors.      | [`src/scraper/rmp.ts`](../src/scraper/rmp.ts)                                   |
+| RMP HTTP requests             |                     15s default fetch abort | Uses `fetch` with `ECLASS_MCP_RMP_TIMEOUT_MS`; HTTP 429 maps to `RATE_LIMITED`, timeouts map to `TIMEOUT`, invalid JSON and non-OK HTTP map to upstream errors.      | [`src/scraper/rmp.ts`](../src/scraper/rmp.ts)                                   |
 
 ## Auth Waits
 
@@ -46,6 +46,12 @@ The stdio runtime installs best-effort shutdown cleanup for MCP disconnects, `SI
 The notable bounded fan-out path is `get_deadlines` with `includeDetails=true`: it expands up to `maxDetails` items, defaulting to 7, using `Promise.all`. This is bounded by user/tool input, not by a global scheduler.
 
 The MCP server currently relies on host/tool invocation patterns and per-flow page cleanup rather than a central queue. Future heavier external calls should add explicit per-host concurrency caps before increasing fan-out.
+
+## Cache Health
+
+`cache_health` is a read-only local diagnostic tool. It scans aggregate `.eclass-mcp/cache` and pin-registry state, reports process-local cache counters, and summarizes warnings such as invalid JSON, schema mismatches, stale pinned entries, missing pinned cache files, and pin quota pressure.
+
+The health scan does not delete expired entries, refresh pins, open auth, launch browsers, call upstream services, or expose raw cache filenames, raw cache keys, sensitive URLs, cookies, or absolute local paths.
 
 ## Retry And Fallback Behavior
 

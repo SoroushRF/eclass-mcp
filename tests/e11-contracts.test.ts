@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { z } from 'zod';
 import {
+  CacheHealthToolResponseSchema,
   ClearCacheToolResponseSchema,
   EclassAuthRequiredSchema,
   EclassCacheMetaSchema,
@@ -203,6 +204,48 @@ describe('fixture JSON satisfies schemas (CI contract smoke)', () => {
         scope: 'all',
         clearedCount: 3,
         message: 'Successfully cleared...',
+      }).success
+    ).toBe(true);
+  });
+
+  it('CacheHealthToolResponseSchema', () => {
+    expect(
+      CacheHealthToolResponseSchema.safeParse({
+        ok: true,
+        generated_at: '2026-05-19T00:00:00.000Z',
+        schema_version: 1,
+        cache: {
+          location: '.eclass-mcp/cache',
+          totals: {
+            total_files: 0,
+            json_files: 0,
+            non_json_files: 0,
+            total_bytes: 0,
+            valid_entries: 0,
+            invalid_json_files: 0,
+            schema_mismatches: 0,
+            expired_unpinned_entries: 0,
+            stale_pinned_entries: 0,
+            pinned_cache_files: 0,
+          },
+          by_scope: [],
+        },
+        pins: {
+          pins_file_status: 'missing',
+          pin_count: 0,
+          missing_cache_files: 0,
+          quota: {
+            used_bytes: 0,
+            limit_bytes: 0,
+            used_percent: null,
+            exceeded: false,
+          },
+        },
+        metrics: {
+          process_started_at: '2026-05-19T00:00:00.000Z',
+          counters: { get_hit: 0 },
+        },
+        warnings: [],
       }).success
     ).toBe(true);
   });

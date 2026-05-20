@@ -28,7 +28,7 @@ import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 import { getExamSchedule, getClassTimetable } from './tools/sis';
 import { searchProfessorsTool, getProfessorDetailsTool } from './tools/rmp';
-import { clearCache } from './tools/cache';
+import { cacheHealth, clearCache } from './tools/cache';
 import {
   cachePin,
   cacheUnpin,
@@ -554,6 +554,13 @@ function registerMcpTools(server: McpServer): void {
     'Clears default (TTL) cache for the given scope. User-pinned entries are never removed; use cache_delete_pinned to remove pinned data. Response states that pins are unchanged.',
     clearCacheInputSchema,
     ({ scope }) => clearCache(scope)
+  );
+
+  registerNoInputTool(
+    server,
+    'cache_health',
+    'Reports read-only aggregate cache and pin health plus process-local cache metrics. Does not clear, refresh, authenticate, or scrape.',
+    () => cacheHealth()
   );
 
   registerInputTool(

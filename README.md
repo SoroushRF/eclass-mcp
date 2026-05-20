@@ -15,11 +15,11 @@
 
 ## 🤔 What this is / What this is not
 
-| ✅ This IS                                                                    | ❌ This is NOT                                               |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| A local MCP server that lets Claude read your eClass data                     | A public API or cloud service                                |
-| A scraping layer using your own authenticated session                         | A way to bypass any security or act on behalf of other users |
-| A tool for students to get faster, AI-assisted access to their own coursework | A replacement for the eClass website                         |
+| ✅ This IS                                                                                                       | ❌ This is NOT                                               |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| A local MCP server that lets Claude read your eClass data                                                        | A public API or cloud service                                |
+| A scraping layer using your own authenticated session                                                            | A way to bypass any security or act on behalf of other users |
+| A tool for students to get faster, AI-assisted access to their own coursework                                    | A replacement for the eClass website                         |
 | Local-first — auth state/cache stay on your machine; tool requests go directly to the services you choose to use | Affiliated with or endorsed by York University               |
 
 ---
@@ -123,6 +123,7 @@ flowchart LR
 | `get_cengage_assignments`        | Fetch WebAssign-backed Cengage assignments from direct course/LTI links or saved-session dashboard flow with active-course verification; OWLv2/CengageNOW courses are listed but not scraped yet | `courseId?`, `courseKey?`, `courseQuery?`, `allCourses?`, `maxCourses?`, `maxAssignmentsPerCourse?`, `entryUrl?`, `ssoUrl?` (legacy)                                                                                                                         |
 | `get_cengage_assignment_details` | Fetch question-level Cengage/WebAssign assignment details with prompt sections, asset inventory, rendered-media fallback metadata, and scoring hints                                             | `assignmentUrl?`, `assignmentId?`, `assignmentQuery?`, `courseId?`, `courseKey?`, `courseQuery?`, `includeAnswers?`, `includeResources?`, `includeAssetInventory?`, `includeRenderedMedia?`, `maxQuestions?`, `maxQuestionTextChars?`, `maxAnswerTextChars?` |
 | `clear_cache`                    | Clears **non-pinned** cache by scope (`all`, `volatile`, `deadlines`, …); pins are **not** removed                                                                                               | `scope?`                                                                                                                                                                                                                                                     |
+| `cache_health`                   | Read-only aggregate cache and pin health, local warning summaries, and process-local cache metrics                                                                                               | none                                                                                                                                                                                                                                                         |
 | `cache_pin`                      | Pin a resource already in cache (kept past TTL until unpinned)                                                                                                                                   | `resource_type`, `fileUrl?` / `url?` / `courseId?`, `note?`                                                                                                                                                                                                  |
 | `cache_unpin`                    | Remove pin metadata without deleting cache files                                                                                                                                                 | `pinId`                                                                                                                                                                                                                                                      |
 | `cache_list_pins`                | List pins and quota usage                                                                                                                                                                        | `resource_type?`                                                                                                                                                                                                                                             |
@@ -331,7 +332,7 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | Old course data showing up    | Delete `.eclass-mcp/cache/` to force a full refresh                                                                                                                      |
 | File content outdated         | Use `clear_cache`/pin refresh tools, or delete the relevant versioned `v1_file_*.json` file from `.eclass-mcp/cache/`                                                    |
 | Course platform mapping wrong | Retry `get_assignments` with `platformSelection.cengage.courseId`, `courseKey`, or `courseQuery`; `clear_cache` does not delete `.eclass-mcp/course-platform-index.json` |
-| Grades not updating           | Cache TTL for grades is 3 hours — use `clear_cache(scope="grades")` or delete the relevant versioned `v1_grades_*.json` file                                            |
+| Grades not updating           | Cache TTL for grades is 3 hours — use `clear_cache(scope="grades")` or delete the relevant versioned `v1_grades_*.json` file                                             |
 
 ### 🔗 Cengage / WebAssign Dashboard-First and Fallback Issues
 

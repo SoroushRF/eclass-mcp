@@ -16,6 +16,10 @@ import {
   isCacheEntryExpired,
 } from '../src/cache/store';
 import { clearCache } from '../src/tools/cache';
+import {
+  resetCacheMetricsForTests,
+  snapshotCacheMetrics,
+} from '../src/cache/metrics';
 
 const touchedFiles = new Set<string>();
 
@@ -39,6 +43,7 @@ afterEach(() => {
     }
   }
   touchedFiles.clear();
+  resetCacheMetricsForTests();
 });
 
 describe('cache TTL constants', () => {
@@ -311,5 +316,110 @@ describe('cache key + expiry helpers', () => {
 
     expect(unlinkSpy).toHaveBeenCalledTimes(1);
     expect(unlinkSpy).toHaveBeenCalledWith(path.join(CACHE_DIR, normalName));
+  });
+
+  it('records cache get hit, miss, stale pinned, expiry, and schema metrics', () => {
+    resetCacheMetricsForTests();
+    const freshKey = getCacheKey('vitest-cache', 'fresh-metrics');
+    const staleKey = getCacheKey('vitest-cache', 'stale-metrics');
+    const expiredKey = getCacheKey('vitest-cache', 'expired-metrics');
+    const mismatchKey = getCacheKey('vitest-cache', 'mismatch-metrics');
+
+    writeEntryFile(freshKey, {
+      expires_at: '2035-01-01T00:00:00.000Z',
+      fetched_at: '2026-01-01T00:00:00.000Z',
+      data: { value: 1 },
+      version: CACHE_SCHEMA_VERSION,
+    });
+    writeEntryFile(staleKey, {
+      expires_at: '2020-01-01T00:00:00.000Z',
+      fetched_at: '2019-12-31T23:00:00.000Z',
+      data: { value: 2 },
+      version: CACHE_SCHEMA_VERSION,
+    });
+    writeEntryFile(expiredKey, {
+      expires_at: '2020-01-01T00:00:00.000Z',
+      fetched_at: '2019-12-31T23:00:00.000Z',
+      data: { value: 3 },
+      version: CACHE_SCHEMA_VERSION,
+    });
+    writeEntryFile(mismatchKey, {
+      expires_at: '2035-01-01T00:00:00.000Z',
+      fetched_at: '2026-01-01T00:00:00.000Z',
+      data: { value: 4 },
+      version: CACHE_SCHEMA_VERSION + 1,
+    });
+
+    vi.spyOn(pins, 'isCacheKeyPinned').mockImplementation(
+      (key) => key === staleKey
+    );
+
+    expect(
+      cache.getWithMeta(getCacheKey('vitest-cache', 'missing'))
+    ).toBeNull();
+    expect(cache.getWithMeta(freshKey)).not.toBeNull();
+    expect(cache.getWithMeta(staleKey)?.stale).toBe(true);
+    expect(cache.getWithMeta(expiredKey)).toBeNull();
+    expect(cache.getWithMeta(mismatchKey)).toBeNull();
+
+    expect(snapshotCacheMetrics().counters).toMatchObject({
+      get_miss: 1,
+      get_hit: 1,
+      get_stale_pinned_hit: 1,
+      expired_unpinned_invalidated: 1,
+      schema_mismatch_invalidated: 1,
+    });
+  });
+
+  it('records cache write and invalidate metrics', () => {
+    resetCacheMetricsForTests();
+    const key = getCacheKey('vitest-cache', 'write-metrics');
+    const filePath = getCacheFilePathForKey(key);
+    touchedFiles.add(filePath);
+
+    cache.set(key, { ok: true }, 5);
+    cache.invalidate(key);
+    cache.invalidate(getCacheKey('vitest-cache', 'missing-invalidate'));
+
+    vi.spyOn(fs, 'writeFileSync').mockImplementation(() => {
+      throw new Error('write failed');
+    });
+    cache.set(getCacheKey('vitest-cache', 'write-error'), { ok: false }, 5);
+
+    expect(snapshotCacheMetrics().counters).toMatchObject({
+      write_success: 1,
+      write_error: 1,
+      invalidate_deleted: 1,
+      invalidate_miss: 1,
+    });
+  });
+
+  it('records clear metrics for deleted, skipped, and failed clears', () => {
+    resetCacheMetricsForTests();
+    const pinnedName = 'pinned.json';
+    const normalName = 'normal.json';
+
+    vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    vi.spyOn(fs, 'readdirSync').mockReturnValue([
+      pinnedName,
+      normalName,
+    ] as any);
+    vi.spyOn(fs, 'unlinkSync').mockImplementation(() => undefined);
+    vi.spyOn(pins, 'getPinnedCacheFilenames').mockReturnValue(
+      new Set([pinnedName])
+    );
+
+    expect(cache.clearByPrefix('')).toBe(1);
+
+    vi.spyOn(fs, 'readdirSync').mockImplementation(() => {
+      throw new Error('readdir failed');
+    });
+    expect(cache.clearByPrefix('')).toBe(0);
+
+    expect(snapshotCacheMetrics().counters).toMatchObject({
+      clear_deleted: 1,
+      clear_pinned_skipped: 1,
+      clear_error: 1,
+    });
   });
 });

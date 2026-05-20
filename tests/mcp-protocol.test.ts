@@ -4,6 +4,35 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+  cacheHealth: vi.fn(async () => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          ok: true,
+          generated_at: '2026-05-19T00:00:00.000Z',
+          schema_version: 1,
+          cache: { location: '.eclass-mcp/cache', totals: {}, by_scope: [] },
+          pins: {
+            pins_file_status: 'missing',
+            pin_count: 0,
+            missing_cache_files: 0,
+            quota: {
+              used_bytes: 0,
+              limit_bytes: 0,
+              used_percent: null,
+              exceeded: false,
+            },
+          },
+          metrics: {
+            process_started_at: '2026-05-19T00:00:00.000Z',
+            counters: {},
+          },
+          warnings: [],
+        }),
+      },
+    ],
+  })),
   clearCache: vi.fn(async (scope: string = 'all') => ({
     content: [
       {
@@ -25,6 +54,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../src/tools/cache', () => ({
+  cacheHealth: mocks.cacheHealth,
   clearCache: mocks.clearCache,
 }));
 
@@ -65,6 +95,7 @@ import { createMcpServer } from '../src/index';
 
 const EXPECTED_TOOL_NAMES = [
   'cache_delete_pinned',
+  'cache_health',
   'cache_list_pins',
   'cache_pin',
   'cache_refresh_pin',
@@ -351,5 +382,22 @@ describe('MCP protocol integration', () => {
       clearedCount: 7,
     });
     expect(mocks.clearCache).toHaveBeenCalledWith('rmp');
+  });
+
+  it('returns a valid MCP content response for cache_health', async () => {
+    harness = await createProtocolHarness();
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'cache_health',
+      })
+    );
+
+    expect(payload).toMatchObject({
+      ok: true,
+      schema_version: 1,
+      cache: { location: '.eclass-mcp/cache' },
+    });
+    expect(mocks.cacheHealth).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,6 +1,10 @@
 import { CACHE_SCHEMA_VERSION, cache } from '../cache/store';
+import { collectCacheHealth } from '../cache/health';
 import { getLogger } from '../logging/context';
-import { ClearCacheToolResponseSchema } from './eclass-contracts';
+import {
+  CacheHealthToolResponseSchema,
+  ClearCacheToolResponseSchema,
+} from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 
 export type CacheScope =
@@ -87,4 +91,12 @@ export async function clearCache(scope: CacheScope = 'all') {
       isError: true as const,
     };
   }
+}
+
+export async function cacheHealth() {
+  return asValidatedMcpText(
+    'cache_health',
+    CacheHealthToolResponseSchema,
+    collectCacheHealth()
+  );
 }

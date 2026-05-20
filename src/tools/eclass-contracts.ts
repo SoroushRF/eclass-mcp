@@ -111,6 +111,44 @@ export const ClearCacheToolResponseSchema = z
   })
   .passthrough();
 
+export const CacheHealthToolResponseSchema = z
+  .object({
+    ok: z.literal(true),
+    generated_at: z.string(),
+    schema_version: z.number(),
+    cache: z
+      .object({
+        location: z.string(),
+        totals: z.record(z.string(), z.number()),
+        by_scope: z.array(z.record(z.string(), z.unknown())),
+      })
+      .passthrough(),
+    pins: z
+      .object({
+        pins_file_status: z.enum(['ok', 'missing', 'unreadable']),
+        pin_count: z.number(),
+        missing_cache_files: z.number(),
+        quota: z.record(z.string(), z.unknown()),
+      })
+      .passthrough(),
+    metrics: z
+      .object({
+        process_started_at: z.string(),
+        counters: z.record(z.string(), z.number()),
+      })
+      .passthrough(),
+    warnings: z.array(
+      z
+        .object({
+          code: z.string(),
+          severity: z.enum(['info', 'warning', 'error']),
+          message: z.string(),
+        })
+        .passthrough()
+    ),
+  })
+  .passthrough();
+
 /** Pin tools: unified loose envelope (`ok` discriminant + passthrough). */
 export const PinToolJsonPayloadSchema = z
   .object({

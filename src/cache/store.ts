@@ -3,6 +3,7 @@ import path from 'path';
 import dotenv from 'dotenv';
 import { getLogger } from '../logging/context';
 import { getPinnedCacheFilenames, isCacheKeyPinned } from './pins';
+import { recordCacheMetric } from './metrics';
 
 dotenv.config({ quiet: true });
 
@@ -105,6 +106,7 @@ class CacheStore {
   getWithMeta<T>(key: string): (CacheEntry<T> & { stale?: boolean }) | null {
     const filePath = this.getFilePath(key);
     if (!fs.existsSync(filePath)) {
+      recordCacheMetric('get_miss');
       return null;
     }
 
@@ -114,6 +116,7 @@ class CacheStore {
 
       // Invalidate if version mismatch (protection against manual key bypass)
       if (entry.version !== CACHE_SCHEMA_VERSION) {
+        recordCacheMetric('schema_mismatch_invalidated');
         this.invalidate(key);
         return null;
       }
@@ -121,14 +124,18 @@ class CacheStore {
       const now = new Date();
       if (isCacheEntryExpired(entry.expires_at, now)) {
         if (isCacheKeyPinned(key)) {
+          recordCacheMetric('get_stale_pinned_hit');
           return { ...entry, stale: true };
         }
+        recordCacheMetric('expired_unpinned_invalidated');
         this.invalidate(key);
         return null;
       }
 
+      recordCacheMetric('get_hit');
       return entry;
     } catch (error) {
+      recordCacheMetric('read_error');
       getLogger().error({ err: error, key }, 'Error reading cache');
       return null;
     }
@@ -148,7 +155,9 @@ class CacheStore {
 
     try {
       fs.writeFileSync(filePath, JSON.stringify(entry, null, 2), 'utf-8');
+      recordCacheMetric('write_success');
     } catch (error) {
+      recordCacheMetric('write_error');
       getLogger().error({ err: error, key }, 'Error writing cache');
     }
   }
@@ -158,9 +167,12 @@ class CacheStore {
     if (fs.existsSync(filePath)) {
       try {
         fs.unlinkSync(filePath);
+        recordCacheMetric('invalidate_deleted');
       } catch (error) {
         getLogger().error({ err: error, key }, 'Error invalidating cache');
       }
+    } else {
+      recordCacheMetric('invalidate_miss');
     }
   }
 
@@ -173,13 +185,18 @@ class CacheStore {
       const files = fs.readdirSync(CACHE_DIR);
       const sanitizedPrefix = sanitizeCacheKeyForFilename(prefix);
       for (const file of files) {
-        if (pinnedFilenames.has(file)) continue;
         if (file.startsWith(sanitizedPrefix) && file.endsWith('.json')) {
+          if (pinnedFilenames.has(file)) {
+            recordCacheMetric('clear_pinned_skipped');
+            continue;
+          }
           fs.unlinkSync(path.join(CACHE_DIR, file));
+          recordCacheMetric('clear_deleted');
           count++;
         }
       }
     } catch (error) {
+      recordCacheMetric('clear_error');
       getLogger().error(
         { err: error, prefix },
         'Error clearing cache by prefix'
@@ -207,12 +224,17 @@ class CacheStore {
     try {
       const files = fs.readdirSync(CACHE_DIR);
       for (const file of files) {
-        if (pinnedFilenames.has(file)) continue;
+        if (pinnedFilenames.has(file)) {
+          recordCacheMetric('clear_pinned_skipped');
+          continue;
+        }
         if (file.endsWith('.json')) {
           fs.unlinkSync(path.join(CACHE_DIR, file));
+          recordCacheMetric('clear_deleted');
         }
       }
     } catch (error) {
+      recordCacheMetric('clear_error');
       getLogger().error({ err: error }, 'Error clearing cache');
     }
   }
