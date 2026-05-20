@@ -55,6 +55,10 @@ import {
   SecureSessionStorageError,
   isSecureSessionConfigured,
 } from './security/secure-session-store';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './tools/dependencies';
 import { createShutdownController } from './runtime/shutdown';
 import { closeActiveCengageScrapers } from './scraper/cengage';
 import { closeActiveSisBrowsers } from './scraper/sis';
@@ -333,12 +337,12 @@ const cacheDeletePinnedInputSchema = {
   resource_type: pinResourceEnum.optional(),
 } satisfies ZodRawShapeCompat;
 
-function registerMcpTools(server: McpServer): void {
+function registerMcpTools(server: McpServer, deps: ToolDependencies): void {
   registerNoInputTool(
     server,
     'list_courses',
     'Lists all courses the student is enrolled in on eClass.',
-    () => listCourses()
+    () => listCourses(deps)
   );
 
   registerInputTool(
@@ -346,7 +350,7 @@ function registerMcpTools(server: McpServer): void {
     'get_course_content',
     'Gets full content of a specific course.',
     courseIdInputSchema,
-    ({ courseId }) => getCourseContent(courseId)
+    ({ courseId }) => getCourseContent(courseId, deps)
   );
 
   registerInputTool(
@@ -354,7 +358,7 @@ function registerMcpTools(server: McpServer): void {
     'get_section_text',
     'Fetches the literal paragraph text, embedded links, and hidden custom-layout tabs within a specific Moodle section. Provide the section URL.',
     sectionTextInputSchema,
-    ({ url }) => getSectionText(url)
+    ({ url }) => getSectionText(url, deps)
   );
 
   registerInputTool(
@@ -365,7 +369,7 @@ function registerMcpTools(server: McpServer): void {
       'remaining pages using startPage/endPage parameters.',
     getFileTextInputSchema,
     ({ courseId, fileUrl, startPage, endPage }) =>
-      getFileText(courseId || 'unknown', fileUrl, startPage, endPage)
+      getFileText(courseId || 'unknown', fileUrl, startPage, endPage, deps)
   );
 
   registerInputTool(
@@ -381,7 +385,8 @@ function registerMcpTools(server: McpServer): void {
     'get_upcoming_deadlines',
     'Returns upcoming eClass-only assignment/quiz deadlines. If this is empty for a course, call get_assignments before concluding there are no assignments.',
     getUpcomingDeadlinesInputSchema,
-    ({ daysAhead, courseId }) => getUpcomingDeadlines(daysAhead, courseId)
+    ({ daysAhead, courseId }) =>
+      getUpcomingDeadlines(daysAhead, courseId, false, deps)
   );
 
   registerInputTool(
@@ -389,7 +394,7 @@ function registerMcpTools(server: McpServer): void {
     'get_deadlines',
     'Returns eClass-only assignment/quiz deadlines for upcoming, month, or date range scopes. For complete cross-platform answers, use get_assignments.',
     getDeadlinesInputSchema,
-    (args) => getDeadlines(args)
+    (args) => getDeadlines(args, false, deps)
   );
 
   registerInputTool(
@@ -397,7 +402,7 @@ function registerMcpTools(server: McpServer): void {
     'get_item_details',
     'Fetches assignment/quiz page details, optionally attaching vision instruction images (no OCR) with strict payload caps.',
     getItemDetailsInputSchema,
-    (args) => getItemDetails(args)
+    (args) => getItemDetails(args, false, deps)
   );
 
   registerInputTool(
@@ -405,7 +410,7 @@ function registerMcpTools(server: McpServer): void {
     'get_grades',
     "Returns the student's grades.",
     optionalCourseIdInputSchema,
-    ({ courseId }) => getGrades(courseId)
+    ({ courseId }) => getGrades(courseId, deps)
   );
 
   registerInputTool(
@@ -413,21 +418,21 @@ function registerMcpTools(server: McpServer): void {
     'get_announcements',
     'Returns recent course announcements.',
     getAnnouncementsInputSchema,
-    ({ courseId, limit }) => getAnnouncements(courseId, limit)
+    ({ courseId, limit }) => getAnnouncements(courseId, limit, deps)
   );
 
   registerNoInputTool(
     server,
     'get_exam_schedule',
     "Fetches the current student's personal exam schedule from York SIS.",
-    () => getExamSchedule()
+    () => getExamSchedule(deps)
   );
 
   registerNoInputTool(
     server,
     'get_class_timetable',
     "Fetches the current student's personal class timetable from York SIS for the current session.",
-    () => getClassTimetable()
+    () => getClassTimetable(deps)
   );
 
   registerInputTool(
@@ -435,7 +440,7 @@ function registerMcpTools(server: McpServer): void {
     'search_professors',
     'Finds professor profiles on RateMyProfessors for York University campuses.',
     searchProfessorsInputSchema,
-    (args) => searchProfessorsTool(args)
+    (args) => searchProfessorsTool(args, deps)
   );
 
   registerInputTool(
@@ -443,7 +448,7 @@ function registerMcpTools(server: McpServer): void {
     'get_professor_details',
     'Fetches detailed ratings, difficulty, and student comments for a specific professor from RateMyProfessors.',
     getProfessorDetailsInputSchema,
-    (args) => getProfessorDetailsTool(args)
+    (args) => getProfessorDetailsTool(args, deps)
   );
 
   registerInputTool(
@@ -604,12 +609,14 @@ function registerMcpTools(server: McpServer): void {
   );
 }
 
-export function createMcpServer(): McpServer {
+export function createMcpServer(
+  deps: ToolDependencies = createDefaultToolDependencies()
+): McpServer {
   const server = new McpServer({
     name: 'eclass-mcp',
     version: '1.0.0-beta.2',
   });
-  registerMcpTools(server);
+  registerMcpTools(server, deps);
   return server;
 }
 

@@ -1,10 +1,17 @@
-import { scraper, Grade } from '../scraper/eclass';
+import type { Grade } from '../scraper/eclass';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
-export async function getGrades(courseId?: string) {
+export async function getGrades(
+  courseId?: string,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const run = async () => {
     const cacheKey = getCacheKey('grades', courseId || 'all');
     const cached = cache.getWithMeta<Grade[]>(cacheKey);
@@ -22,7 +29,7 @@ export async function getGrades(courseId?: string) {
       );
     }
 
-    const grades = await scraper.getGrades(courseId);
+    const grades = await deps.eclassScraper.getGrades(courseId);
     cache.set(cacheKey, grades, TTL.GRADES);
 
     const now = new Date();

@@ -1,4 +1,3 @@
-import { SISScraper } from '../scraper/sis';
 import { getAuthUrl } from '../auth/server';
 import {
   SisExamScheduleResponseSchema,
@@ -6,10 +5,15 @@ import {
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary } from './tool-boundary';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
-const scraper = new SISScraper();
-
-export async function getExamSchedule() {
+export async function getExamSchedule(
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
+  const scraper = deps.createSisScraper();
   const run = async () => {
     const exams = await scraper.scrapeExams();
     if (exams.length === 0) {
@@ -66,7 +70,10 @@ export async function getExamSchedule() {
   });
 }
 
-export async function getClassTimetable() {
+export async function getClassTimetable(
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
+  const scraper = deps.createSisScraper();
   const run = async () => {
     const entries = await scraper.scrapeTimetable();
     if (entries.length === 0) {

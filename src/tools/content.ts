@@ -1,11 +1,18 @@
-import { scraper, CourseContent, SectionTextData } from '../scraper/eclass';
+import type { CourseContent, SectionTextData } from '../scraper/eclass';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { redactUrlForLog, validateUrlForPolicy } from '../security/url-policy';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
-export async function getCourseContent(courseId: string) {
+export async function getCourseContent(
+  courseId: string,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const run = async () => {
     const cacheKey = getCacheKey('content', courseId);
     const cached = cache.getWithMeta<CourseContent>(cacheKey);
@@ -25,7 +32,7 @@ export async function getCourseContent(courseId: string) {
       );
     }
 
-    const content = await scraper.getCourseContent(courseId);
+    const content = await deps.eclassScraper.getCourseContent(courseId);
     cache.set(cacheKey, content, TTL.CONTENT);
 
     const now = new Date();
@@ -58,7 +65,10 @@ export async function getCourseContent(courseId: string) {
   });
 }
 
-export async function getSectionText(url: string) {
+export async function getSectionText(
+  url: string,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const run = async () => {
     const targetUrl = validateUrlForPolicy(url, 'eclass_section');
     console.error(
@@ -82,7 +92,7 @@ export async function getSectionText(url: string) {
       );
     }
 
-    const content = await scraper.getSectionText(targetUrl);
+    const content = await deps.eclassScraper.getSectionText(targetUrl);
     cache.set(cacheKey, content, TTL.CONTENT); // Re-use content TTL
 
     const now = new Date();

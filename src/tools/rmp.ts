@@ -1,5 +1,5 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import { RMPClient, type RMPTeacherSearch } from '../scraper/rmp';
+import type { RMPTeacherSearch } from '../scraper/rmp';
 import { UpstreamError } from '../scraper/scrape-errors';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
@@ -11,8 +11,10 @@ import {
 import { asValidatedMcpText } from './mcp-validated-response';
 import { toErrorPayload } from '../errors/tool-error';
 import { getLogger } from '../logging/context';
-
-const rmpClient = new RMPClient();
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
 function normalizeSearchName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
@@ -167,7 +169,10 @@ function toDetailsToolResult(response: {
 /**
  * Tool to search for professor profiles on RMP
  */
-export async function searchProfessorsTool(args: any) {
+export async function searchProfessorsTool(
+  args: any,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const { name, campus } = args;
 
   if (!name) {
@@ -206,7 +211,9 @@ export async function searchProfessorsTool(args: any) {
       '[RMP] search cache miss'
     );
 
-    const report = await rmpClient.searchTeachersWithDiagnostics(name, campus);
+    const report = await deps
+      .createRmpClient()
+      .searchTeachersWithDiagnostics(name, campus);
 
     const response = {
       matches: report.matches.map((t: RMPTeacherSearch) => ({
@@ -275,7 +282,10 @@ export async function searchProfessorsTool(args: any) {
 /**
  * Tool to get detailed ratings for a professor
  */
-export async function getProfessorDetailsTool(args: any) {
+export async function getProfessorDetailsTool(
+  args: any,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const { teacherId } = args;
 
   if (!teacherId) {
@@ -307,7 +317,7 @@ export async function getProfessorDetailsTool(args: any) {
 
     getLogger().debug({ teacherId }, '[RMP] detail cache miss');
 
-    const details = await rmpClient.getTeacherDetails(teacherId);
+    const details = await deps.createRmpClient().getTeacherDetails(teacherId);
     if (!details) {
       getLogger().debug({ teacherId }, '[RMP] no details returned');
       return asValidatedMcpText(

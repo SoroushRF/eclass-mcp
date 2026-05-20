@@ -1,7 +1,11 @@
-import { scraper, Assignment, Course } from '../scraper/eclass';
+import type { Assignment, Course } from '../scraper/eclass';
 import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey, type CacheMetadata } from '../cache/store';
 import type { DeadlineItem } from '../types/deadlines';
+import {
+  createDefaultToolDependencies,
+  type EclassScraperDependency,
+} from './dependencies';
 
 export type DeadlineScope = 'upcoming' | 'month' | 'range';
 
@@ -114,7 +118,10 @@ function hitCacheMeta(cached: {
   };
 }
 
-export async function getEclassCoursesWithCache(): Promise<EclassCoursesWithCache> {
+export async function getEclassCoursesWithCache(
+  eclassScraper: EclassScraperDependency = createDefaultToolDependencies()
+    .eclassScraper
+): Promise<EclassCoursesWithCache> {
   const cacheKey = getCacheKey('courses');
   const cached = cache.getWithMeta<Course[]>(cacheKey);
 
@@ -125,7 +132,7 @@ export async function getEclassCoursesWithCache(): Promise<EclassCoursesWithCach
     };
   }
 
-  const courses = await scraper.getCourses();
+  const courses = await eclassScraper.getCourses();
   const ttlMinutes = ttlForList(courses, TTL.COURSES);
   cache.set(cacheKey, courses, ttlMinutes);
 
@@ -136,7 +143,9 @@ export async function getEclassCoursesWithCache(): Promise<EclassCoursesWithCach
 }
 
 export async function getEclassDeadlineItems(
-  params: GetEclassDeadlineParams
+  params: GetEclassDeadlineParams,
+  eclassScraper: EclassScraperDependency = createDefaultToolDependencies()
+    .eclassScraper
 ): Promise<EclassDeadlineItemsWithCache> {
   const { courseId, scope = 'upcoming', month, year, from, to } = params || {};
 
@@ -150,7 +159,7 @@ export async function getEclassDeadlineItems(
       };
     }
 
-    const deadlines = await scraper.getDeadlines(courseId);
+    const deadlines = await eclassScraper.getDeadlines(courseId);
     const ttlMinutes = ttlForList(deadlines, TTL.DEADLINES);
     cache.set(key, deadlines, ttlMinutes);
     return {
@@ -172,7 +181,8 @@ export async function getEclassDeadlineItems(
       };
     }
 
-    const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
+    const allAssignments =
+      await eclassScraper.getAllAssignmentDeadlines(courseId);
     const items = allAssignments.filter((it) => {
       const d = parseEClassDate(it.dueDate);
       return d ? isSameMonthYear(d, m, y) : false;
@@ -213,7 +223,8 @@ export async function getEclassDeadlineItems(
     };
   }
 
-  const allAssignments = await scraper.getAllAssignmentDeadlines(courseId);
+  const allAssignments =
+    await eclassScraper.getAllAssignmentDeadlines(courseId);
   const filtered = allAssignments.filter((it) => {
     const d = parseEClassDate(it.dueDate);
     if (!d) return false;

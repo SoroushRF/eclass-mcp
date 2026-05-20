@@ -1,4 +1,3 @@
-import { scraper } from '../scraper/eclass';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
   EclassAuthRequiredSchema,
@@ -11,12 +10,17 @@ import { parsePptx } from '../parser/pptx';
 import path from 'path';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { validateUrlForPolicy } from '../security/url-policy';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
 export async function getFileText(
   courseId: string,
   fileUrl: string,
   startPage?: number,
-  endPage?: number
+  endPage?: number,
+  deps: ToolDependencies = createDefaultToolDependencies()
 ) {
   const run = async () => {
     const safeFileUrl = validateUrlForPolicy(fileUrl, 'eclass_file');
@@ -64,7 +68,7 @@ export async function getFileText(
     }
 
     const { buffer, mimeType, filename } =
-      await scraper.downloadFile(safeFileUrl);
+      await deps.eclassScraper.downloadFile(safeFileUrl);
 
     const ext = path.extname(filename).toLowerCase();
     let blocks: ContentBlock[];

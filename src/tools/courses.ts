@@ -4,10 +4,18 @@ import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { getEclassCoursesWithCache } from './eclass-service';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
-export async function listCourses() {
+export async function listCourses(
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const run = async () => {
-    const { courses, cacheMeta } = await getEclassCoursesWithCache();
+    const { courses, cacheMeta } = await getEclassCoursesWithCache(
+      deps.eclassScraper
+    );
     const payload =
       courses.length === 0
         ? {

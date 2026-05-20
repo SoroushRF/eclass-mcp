@@ -1,4 +1,4 @@
-import { scraper, Assignment } from '../scraper/eclass';
+import type { Assignment } from '../scraper/eclass';
 import { ValidationError } from '../errors/validation-error';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { ItemDetails } from '../types/deadlines';
@@ -10,6 +10,10 @@ import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { getEclassDeadlineItems, type DeadlineScope } from './eclass-service';
 import { validateUrlForPolicy } from '../security/url-policy';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
 function attachEclassDeadlinePayload(
   items: unknown[],
@@ -41,7 +45,8 @@ function attachEclassDeadlinePayload(
 export async function getUpcomingDeadlines(
   _daysAhead: number = 30,
   courseId?: string,
-  authRetryAttempted: boolean = false
+  authRetryAttempted: boolean = false,
+  deps: ToolDependencies = createDefaultToolDependencies()
 ): Promise<any> {
   const run = async () => {
     const cacheKey = getCacheKey('deadlines', 'upcoming', courseId || 'all');
@@ -64,7 +69,7 @@ export async function getUpcomingDeadlines(
       );
     }
 
-    const deadlines = await scraper.getDeadlines(courseId);
+    const deadlines = await deps.eclassScraper.getDeadlines(courseId);
     cache.set(cacheKey, deadlines, TTL.DEADLINES);
 
     const now = new Date();
@@ -91,7 +96,7 @@ export async function getUpcomingDeadlines(
     run,
     onSessionExpired: {
       attempted: authRetryAttempted,
-      retry: () => getUpcomingDeadlines(_daysAhead, courseId, true),
+      retry: () => getUpcomingDeadlines(_daysAhead, courseId, true, deps),
       fallback: (error) =>
         sessionExpiredResponse(
           'get_upcoming_deadlines',
@@ -109,7 +114,8 @@ function detailsCacheKey(url: string) {
 }
 
 async function getDetailsWithMeta(
-  url: string
+  url: string,
+  deps: ToolDependencies
 ): Promise<{ data: ItemDetails; meta: any }> {
   const safeUrl = validateUrlForPolicy(url, 'eclass_item');
   const key = detailsCacheKey(safeUrl);
@@ -126,7 +132,7 @@ async function getDetailsWithMeta(
     };
   }
 
-  const details = await scraper.getItemDetails(safeUrl);
+  const details = await deps.eclassScraper.getItemDetails(safeUrl);
   cache.set(key, details, TTL.DETAILS);
 
   const now = new Date();
@@ -152,7 +158,8 @@ export async function getDeadlines(
     includeDetails?: boolean;
     maxDetails?: number;
   },
-  authRetryAttempted: boolean = false
+  authRetryAttempted: boolean = false,
+  deps: ToolDependencies = createDefaultToolDependencies()
 ): Promise<any> {
   const {
     courseId,
@@ -166,14 +173,17 @@ export async function getDeadlines(
   } = params || {};
 
   const run = async () => {
-    const deadlineResult = await getEclassDeadlineItems({
-      courseId,
-      scope,
-      month,
-      year,
-      from,
-      to,
-    });
+    const deadlineResult = await getEclassDeadlineItems(
+      {
+        courseId,
+        scope,
+        month,
+        year,
+        from,
+        to,
+      },
+      deps.eclassScraper
+    );
     let items = deadlineResult.items;
     const { cacheMeta } = deadlineResult;
 
@@ -182,7 +192,7 @@ export async function getDeadlines(
       const withDetails = await Promise.all(
         items.slice(0, n).map(async (it) => {
           try {
-            const { data } = await getDetailsWithMeta(it.url);
+            const { data } = await getDetailsWithMeta(it.url, deps);
             return { ...it, details: data };
           } catch {
             return it;
@@ -208,7 +218,7 @@ export async function getDeadlines(
     run,
     onSessionExpired: {
       attempted: authRetryAttempted,
-      retry: () => getDeadlines(params, true),
+      retry: () => getDeadlines(params, true, deps),
       fallback: (error) =>
         sessionExpiredResponse(
           'get_deadlines',
@@ -232,7 +242,8 @@ export async function getItemDetails(
     csvPreviewLines?: number;
     maxCsvAttachments?: number;
   },
-  authRetryAttempted: boolean = false
+  authRetryAttempted: boolean = false,
+  deps: ToolDependencies = createDefaultToolDependencies()
 ): Promise<any> {
   const run = async () => {
     const url = params?.url;
@@ -252,8 +263,10 @@ export async function getItemDetails(
     const maxCsvAttachments = params?.maxCsvAttachments ?? 3;
 
     const safeUrl = validateUrlForPolicy(url, 'eclass_item');
-    const { data: details, meta: cacheMeta } =
-      await getDetailsWithMeta(safeUrl);
+    const { data: details, meta: cacheMeta } = await getDetailsWithMeta(
+      safeUrl,
+      deps
+    );
 
     // Backwards compatible mode: return only the JSON payload + cache meta
     if (!includeImages && !includeCsv) {
@@ -294,7 +307,8 @@ export async function getItemDetails(
             att.url,
             'eclass_attachment'
           );
-          const downloaded = await scraper.downloadFile(safeAttachmentUrl);
+          const downloaded =
+            await deps.eclassScraper.downloadFile(safeAttachmentUrl);
           const bytes = downloaded.buffer.length;
 
           const truncatedBySize = bytes > maxCsvBytes;
@@ -407,7 +421,8 @@ export async function getItemDetails(
             imageUrl,
             'eclass_attachment'
           );
-          const { buffer, mimeType } = await scraper.downloadFile(safeImageUrl);
+          const { buffer, mimeType } =
+            await deps.eclassScraper.downloadFile(safeImageUrl);
           const urlLower = imageUrl.toLowerCase();
           const isImageByMime = mimeType.startsWith('image/');
           const isImageByExt =
@@ -486,7 +501,7 @@ export async function getItemDetails(
     run,
     onSessionExpired: {
       attempted: authRetryAttempted,
-      retry: () => getItemDetails(params, true),
+      retry: () => getItemDetails(params, true, deps),
       fallback: (error) =>
         sessionExpiredResponse(
           'get_item_details',

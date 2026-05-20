@@ -1,10 +1,18 @@
-import { scraper, Announcement } from '../scraper/eclass';
+import type { Announcement } from '../scraper/eclass';
 import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
-export async function getAnnouncements(courseId?: string, limit: number = 10) {
+export async function getAnnouncements(
+  courseId?: string,
+  limit: number = 10,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const run = async () => {
     const cacheKey = getCacheKey(
       'announcements',
@@ -27,7 +35,10 @@ export async function getAnnouncements(courseId?: string, limit: number = 10) {
       );
     }
 
-    const announcements = await scraper.getAnnouncements(courseId, limit);
+    const announcements = await deps.eclassScraper.getAnnouncements(
+      courseId,
+      limit
+    );
     cache.set(cacheKey, announcements, TTL.ANNOUNCEMENTS);
 
     const now = new Date();
