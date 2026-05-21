@@ -2,6 +2,13 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cache } from '../src/cache/store';
+import { cengageCacheKey } from '../src/tools/cengage/cache';
+import type {
+  CengageScraperDependency,
+  RmpClientDependency,
+  ToolDependencies,
+} from '../src/tools/dependencies';
 
 const mocks = vi.hoisted(() => ({
   clearCache: vi.fn(async (scope: string = 'all') => ({
@@ -159,8 +166,89 @@ type ProtocolHarness = {
 type ListedTool = Awaited<ReturnType<Client['listTools']>>['tools'][number];
 type CallToolResponse = Awaited<ReturnType<Client['callTool']>>;
 
-async function createProtocolHarness(): Promise<ProtocolHarness> {
-  const server = createMcpServer();
+const touchedCacheKeys = new Set<string>();
+
+function rememberCacheKey(key: string): string {
+  touchedCacheKeys.add(key);
+  return key;
+}
+
+function uniqueProtocolId(label: string): string {
+  return `vitest-mcp-${process.pid}-${Date.now()}-${label}`;
+}
+
+function createFakeProtocolDependencies(): {
+  deps: ToolDependencies;
+  sisScraper: {
+    scrapeExams: ReturnType<typeof vi.fn>;
+    scrapeTimetable: ReturnType<typeof vi.fn>;
+  };
+  cengageScraper: CengageScraperDependency;
+  createCengageScraper: ReturnType<typeof vi.fn>;
+} {
+  const sisScraper = {
+    scrapeExams: vi.fn(async () => [
+      {
+        courseCode: 'MCP 101',
+        section: 'A',
+        courseTitle: 'Protocol Exam',
+        date: '2026-06-01',
+        startTime: '9:00 AM',
+        durationMinutes: 180,
+        campus: 'Keele',
+        rooms: 'CLH A',
+      },
+    ]),
+    scrapeTimetable: vi.fn(async () => [
+      {
+        courseCode: 'MCP 101',
+        term: 'W',
+        section: 'A',
+        type: 'LEC',
+        days: 'M',
+        startTime: '10:00',
+        durationMinutes: 90,
+        room: 'LAS',
+      },
+    ]),
+  };
+
+  const cengageScraper = {
+    listDashboardCoursesFromEntryLink: vi.fn(async () => [
+      {
+        courseId: 'protocol-cengage-course',
+        courseKey: 'protocol-course-key',
+        title: 'Protocol Cengage Course',
+        launchUrl:
+          'https://www.webassign.net/web/Student/Assignment-Responses/protocol',
+        platform: 'webassign' as const,
+        assignmentsSupported: true,
+        confidence: 1,
+      },
+    ]),
+    close: vi.fn(async () => undefined),
+  } as unknown as CengageScraperDependency;
+
+  const createCengageScraper = vi.fn(() => cengageScraper);
+
+  return {
+    deps: {
+      eclassScraper:
+        mocks.scraper as unknown as ToolDependencies['eclassScraper'],
+      createSisScraper: vi.fn(() => sisScraper),
+      createRmpClient: vi.fn(() => ({}) as RmpClientDependency),
+      createCengageScraper,
+    },
+    sisScraper,
+    cengageScraper,
+    createCengageScraper,
+  };
+}
+
+async function createProtocolHarness(
+  deps?: ToolDependencies
+): Promise<ProtocolHarness> {
+  const server = createMcpServer(deps);
   const client = new Client({
     name: 'eclass-mcp-protocol-test',
     version: '0.0.0',
@@ -235,6 +323,10 @@ describe('MCP protocol integration', () => {
   afterEach(async () => {
     await closeProtocolHarness(harness);
     harness = null;
+    for (const key of touchedCacheKeys) {
+      cache.invalidate(key);
+    }
+    touchedCacheKeys.clear();
   });
 
   it('lists every public tool through MCP listTools', async () => {
@@ -378,24 +470,6 @@ describe('MCP protocol integration', () => {
     expect(mocks.scraper.getItemDetails).not.toHaveBeenCalled();
   });
 
-  it('keeps migrated validation failures visible through protocol callTool', async () => {
-    harness = await createProtocolHarness();
-
-    const payload = parseFirstTextJson(
-      await harness.client.callTool({
-        name: 'get_section_text',
-        arguments: {
-          url: 'https://eclass.yorku.ca.evil.test/course/view.php?id=1&section=2',
-        },
-      })
-    );
-
-    expect(payload.status).toBe('error');
-    expect(payload.code).toBe('VALIDATION_FAILED');
-    expect(typeof payload.message).toBe('string');
-    expect(mocks.scraper.getSectionText).not.toHaveBeenCalled();
-  });
-
   it('returns a valid mocked MCP content response for destructive clear_cache', async () => {
     harness = await createProtocolHarness();
 
@@ -412,6 +486,61 @@ describe('MCP protocol integration', () => {
       clearedCount: 7,
     });
     expect(mocks.clearCache).toHaveBeenCalledWith('rmp');
+  });
+
+  it('routes injected SIS tools through protocol callTool without browser work', async () => {
+    const { deps, sisScraper } = createFakeProtocolDependencies();
+    harness = await createProtocolHarness(deps);
+
+    const exams = parseFirstTextJson(
+      await harness.client.callTool({ name: 'get_exam_schedule' })
+    );
+    const timetable = parseFirstTextJson(
+      await harness.client.callTool({ name: 'get_class_timetable' })
+    );
+
+    expect(exams).toMatchObject({
+      status: 'ok',
+      exams: [expect.objectContaining({ courseCode: 'MCP 101' })],
+    });
+    expect(timetable).toMatchObject({
+      status: 'ok',
+      entries: [expect.objectContaining({ courseCode: 'MCP 101' })],
+    });
+    expect(sisScraper.scrapeExams).toHaveBeenCalledTimes(1);
+    expect(sisScraper.scrapeTimetable).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes injected Cengage course listing through protocol callTool', async () => {
+    const { deps, createCengageScraper, cengageScraper } =
+      createFakeProtocolDependencies();
+    const entryUrl = `https://www.cengage.com/dashboard/home?protocol=${uniqueProtocolId('cengage')}`;
+    const cacheKey = rememberCacheKey(
+      cengageCacheKey('list_courses', {
+        entryUrl,
+        discoveredLink: null,
+        courseQuery: null,
+      })
+    );
+    cache.invalidate(cacheKey);
+    harness = await createProtocolHarness(deps);
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'list_cengage_courses',
+        arguments: { entryUrl },
+      })
+    );
+
+    expect(payload).toMatchObject({
+      status: 'ok',
+      courses: [expect.objectContaining({ title: 'Protocol Cengage Course' })],
+    });
+    expect(createCengageScraper).toHaveBeenCalledTimes(1);
+    expect(
+      cengageScraper.listDashboardCoursesFromEntryLink
+    ).toHaveBeenCalledWith(entryUrl);
+    expect(cengageScraper.close).toHaveBeenCalledTimes(1);
   });
 
   it('returns a valid MCP content response for cache_health', async () => {

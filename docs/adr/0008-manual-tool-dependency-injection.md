@@ -10,7 +10,7 @@ Direct singleton imports made low-level tool tests depend on module mocking and 
 
 ## Decision
 
-Use explicit TypeScript dependency objects at the tool registration boundary. Production `createMcpServer()` builds default dependencies, while tests may pass fake eClass, SIS, RMP, and other tool-level factories. Keep runtime infrastructure such as auth server startup, logging, and shutdown outside the tool dependency object unless a narrow test seam is needed.
+Use explicit TypeScript dependency objects at the tool registration boundary. Production `createMcpServer()` builds default dependencies, while tests may pass fake eClass, SIS, RMP, Cengage, and other tool-level factories. Keep runtime infrastructure such as auth server startup, logging, and shutdown outside the tool dependency object unless a narrow test seam is needed.
 
 ## Consequences
 

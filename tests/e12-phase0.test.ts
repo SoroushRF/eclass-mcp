@@ -1,3 +1,4 @@
+import fc from 'fast-check';
 import { describe, it, expect } from 'vitest';
 import {
   ScrapeLayoutError,
@@ -135,6 +136,44 @@ describe('E12 Phase 0 — tool-error helpers', () => {
     const p = toErrorPayload('VALIDATION_FAILED', 'bad args');
     expect(p.code).toBe('VALIDATION_FAILED');
     expect(p.status).toBe('error');
+  });
+
+  it('toErrorPayload preserves generated machine codes and JSON-safe details', () => {
+    const detailValue = fc.oneof(
+      fc.string({ maxLength: 40 }),
+      fc.integer(),
+      fc.boolean(),
+      fc.constant(null)
+    );
+    const details = fc.dictionary(
+      fc
+        .string({ minLength: 1, maxLength: 16 })
+        .filter((key) => /^[a-z][a-z0-9_]*$/i.test(key)),
+      detailValue,
+      { maxKeys: 6 }
+    );
+
+    fc.assert(
+      fc.property(
+        fc.constantFrom(...MACHINE_CODES),
+        fc.string({ minLength: 1, maxLength: 80 }),
+        details,
+        (code, message, generatedDetails) => {
+          const payload = toErrorPayload(code, message, {
+            details: generatedDetails,
+          });
+
+          expect(payload.status).toBe('error');
+          expect(payload.code).toBe(code);
+          expect(payload.message).toBe(message);
+          expect(payload.details).toEqual(generatedDetails);
+          expect(() => JSON.stringify(payload)).not.toThrow();
+          expect(EclassToolErrorResponseSchema.safeParse(payload).success).toBe(
+            true
+          );
+        }
+      )
+    );
   });
 });
 

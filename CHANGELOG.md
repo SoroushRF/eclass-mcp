@@ -11,12 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added follow-up ADR coverage for the MCP tool boundary, RMP circuit breaker, structured trace correlation, manual dependency injection, and read-only cache observability (`docs/adr/0005` through `0009`, plus the ADR index).
 - Added stdio MCP smoke coverage for real entrypoint tool discovery, plus additional protocol coverage for read-only pin listing, Cengage argument validation, and RMP detail error responses.
-- Added property-based coverage for eClass date parsing and URL-policy negative cases.
+- Added deeper protocol coverage for injected SIS and Cengage tool calls, plus an unmocked RMP circuit-breaker path through MCP `callTool`.
+- Added property-based coverage for eClass date parsing, URL-policy negative cases, and structured E12 error-envelope invariants.
 
 ### Changed
 
 - Clarified that the shared tool boundary is intentionally family-specific: eClass/SIS and RMP use shared boundary helpers, while Cengage, assignment resolver, cache, and pin tools preserve their specialized envelopes.
 - Extended tool-layer dependency injection documentation and tests to include Cengage scraper factories.
+- Added the default eClass boundary fallback for unexpected errors as a redacted `INTERNAL_ERROR` JSON response while keeping generic and specialized tool-family boundaries explicit.
 
 ### Fixed
 
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a defensive, redacted `cache_health` failure envelope for unexpected local health-collector failures.
 - Fixed stale docs that still referenced old tool counts or request-id-only logging, and corrected changelog wording around Cengage dependency injection.
 - Fixed a Cengage assignment parser import order issue that could break real stdio startup before MCP initialization.
+- Fixed final maturity doc drift around the 25-tool manual matrix, Cengage's four-tool surface, T25/T26 cache labels, and E20/E21 write-safety status.
 
 ## [1.0.0-beta.3] - 2026-05-20
 

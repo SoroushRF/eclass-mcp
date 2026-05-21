@@ -16,7 +16,7 @@ Current boundary ownership:
 
 | Tool family | Boundary policy |
 | --- | --- |
-| eClass and SIS | `runEclassToolBoundary` handles secure-session failures, eClass auth retry, validation, layout drift, and upstream errors. |
+| eClass and SIS | `runEclassToolBoundary` handles secure-session failures, eClass auth retry, validation, layout drift, upstream errors, and a redacted default `INTERNAL_ERROR` fallback for unexpected eClass failures; SIS keeps explicit overrides where its legacy envelope differs. |
 | RateMyProfessors | `runToolBoundary` preserves RMP response envelopes while mapping upstream, timeout, rate-limit, validation, and circuit-open failures. |
 | Cengage/WebAssign | Custom envelopes stay in the Cengage tools because auth, course activation, and `needs_course_activation` retry guidance are richer than the eClass envelope. |
 | `get_assignments` | Custom resolver envelope stays in place because it merges eClass and Cengage results and writes platform-index side effects. |
@@ -27,4 +27,4 @@ Current boundary ownership:
 
 - Public tool response shapes remain tool-specific, but common machine codes stay consistent.
 - Cengage and cross-platform assignment flows can preserve richer envelopes while still sharing boundary policy where safe.
-- Unknown errors may still throw when a tool contract intentionally treats them as unexpected defects.
+- Unknown errors may still throw when a tool contract intentionally uses the generic boundary or a specialized family contract; eClass-boundary defaults now return redacted `INTERNAL_ERROR` JSON.

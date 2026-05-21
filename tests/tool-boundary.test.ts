@@ -10,6 +10,7 @@ import { SecureSessionStorageError } from '../src/security/secure-session-store'
 import { EclassToolJsonPayloadSchema } from '../src/tools/eclass-contracts';
 import {
   runEclassToolBoundary,
+  runToolBoundary,
   sessionExpiredResponse,
 } from '../src/tools/tool-boundary';
 
@@ -166,11 +167,28 @@ describe('runEclassToolBoundary', () => {
     expect(payload.details.httpStatus).toBe(504);
   });
 
-  it('rethrows unknown errors unless a tool-specific handler is provided', async () => {
+  it('maps unknown eClass errors to a redacted internal error by default', async () => {
+    const unknown = new Error('unexpected');
+
+    const result = await runEclassToolBoundary({
+      toolName: 'list_courses',
+      run: async () => {
+        throw unknown;
+      },
+    });
+
+    expect(parsePayload(result)).toMatchObject({
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'The tool failed due to an unexpected internal error.',
+    });
+  });
+
+  it('keeps generic boundary unknown errors strict unless a handler is provided', async () => {
     const unknown = new Error('unexpected');
 
     await expect(
-      runEclassToolBoundary({
+      runToolBoundary({
         toolName: 'list_courses',
         run: async () => {
           throw unknown;

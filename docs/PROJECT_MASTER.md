@@ -31,7 +31,7 @@ This file subsumes the former root docs (CoYork TODO, v1 implementation plan, en
 ## 1. How to use this document
 
 - **User setup and features:** start with the repo [`README.md`](../README.md).
-- **What to build next:** use [2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T24** `eclass.ts` modularization, **T25** smart cache + `clear_cache`, optional **T26** user-pinned cache + quota, future write tools behind **E20** gates, 9+ engineering **E01-E21**).
+- **What to build next:** use [2](#2-master-execution-tracker--detailed-implementation-plans) — unified checkboxes, serial task IDs, and **step-by-step** plans for everything not done (post-beta engine polish, **T24** `eclass.ts` modularization, **T25** smart cache + `clear_cache`, optional **T26** user-pinned cache + quota, future write tools after completed **E20** preflight contracts and pending **E21** post-write hygiene, 9+ engineering **E01-E21**).
 - **Deep dives:** deadlines and PDF pipeline live under [`docs/tools/deadlines/`](tools/deadlines/) and [`docs/tools/get_file_text/`](tools/get_file_text/).
 - **Deduplication:** stack, session paths, and tool lists appear once in [3](#3-executive-snapshot) and [4](#4-architecture-reference-single-source-of-truth).
 
@@ -62,7 +62,7 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T41**     | [x] Cross-platform assignment resolver - canonical `get_assignments` tool checks eClass plus Cengage/WebAssign, with durable course-platform index outside TTL cache - see [2.15](#215-detailed-plan--t41-cross-platform-assignment-resolver)                                                            |
 | **T42**     | [x] Cengage/WebAssign course activation hardening - verifies active WebAssign course context, restores direct-link-first assignment behavior, and returns `needs_course_activation` for wrong-course landings - see [2.16](#216-detailed-plan--t42-cengagewebassign-course-activation-hardening)         |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D)                                                                                                                                                                                                                            |
-| **E20-E21** | Write-tool **safety** (pre-ship gates, post-write audit + cache invalidation) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                   |
+| **E20-E21** | Write-tool **safety** (**E20** preflight contracts complete; **E21** post-write audit + cache invalidation pending) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                          |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -213,7 +213,7 @@ Execute **in order**; do not skip inspect/research tasks.
 
 ### 2.4 Tracker ??? engine polish / post-beta (T21-T42)
 
-Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retry work is tracked in T28-T36** (see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry)); **future write tools are T37-T40** and are gated by **E20-E21** (see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)).
+Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retry work is tracked in T28-T36** (see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry)); **future write tools are T37-T40** and require completed **E20** preflight contracts plus pending **E21** post-write hygiene before destructive behavior ships (see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)).
 
 T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cengage/WebAssign activation path after the MATH 1014 -> PHYS 1800 wrong-course landing regression.
 
@@ -286,7 +286,7 @@ _(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-t
 
 **Goal:** Validate the real Claude Desktop host end-to-end and capture a reusable manual run record. The exact operator flow lives in [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
-**Minimum scope:** all 10 tool rows, the session-expiry regression, redacted evidence in [`docs/e2e-run-log.md`](./e2e-run-log.md), and a clean `npx tsc --noEmit` at the tested commit.
+**Minimum scope:** the current 25-tool Inspector/Claude Desktop matrix in [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md), the session-expiry regression, redacted evidence in [`docs/e2e-run-log.md`](./e2e-run-log.md), and clean automated verification at the tested commit.
 
 **Definition of done:** the handbook run was completed as written, every row is marked Pass/Fail/Skip with reasons, and every Fail has an issue number in the run log.
 
@@ -806,7 +806,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 **Pinned cache ([T26](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
 
-**Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), gated by **E20-E21** in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; risky write calls require signed **`preflightRef`**, explicit **`confirm: true`**, and target revalidation immediately before mutation.
+**Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), after completed **E20** preflight contracts and pending **E21** post-write hygiene in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; risky write calls require signed **`preflightRef`**, explicit **`confirm: true`**, and target revalidation immediately before mutation.
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -975,7 +975,7 @@ Cengage hardening (**T28-T31**) is complete; the concise status summary lives in
 4. **Scraper structure** ? **T24** / [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
 5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool).
 6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools) _(after T25)_.
-7. **future write tools (preflight-first)** ? **T37-T40** + **E20-E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
+7. **future write tools (preflight-first)** ? **T37-T40** + completed **E20** / pending **E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
 8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 
 ---
@@ -1039,7 +1039,7 @@ for (const sisUrl of SIS_URLS) {
 
 ## 11. Phase C ? Engineering excellence reference (gap to 9.0+)
 
-**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool gates **E20-E21** in [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) and **?2.9.7**.
+**Full procedural steps:** **?2.5** (tracker **E01-E21**) and [?2.9](#29-detailed-plan--e01-e19-engineering-9-including-cicd); write-tool safety is split between completed **E20** preflight contracts and pending **E21** post-write hygiene in [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) and **?2.9.7**.
 
 ### 11.1 Executive summary
 
@@ -1087,7 +1087,7 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 ## 12. Phase D ? Maintainer / codebase health
 
 - **T24 ? `src/scraper/eclass/` modularization:** Completed; barrel re-export preserves downstream API. Full procedure in [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
-- **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); gates **E20-E21** in **§2.5**.
+- **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); completed **E20** preflight contracts and pending **E21** post-write hygiene in **§2.5**.
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
 ---

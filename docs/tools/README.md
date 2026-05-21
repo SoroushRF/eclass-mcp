@@ -22,9 +22,9 @@ This directory contains focused docs for the primary registered MCP tools in `sr
 - `list_cengage_courses` -> `docs/tools/list_cengage_courses/README.md`
 - `get_cengage_assignments` -> `docs/tools/get_cengage_assignments/README.md` (direct-link-first for WebAssign/LTI links, dashboard fallback, and `needs_course_activation` context guard)
 - `get_cengage_assignment_details` -> `docs/tools/get_cengage_assignment_details/README.md`
-- `clear_cache` - see [README.md](../../README.md) (T26; skips pinned entries)
+- `clear_cache` - see [README.md](../../README.md) (T25; skips pinned entries)
 - `cache_health` - see [README.md](../../README.md) (read-only aggregate cache/pin health and process-local cache metrics)
-- `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, `cache_delete_pinned` - see [README.md](../../README.md) (T27 pinned cache)
+- `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, `cache_delete_pinned` - see [README.md](../../README.md) (T26 pinned cache)
 
 ## Existing deep-dive collections
 

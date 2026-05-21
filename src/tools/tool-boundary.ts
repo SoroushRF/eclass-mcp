@@ -86,6 +86,17 @@ export function upstreamErrorResponse(
   );
 }
 
+export function internalErrorResponse(toolName: string): McpTextResponse {
+  return asValidatedMcpText(
+    toolName,
+    EclassToolErrorResponseSchema,
+    toErrorPayload(
+      'INTERNAL_ERROR',
+      'The tool failed due to an unexpected internal error.'
+    )
+  );
+}
+
 export function sessionExpiredResponse(
   toolName: string,
   schema: z.ZodType<unknown>,
@@ -105,7 +116,12 @@ export function sessionExpiredResponse(
 export async function runEclassToolBoundary<T extends McpToolResult>(
   options: ToolBoundaryOptions<T>
 ): Promise<T> {
-  return runToolBoundary(options);
+  return runToolBoundary({
+    ...options,
+    onUnknownError:
+      options.onUnknownError ??
+      (() => toBoundaryResult<T>(internalErrorResponse(options.toolName))),
+  });
 }
 
 export async function runToolBoundary<T extends McpToolResult>(
