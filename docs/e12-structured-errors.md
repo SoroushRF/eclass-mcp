@@ -58,6 +58,18 @@ Validated against **`EclassToolErrorResponseSchema`** (errors) or **`EclassAuthR
 
 [`src/tools/mcp-validated-response.ts`](../src/tools/mcp-validated-response.ts) wraps payloads in MCP `content: [{ type: 'text', text: JSON.stringify(...) }]`. On schema failure, the helper logs a warning and still returns JSON (unless strict mode).
 
+### 3.3 Boundary ownership
+
+MCP registration owns trace context and protocol result validation only. Business error mapping stays at the tool layer:
+
+| Tool family | Boundary policy |
+| --- | --- |
+| eClass and SIS | Shared `runEclassToolBoundary` for secure-session failures, eClass auth retry, validation, scrape-layout drift, and upstream errors. |
+| RateMyProfessors | Shared `runToolBoundary` with RMP-specific response schemas for validation, upstream, timeout, rate-limit, and circuit-open failures. |
+| Cengage/WebAssign | Custom Cengage envelopes for auth, course activation, and `needs_course_activation` guidance. |
+| `get_assignments` | Custom cross-platform resolver envelope because it merges eClass and Cengage/WebAssign state. |
+| Cache and pins | Local-state envelopes; `cache_refresh_pin` is the only pin tool that performs eClass auth retry. |
+
 ---
 
 ## 4. Error classes and mapping (by phase)

@@ -29,6 +29,18 @@ const mocks = vi.hoisted(() => ({
       },
     ],
   })),
+  getProfessorDetailsTool: vi.fn(async () => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'error',
+          code: 'RATE_LIMITED',
+          message: 'RMP detail requests are temporarily paused.',
+        }),
+      },
+    ],
+  })),
   getAssignments: vi.fn(async () => ({
     content: [
       {
@@ -86,7 +98,7 @@ vi.mock('../src/tools/grades', () => ({
 
 vi.mock('../src/tools/rmp', () => ({
   searchProfessorsTool: mocks.searchProfessorsTool,
-  getProfessorDetailsTool: vi.fn(),
+  getProfessorDetailsTool: mocks.getProfessorDetailsTool,
 }));
 
 vi.mock('../src/scraper/eclass', () => {
@@ -384,7 +396,7 @@ describe('MCP protocol integration', () => {
     expect(mocks.scraper.getSectionText).not.toHaveBeenCalled();
   });
 
-  it('returns a valid MCP content response for clear_cache', async () => {
+  it('returns a valid mocked MCP content response for destructive clear_cache', async () => {
     harness = await createProtocolHarness();
 
     const payload = parseFirstTextJson(
@@ -418,6 +430,38 @@ describe('MCP protocol integration', () => {
     });
     expect(payload).toHaveProperty('pins');
     expect(payload).toHaveProperty('metrics');
+  });
+
+  it('returns a valid read-only MCP content response for cache_list_pins', async () => {
+    harness = await createProtocolHarness();
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'cache_list_pins',
+        arguments: {},
+      })
+    );
+
+    expect(payload.ok).toBe(true);
+    expect(Array.isArray(payload.pins)).toBe(true);
+    expect(payload.quota).toEqual(expect.any(Object));
+  });
+
+  it('rejects invalid Cengage discovery arguments before browser or auth work', async () => {
+    harness = await createProtocolHarness();
+
+    const result = await harness.client.callTool({
+      name: 'discover_cengage_links',
+      arguments: { text: '' },
+    });
+    const content = (result as { content?: unknown }).content;
+    const firstBlock = Array.isArray(content) ? content[0] : undefined;
+
+    expect((result as { isError?: boolean }).isError).toBe(true);
+    expect(isTextContentBlock(firstBlock)).toBe(true);
+    expect(isTextContentBlock(firstBlock) ? firstBlock.text : '').toContain(
+      'Input validation error'
+    );
   });
 
   it('returns structured assignment validation through protocol callTool', async () => {
@@ -458,6 +502,26 @@ describe('MCP protocol integration', () => {
     });
     expect(mocks.searchProfessorsTool).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Example Professor' }),
+      expect.any(Object)
+    );
+  });
+
+  it('returns structured RMP detail errors through protocol callTool', async () => {
+    harness = await createProtocolHarness();
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'get_professor_details',
+        arguments: { teacherId: '12345' },
+      })
+    );
+
+    expect(payload).toMatchObject({
+      status: 'error',
+      code: 'RATE_LIMITED',
+    });
+    expect(mocks.getProfessorDetailsTool).toHaveBeenCalledWith(
+      expect.objectContaining({ teacherId: '12345' }),
       expect.any(Object)
     );
   });

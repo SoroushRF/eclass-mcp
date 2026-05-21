@@ -40,7 +40,9 @@ describe('production source typing guard', () => {
         filePath,
         content: fs.readFileSync(filePath, 'utf-8'),
       }))
-      .filter(({ content }) => /:\s*any\b|\bany\[\]/.test(content))
+      .filter(({ content }) =>
+        /:\s*any\b|\bany\[\]|\bPromise\s*<\s*any\s*>|<\s*any\s*>/.test(content)
+      )
       .map(({ filePath }) => path.relative(srcRoot, filePath));
 
     expect(offenders).toEqual([]);

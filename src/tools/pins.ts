@@ -31,6 +31,8 @@ function pinToolJson(toolName: string, obj: unknown) {
   return asValidatedMcpText(toolName, PinToolJsonPayloadSchema, obj);
 }
 
+type PinToolResult = ReturnType<typeof pinToolJson>;
+
 function parseFileResourceKey(resource_key: string): {
   fileUrl: string;
   startPage?: number;
@@ -244,7 +246,7 @@ export async function cacheListPins(args: { resource_type?: PinResourceType }) {
 export async function cacheRefreshPin(
   args: { pinId: string },
   authRetryAttempted: boolean = false
-): Promise<any> {
+): Promise<PinToolResult> {
   try {
     const pin = getPinById(args.pinId);
     if (!pin) {

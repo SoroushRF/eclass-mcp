@@ -7,6 +7,8 @@ import {
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 
+type CacheHealthCollector = () => unknown;
+
 export type CacheScope =
   | 'all'
   | 'volatile'
@@ -93,10 +95,25 @@ export async function clearCache(scope: CacheScope = 'all') {
   }
 }
 
-export async function cacheHealth() {
-  return asValidatedMcpText(
-    'cache_health',
-    CacheHealthToolResponseSchema,
-    collectCacheHealth()
-  );
+export async function cacheHealth(
+  collector: CacheHealthCollector = collectCacheHealth
+) {
+  try {
+    return asValidatedMcpText(
+      'cache_health',
+      CacheHealthToolResponseSchema,
+      collector()
+    );
+  } catch (e: unknown) {
+    getLogger().error({ err: e }, 'Cache health collection failed');
+    return {
+      ...asValidatedMcpText('cache_health', CacheHealthToolResponseSchema, {
+        ok: false,
+        code: 'INTERNAL_ERROR',
+        message: 'Cache health is temporarily unavailable.',
+        isError: true,
+      }),
+      isError: true as const,
+    };
+  }
 }

@@ -34,7 +34,7 @@ export async function getFileText(
       );
     }
 
-    const cached = cache.getWithMeta<any>(cacheKey);
+    const cached = cache.getWithMeta<string | ContentBlock[]>(cacheKey);
     if (cached) {
       const { data } = cached;
       const stale = 'stale' in cached && cached.stale === true;
@@ -61,7 +61,7 @@ export async function getFileText(
           'get_file_text',
           GetFileTextMcpResultSchema,
           {
-            content: [...staleHint, ...(data as ContentBlock[])],
+            content: [...staleHint, ...data],
           }
         );
       }

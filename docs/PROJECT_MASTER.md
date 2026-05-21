@@ -455,7 +455,7 @@ jobs:
 #### 2.9.5 E13?E15 ? Security and operations
 
 - **E13:** **Done.** Secure-file storage encrypts `session.json` and `cengage-state.json` with AES-256-GCM + `scrypt` using `ECLASS_MCP_SESSION_SECRET`; legacy plaintext sessions require re-auth; `/logout` best-effort wipes auth session files. README and `SECURITY.md` document the local threat model and wipe limitations.
-- **E14:** **Done.** Pino JSON to stderr; `runWithToolContext` + `getLogger()` + `requestId`/`tool` per MCP invocation; `redactCookieSubstrings` for free-form text; [`docs/logging.md`](./logging.md).
+- **E14:** **Done.** Pino JSON to stderr; `runWithToolContext`, `runWithSpan`, and `getLogger()` add `requestId`, `traceId`, `spanId`, `parentSpanId`, `tool`, and `span` correlation fields around MCP tool invocations and selected sub-operations; `redactCookieSubstrings` protects free-form text; [`docs/logging.md`](./logging.md).
 - **E15:** **Done.** Typed selector registry groups selector arrays per eClass/Cengage page type; migrated scrapers log `selector_match` with the winning candidate; required selector failures throw `ScrapeLayoutError` / `SCRAPE_LAYOUT_CHANGED` with tried selectors, counts, URL/title, and optional `ECLASS_MCP_SELECTOR_DEBUG_SNAPSHOTS=1` debug snapshots under `.eclass-mcp/debug/selectors/`.
 
 #### 2.9.6 E16?E19 ? Productization
@@ -1105,7 +1105,7 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 | Deadlines ? history                       | `docs/tools/deadlines/history.md`                          |
 | File / PDF ? history & roadmap            | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
 | **E12 structured errors (machine codes)** | `docs/e12-structured-errors.md`                            |
-| **E14 logging (Pino, stderr, requestId)** | `docs/logging.md`                                          |
+| **E14 logging (Pino, stderr, trace/span correlation)** | `docs/logging.md`                                          |
 | User-facing README                        | `README.md`                                                |
 
 ---

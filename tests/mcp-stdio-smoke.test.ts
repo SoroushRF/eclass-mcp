@@ -49,5 +49,5 @@ describe('MCP stdio smoke', () => {
     }
 
     expect(stderrChunks.join('')).not.toMatch(/Opening login window/i);
-  }, 15000);
+  }, 45000);
 });

@@ -111,7 +111,7 @@ export const ClearCacheToolResponseSchema = z
   })
   .passthrough();
 
-export const CacheHealthToolResponseSchema = z
+const CacheHealthToolSuccessResponseSchema = z
   .object({
     ok: z.literal(true),
     generated_at: z.string(),
@@ -148,6 +148,20 @@ export const CacheHealthToolResponseSchema = z
     ),
   })
   .passthrough();
+
+const CacheHealthToolFailureResponseSchema = z
+  .object({
+    ok: z.literal(false),
+    code: z.literal('INTERNAL_ERROR'),
+    message: z.string(),
+    isError: z.literal(true).optional(),
+  })
+  .passthrough();
+
+export const CacheHealthToolResponseSchema = z.union([
+  CacheHealthToolSuccessResponseSchema,
+  CacheHealthToolFailureResponseSchema,
+]);
 
 /** Pin tools: unified loose envelope (`ok` discriminant + passthrough). */
 export const PinToolJsonPayloadSchema = z

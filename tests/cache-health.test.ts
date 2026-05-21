@@ -179,4 +179,21 @@ describe('cacheHealth tool', () => {
     expect(payload.cache.location).toBe('.eclass-mcp/cache');
     expect(payload.metrics).toMatchObject(snapshotCacheMetrics());
   });
+
+  it('returns a redacted structured failure when health collection throws', async () => {
+    const result = await cacheHealth(() => {
+      throw new Error('Failed to read C:\\Users\\student\\.eclass-mcp\\cache');
+    });
+    const payload = JSON.parse(result.content[0].text);
+
+    expect('isError' in result && result.isError).toBe(true);
+    expect(payload).toEqual({
+      ok: false,
+      code: 'INTERNAL_ERROR',
+      message: 'Cache health is temporarily unavailable.',
+      isError: true,
+    });
+    expect(JSON.stringify(payload)).not.toContain('C:\\Users');
+    expect(JSON.stringify(payload)).not.toContain('.eclass-mcp\\cache');
+  });
 });

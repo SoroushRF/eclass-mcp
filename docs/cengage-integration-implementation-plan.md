@@ -532,7 +532,7 @@ Status:
 Evidence:
 
 - `README.md` now includes Cengage tool entries, migration/compatibility notes (`entryUrl` + legacy `ssoUrl`), and troubleshooting guidance for auth/session and link-selection states.
-- `docs/tools/README.md` now lists all 22 tools and links to dedicated Cengage tool docs.
+- `docs/tools/README.md` now lists all 25 current tools and links to dedicated Cengage tool docs. This historical implementation-plan evidence line was refreshed after the post-beta.3 cache/tool-surface additions.
 - `docs/tools/discover_cengage_links/README.md`, `docs/tools/list_cengage_courses/README.md`, and `docs/tools/get_cengage_assignments/README.md` provide maintainer-facing tool behavior and constraints.
 
 Dependencies:

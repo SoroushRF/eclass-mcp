@@ -12,6 +12,17 @@ MCP clients need stable JSON responses for expected tool failures such as expire
 
 Keep MCP registration responsible for protocol registration and trace context, and keep business-level error mapping in shared tool-boundary helpers. eClass and SIS tools use the common boundary for auth retry and E12 machine-code mapping. Other tool families may use specialized boundary options when their response envelopes differ, but expected operational failures should remain structured JSON instead of raw exceptions.
 
+Current boundary ownership:
+
+| Tool family | Boundary policy |
+| --- | --- |
+| eClass and SIS | `runEclassToolBoundary` handles secure-session failures, eClass auth retry, validation, layout drift, and upstream errors. |
+| RateMyProfessors | `runToolBoundary` preserves RMP response envelopes while mapping upstream, timeout, rate-limit, validation, and circuit-open failures. |
+| Cengage/WebAssign | Custom envelopes stay in the Cengage tools because auth, course activation, and `needs_course_activation` retry guidance are richer than the eClass envelope. |
+| `get_assignments` | Custom resolver envelope stays in place because it merges eClass and Cengage results and writes platform-index side effects. |
+| Cache and pins | Local-state envelopes stay tool-specific; only `cache_refresh_pin` performs eClass auth retry because it can re-fetch pinned eClass resources. |
+| MCP registration | `registerTool` wrappers provide trace context and protocol result validation only; they do not own business-level error mapping. |
+
 ## Consequences
 
 - Public tool response shapes remain tool-specific, but common machine codes stay consistent.

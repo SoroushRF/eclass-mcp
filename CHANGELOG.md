@@ -9,7 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- _None yet._
+- Added follow-up ADR coverage for the MCP tool boundary, RMP circuit breaker, structured trace correlation, manual dependency injection, and read-only cache observability (`docs/adr/0005` through `0009`, plus the ADR index).
+- Added stdio MCP smoke coverage for real entrypoint tool discovery, plus additional protocol coverage for read-only pin listing, Cengage argument validation, and RMP detail error responses.
+- Added property-based coverage for eClass date parsing and URL-policy negative cases.
+
+### Changed
+
+- Clarified that the shared tool boundary is intentionally family-specific: eClass/SIS and RMP use shared boundary helpers, while Cengage, assignment resolver, cache, and pin tools preserve their specialized envelopes.
+- Extended tool-layer dependency injection documentation and tests to include Cengage scraper factories.
+
+### Fixed
+
+- Removed the remaining production `Promise<any>` type escape hatch and tightened the static production typing guard.
+- Added a defensive, redacted `cache_health` failure envelope for unexpected local health-collector failures.
+- Fixed stale docs that still referenced old tool counts or request-id-only logging, and corrected changelog wording around Cengage dependency injection.
+- Fixed a Cengage assignment parser import order issue that could break real stdio startup before MCP initialization.
 
 ## [1.0.0-beta.3] - 2026-05-20
 
@@ -27,7 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Eliminated production `as any` casts, tightened remaining production `any` annotations, and kept MCP registration on typed `registerTool` helpers.
 - Centralized common eClass/SIS tool error and auth handling behind a shared tool boundary while preserving public response shapes.
 - Added graceful shutdown cleanup for stdio transport, auth server/browser resources, eClass scraper, Cengage scraper registry, and SIS browser tracking.
-- Reduced tool-layer scraper/client singleton coupling through explicit manual dependency injection for eClass, SIS, and RMP tools.
+- Reduced tool-layer scraper/client singleton coupling through explicit manual dependency injection for eClass, SIS, RMP, and Cengage tool paths.
 - Updated package metadata, docs, and release surfaces for `1.0.0-beta.3`.
 
 ### Fixed
