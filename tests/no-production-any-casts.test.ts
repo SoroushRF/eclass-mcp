@@ -34,11 +34,26 @@ describe('production source typing guard', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('keeps production source free of explicit any annotations', () => {
+    const offenders = listTypeScriptFiles(srcRoot)
+      .map((filePath) => ({
+        filePath,
+        content: fs.readFileSync(filePath, 'utf-8'),
+      }))
+      .filter(({ content }) => /:\s*any\b|\bany\[\]/.test(content))
+      .map(({ filePath }) => path.relative(srcRoot, filePath));
+
+    expect(offenders).toEqual([]);
+  });
+
   it('keeps the MCP entrypoint on typed tool registration', () => {
     const indexSource = fs.readFileSync(indexPath, 'utf-8');
 
     expect(indexSource).not.toMatch(/server\.tool\(/);
     expect(indexSource).not.toMatch(/:\s*any\b/);
     expect(indexSource).not.toMatch(/\bas any\b/);
+    expect(indexSource).not.toMatch(/as CallToolResult/);
+    expect(indexSource).not.toMatch(/as unknown as TypedRegisterCallback/);
+    expect(indexSource).not.toMatch(/args as ShapeOutput/);
   });
 });

@@ -16,7 +16,10 @@ import {
   getProfessorDetailsTool,
   searchProfessorsTool,
 } from '../src/tools/rmp';
+import { listCengageCourses } from '../src/tools/cengage';
+import { getAssignments } from '../src/tools/assignments';
 import type {
+  CengageScraperDependency,
   EclassScraperDependency,
   RmpClientDependency,
   SisScraperDependency,
@@ -46,8 +49,10 @@ function createFakeDependencies(): {
   eclassScraper: EclassScraperDependency;
   sisScraper: SisScraperDependency;
   rmpClient: RmpClientDependency;
+  cengageScraper: CengageScraperDependency;
   createSisScraper: ReturnType<typeof vi.fn>;
   createRmpClient: ReturnType<typeof vi.fn>;
+  createCengageScraper: ReturnType<typeof vi.fn>;
 } {
   const eclassScraper = {
     getCourses: vi.fn(async () => [
@@ -187,16 +192,71 @@ function createFakeDependencies(): {
     })),
   } satisfies RmpClientDependency;
 
+  const cengageScraper = {
+    listDashboardCoursesFromSavedSession: vi.fn(async () => [
+      {
+        courseId: 'cengage-course-1',
+        courseKey: 'course-key-1',
+        title: 'Injected Cengage Course',
+        launchUrl:
+          'https://www.webassign.net/web/Student/Assignment-Responses/course',
+        platform: 'webassign' as const,
+        assignmentsSupported: true,
+        confidence: 1,
+      },
+    ]),
+    listDashboardCoursesFromEntryLink: vi.fn(async () => [
+      {
+        courseId: 'cengage-entry-1',
+        courseKey: 'entry-key-1',
+        title: 'Injected Entry Course',
+        launchUrl:
+          'https://www.webassign.net/web/Student/Assignment-Responses/entry',
+        platform: 'webassign' as const,
+        assignmentsSupported: true,
+        confidence: 1,
+      },
+    ]),
+    getAssignmentsForDashboardCourse: vi.fn(
+      async (course: { courseId?: string; title: string }) => ({
+        selectedCourse: course,
+        assignments: [
+          {
+            id: 'wa-1',
+            name: 'Injected WebAssign Assignment',
+            dueDate: '2026-05-20',
+            dueDateIso: '2026-05-20T00:00:00.000Z',
+            courseId: course.courseId,
+            courseTitle: course.title,
+            status: 'open',
+            score: '',
+            url: 'https://www.webassign.net/web/Student/Assignment-Responses/wa-1',
+            rawText: 'Injected WebAssign Assignment',
+          },
+        ],
+      })
+    ),
+    close: vi.fn(async () => undefined),
+  } as unknown as CengageScraperDependency;
+
   const createSisScraper = vi.fn(() => sisScraper);
   const createRmpClient = vi.fn(() => rmpClient);
+  const createCengageScraper = vi.fn(() => cengageScraper);
 
   return {
-    deps: { eclassScraper, createSisScraper, createRmpClient },
+    deps: {
+      eclassScraper,
+      createSisScraper,
+      createRmpClient,
+      createCengageScraper,
+    },
     eclassScraper,
     sisScraper,
     rmpClient,
+    cengageScraper,
     createSisScraper,
     createRmpClient,
+    createCengageScraper,
   };
 }
 
@@ -378,6 +438,43 @@ describe('tool dependency injection', () => {
       undefined
     );
     expect(rmpClient.getTeacherDetails).toHaveBeenCalledWith('teacher-1');
+  });
+
+  it('routes Cengage tools through the injected scraper factory', async () => {
+    const { deps, cengageScraper, createCengageScraper } =
+      createFakeDependencies();
+    const entryUrl = `https://www.cengage.com/dashboard/home?vitest=${uniqueId('cengage')}`;
+
+    const payload = parsePayload(await listCengageCourses({ entryUrl }, deps));
+
+    expect(payload.courses[0].title).toBe('Injected Entry Course');
+    expect(createCengageScraper).toHaveBeenCalledTimes(1);
+    expect(
+      cengageScraper.listDashboardCoursesFromEntryLink
+    ).toHaveBeenCalledWith(entryUrl);
+    expect(cengageScraper.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes get_assignments through injected eClass dependencies', async () => {
+    const { deps, eclassScraper } = createFakeDependencies();
+    rememberCacheKey(getCacheKey('courses'));
+    rememberCacheKey(getCacheKey('deadlines', 'upcoming', 'course-1', ''));
+    for (const key of touchedCacheKeys) {
+      cache.invalidate(key);
+    }
+
+    await getAssignments(
+      {
+        courseId: 'course-1',
+        includeExternal: 'never',
+      },
+      false,
+      false,
+      deps
+    );
+
+    expect(eclassScraper.getCourses).toHaveBeenCalled();
+    expect(eclassScraper.getDeadlines).toHaveBeenCalledWith('course-1');
   });
 
   it('lets MCP server registration close over injected dependencies', async () => {

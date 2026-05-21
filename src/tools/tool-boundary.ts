@@ -21,7 +21,7 @@ export type McpTextResponse = {
 };
 
 export type McpToolResult = {
-  content: unknown[];
+  content: Array<Record<string, unknown> & { text?: string }>;
   isError?: boolean;
 };
 
@@ -103,6 +103,12 @@ export function sessionExpiredResponse(
 }
 
 export async function runEclassToolBoundary<T extends McpToolResult>(
+  options: ToolBoundaryOptions<T>
+): Promise<T> {
+  return runToolBoundary(options);
+}
+
+export async function runToolBoundary<T extends McpToolResult>(
   options: ToolBoundaryOptions<T>
 ): Promise<T> {
   return runWithSpan(

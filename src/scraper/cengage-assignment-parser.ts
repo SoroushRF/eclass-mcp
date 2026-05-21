@@ -1,3 +1,5 @@
+import { selectorsFor } from './selectors';
+
 export interface CengageAssignmentRowCandidate {
   id?: string;
   href?: string;
@@ -557,4 +559,3 @@ export function parseWebAssignAssignments(
     return assignment;
   });
 }
-import { selectorsFor } from './selectors';

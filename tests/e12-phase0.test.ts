@@ -94,7 +94,7 @@ describe('E12 Phase 4 — VALIDATION_FAILED', () => {
 
   it('getItemDetails returns structured error when url is missing', async () => {
     const result = await getItemDetails({} as { url: string });
-    const parsed = JSON.parse(result.content[0].text);
+    const parsed = JSON.parse(result.content[0].text ?? '{}');
     expect(parsed.status).toBe('error');
     expect(parsed.code).toBe('VALIDATION_FAILED');
     expect(parsed.details?.field).toBe('url');

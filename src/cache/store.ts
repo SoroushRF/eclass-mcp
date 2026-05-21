@@ -81,7 +81,7 @@ class CacheStore {
       if (!fs.existsSync(CACHE_DIR)) {
         fs.mkdirSync(CACHE_DIR, { recursive: true });
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       getLogger().error(
         { err: e, cacheDir: CACHE_DIR },
         'CRITICAL: Could not create cache directory'

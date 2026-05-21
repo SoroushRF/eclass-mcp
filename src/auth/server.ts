@@ -6,7 +6,6 @@ import {
   getCengageSessionValidity,
   saveCengageSessionState,
 } from '../scraper/cengage-session';
-import url from 'url';
 import dotenv from 'dotenv';
 import { exec } from 'child_process';
 import {
@@ -225,9 +224,13 @@ export async function startAuthServer() {
   if (authServerInstance) return authServerInstance;
 
   const server = http.createServer(async (req, res) => {
-    const parsedUrl = url.parse(req.url || '', true);
+    const requestUrl = new URL(
+      req.url || '/',
+      `http://localhost:${getAuthServerPort()}`
+    );
+    const pathname = requestUrl.pathname;
 
-    if (parsedUrl.pathname === '/' || parsedUrl.pathname === '') {
+    if (pathname === '/' || pathname === '') {
       res.writeHead(200, { 'Content-Type': 'text/html' });
       res.end(`
           <!DOCTYPE html>
@@ -242,7 +245,7 @@ export async function startAuthServer() {
             </body>
           </html>
         `);
-    } else if (parsedUrl.pathname === '/auth') {
+    } else if (pathname === '/auth') {
       let browser: Browser | null = null;
       try {
         assertSecureSessionConfigured();
@@ -307,6 +310,10 @@ export async function startAuthServer() {
           res.end(secureSessionConfigHtml(error));
           return;
         }
+        if (browser) {
+          await closeTrackedAuthBrowser(browser);
+          browser = null;
+        }
         const message =
           error instanceof Error
             ? error.message
@@ -318,7 +325,7 @@ export async function startAuthServer() {
           await closeTrackedAuthBrowser(browser);
         }
       }
-    } else if (parsedUrl.pathname === '/auth-cengage') {
+    } else if (pathname === '/auth-cengage') {
       let browser: Browser | null = null;
       try {
         assertSecureSessionConfigured();
@@ -362,6 +369,10 @@ export async function startAuthServer() {
           res.end(secureSessionConfigHtml(error));
           return;
         }
+        if (browser) {
+          await closeTrackedAuthBrowser(browser);
+          browser = null;
+        }
         const message =
           error instanceof Error
             ? error.message
@@ -373,7 +384,7 @@ export async function startAuthServer() {
           await closeTrackedAuthBrowser(browser);
         }
       }
-    } else if (parsedUrl.pathname === '/status') {
+    } else if (pathname === '/status') {
       const secureSessionConfigured = isSecureSessionConfigured();
       let authenticated = false;
       try {
@@ -384,7 +395,7 @@ export async function startAuthServer() {
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ authenticated, secureSessionConfigured }));
-    } else if (parsedUrl.pathname === '/logout') {
+    } else if (pathname === '/logout') {
       if (req.method === 'POST') {
         const result = clearAllAuthSessions();
         const status = result.errors.length > 0 ? 500 : 200;

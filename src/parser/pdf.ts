@@ -14,8 +14,9 @@ export async function parsePdf(buffer: Buffer): Promise<string> {
       .trim();
 
     return text;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error parsing PDF:', error);
-    return `[Error extracting text from PDF: ${error.message}]`;
+    const message = error instanceof Error ? error.message : String(error);
+    return `[Error extracting text from PDF: ${message}]`;
   }
 }

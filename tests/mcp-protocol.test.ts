@@ -4,35 +4,6 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  cacheHealth: vi.fn(async () => ({
-    content: [
-      {
-        type: 'text' as const,
-        text: JSON.stringify({
-          ok: true,
-          generated_at: '2026-05-19T00:00:00.000Z',
-          schema_version: 1,
-          cache: { location: '.eclass-mcp/cache', totals: {}, by_scope: [] },
-          pins: {
-            pins_file_status: 'missing',
-            pin_count: 0,
-            missing_cache_files: 0,
-            quota: {
-              used_bytes: 0,
-              limit_bytes: 0,
-              used_percent: null,
-              exceeded: false,
-            },
-          },
-          metrics: {
-            process_started_at: '2026-05-19T00:00:00.000Z',
-            counters: {},
-          },
-          warnings: [],
-        }),
-      },
-    ],
-  })),
   clearCache: vi.fn(async (scope: string = 'all') => ({
     content: [
       {
@@ -46,6 +17,43 @@ const mocks = vi.hoisted(() => ({
       },
     ],
   })),
+  searchProfessorsTool: vi.fn(async () => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'error',
+          code: 'RATE_LIMITED',
+          message: 'RMP requests are temporarily paused.',
+        }),
+      },
+    ],
+  })),
+  getAssignments: vi.fn(async () => ({
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({
+          status: 'error',
+          code: 'VALIDATION_FAILED',
+          message: 'from and to are required when scope=range',
+          assignments: [],
+          sources: {
+            eclass: {
+              checked: false,
+              status: 'not_checked',
+              assignmentCount: 0,
+            },
+            cengage: {
+              checked: false,
+              status: 'not_checked',
+              assignmentCount: 0,
+            },
+          },
+        }),
+      },
+    ],
+  })),
   scraper: {
     downloadFile: vi.fn(),
     getSectionText: vi.fn(),
@@ -53,9 +61,19 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 
-vi.mock('../src/tools/cache', () => ({
-  cacheHealth: mocks.cacheHealth,
-  clearCache: mocks.clearCache,
+vi.mock('../src/tools/cache', async () => {
+  const actual =
+    await vi.importActual<typeof import('../src/tools/cache')>(
+      '../src/tools/cache'
+    );
+  return {
+    ...actual,
+    clearCache: mocks.clearCache,
+  };
+});
+
+vi.mock('../src/tools/assignments', () => ({
+  getAssignments: mocks.getAssignments,
 }));
 
 vi.mock('../src/tools/announcements', () => ({
@@ -67,7 +85,7 @@ vi.mock('../src/tools/grades', () => ({
 }));
 
 vi.mock('../src/tools/rmp', () => ({
-  searchProfessorsTool: vi.fn(),
+  searchProfessorsTool: mocks.searchProfessorsTool,
   getProfessorDetailsTool: vi.fn(),
 }));
 
@@ -398,6 +416,49 @@ describe('MCP protocol integration', () => {
       schema_version: 1,
       cache: { location: '.eclass-mcp/cache' },
     });
-    expect(mocks.cacheHealth).toHaveBeenCalledTimes(1);
+    expect(payload).toHaveProperty('pins');
+    expect(payload).toHaveProperty('metrics');
+  });
+
+  it('returns structured assignment validation through protocol callTool', async () => {
+    harness = await createProtocolHarness();
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'get_assignments',
+        arguments: { scope: 'range' },
+      })
+    );
+
+    expect(payload).toMatchObject({
+      status: 'error',
+      code: 'VALIDATION_FAILED',
+    });
+    expect(mocks.getAssignments).toHaveBeenCalledWith(
+      expect.objectContaining({ scope: 'range' }),
+      false,
+      false,
+      expect.any(Object)
+    );
+  });
+
+  it('returns structured RMP circuit-open errors through protocol callTool', async () => {
+    harness = await createProtocolHarness();
+
+    const payload = parseFirstTextJson(
+      await harness.client.callTool({
+        name: 'search_professors',
+        arguments: { name: 'Example Professor' },
+      })
+    );
+
+    expect(payload).toMatchObject({
+      status: 'error',
+      code: 'RATE_LIMITED',
+    });
+    expect(mocks.searchProfessorsTool).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Example Professor' }),
+      expect.any(Object)
+    );
   });
 });

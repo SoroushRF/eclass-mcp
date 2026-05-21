@@ -81,9 +81,36 @@ export const YORK_SCHOOL_IDS = {
   MARKHAM: 'U2Nob29sLTE5Mzcy',
 };
 
-interface GraphQLResponse {
-  data?: any;
-  errors?: Array<{ message?: string }>;
+interface RMPTeacherEdge {
+  node: RMPTeacherSearch;
+}
+
+interface RMPTeacherSearchResponse {
+  newSearch?: {
+    teachers?: {
+      edges?: RMPTeacherEdge[];
+    };
+  };
+}
+
+interface RMPRatingEdge {
+  node: RMPRating;
+}
+
+interface RMPTeacherDetailsNode extends Omit<RMPTeacherDetails, 'ratings'> {
+  __typename?: string;
+  ratings?: {
+    edges?: RMPRatingEdge[];
+  };
+}
+
+interface RMPTeacherDetailsResponse {
+  node?: RMPTeacherDetailsNode | null;
+}
+
+interface GraphQLPayload {
+  operationName?: string;
+  variables: Record<string, unknown>;
 }
 
 export const DEFAULT_RMP_TIMEOUT_MS = 15000;
@@ -309,14 +336,14 @@ export class RMPClient {
           '[RMP] querying'
         );
 
-        const data = await this.fetchGraphQL(query, {
+        const data = await this.fetchGraphQL<RMPTeacherSearchResponse>(query, {
           operationName: 'NewSearchTeachersQuery',
           variables: {
             query: { text: term.toLowerCase(), schoolID: schoolId },
             count: 10,
           },
         });
-        const teachers = data?.data?.newSearch?.teachers?.edges || [];
+        const teachers = data.data?.newSearch?.teachers?.edges ?? [];
         if (teachers.length === 0) {
           getLogger().debug(
             { schoolId, term },
@@ -326,7 +353,7 @@ export class RMPClient {
         }
 
         for (const t of teachers) {
-          const node = t.node as RMPTeacherSearch;
+          const node = t.node;
           if (!resultsById.has(node.id)) {
             resultsById.set(node.id, node);
           }
@@ -387,11 +414,11 @@ export class RMPClient {
         }
         `;
 
-    const data = await this.fetchGraphQL(query, {
+    const data = await this.fetchGraphQL<RMPTeacherDetailsResponse>(query, {
       operationName: 'TeacherRatingsPageQuery',
       variables: { id: teacherId },
     });
-    const teacher = data?.data?.node;
+    const teacher = data.data?.node;
 
     if (!teacher || teacher.__typename !== 'Teacher') {
       getLogger().debug(
@@ -412,16 +439,14 @@ export class RMPClient {
       wouldTakeAgainPercent: teacher.wouldTakeAgainPercent,
       department: teacher.department,
       school: teacher.school,
-      ratings: (teacher.ratings?.edges || []).map(
-        (e: any) => e.node as RMPRating
-      ),
+      ratings: (teacher.ratings?.edges ?? []).map((e) => e.node),
     };
   }
 
-  private async fetchGraphQL(
+  private async fetchGraphQL<TData>(
     query: string,
-    payload: { operationName?: string; variables: any }
-  ): Promise<GraphQLResponse> {
+    payload: GraphQLPayload
+  ): Promise<{ data?: TData; errors?: Array<{ message?: string }> }> {
     const timeoutMs = resolveRmpTimeoutMs();
     const operationName = payload.operationName ?? 'anonymous';
     return runWithSpan(
@@ -454,11 +479,11 @@ export class RMPClient {
     );
   }
 
-  private async fetchGraphQLOnce(
+  private async fetchGraphQLOnce<TData>(
     query: string,
-    payload: { operationName?: string; variables: any },
+    payload: GraphQLPayload,
     timeoutMs: number
-  ): Promise<GraphQLResponse> {
+  ): Promise<{ data?: TData; errors?: Array<{ message?: string }> }> {
     const operationName = payload.operationName ?? 'anonymous';
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -495,9 +520,12 @@ export class RMPClient {
         );
       }
 
-      let parsed: GraphQLResponse;
+      let parsed: { data?: TData; errors?: Array<{ message?: string }> };
       try {
-        parsed = JSON.parse(raw) as GraphQLResponse;
+        parsed = JSON.parse(raw) as {
+          data?: TData;
+          errors?: Array<{ message?: string }>;
+        };
       } catch (parseErr) {
         throw new UpstreamError(
           'UPSTREAM_ERROR',

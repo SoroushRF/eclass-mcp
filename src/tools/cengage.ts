@@ -56,6 +56,10 @@ import {
   getCengageAssignmentsForCourse,
   getCengageDashboardInventory,
 } from './cengage/service';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
 // Keep tool entry points centralized while pure helpers live under src/tools/cengage/.
 const CENGAGE_DISCOVERY_TTL_MINUTES = TTL.CONTENT;
@@ -239,7 +243,10 @@ function shouldTryExplicitDirectLink(entryUrl: string | undefined): boolean {
   );
 }
 
-export async function listCengageCourses(input: ListCengageCoursesInput) {
+export async function listCengageCourses(
+  input: ListCengageCoursesInput,
+  deps: ToolDependencies = createDefaultToolDependencies()
+) {
   const entryUrl = resolveListingEntryUrl(input);
   const cacheKey = cengageCacheKey('list_courses', {
     entryUrl: entryUrl || CENGAGE_SESSION_BOOTSTRAP_CACHE_KEY,
@@ -260,7 +267,7 @@ export async function listCengageCourses(input: ListCengageCoursesInput) {
   let scraper: CengageScraper | null = null;
 
   try {
-    scraper = new CengageScraper();
+    scraper = deps.createCengageScraper();
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
       : await getCengageDashboardInventory({ scraper });
@@ -500,7 +507,8 @@ function coerceAvailableAssignments(
 }
 
 export async function getCengageAssignmentDetails(
-  input: GetCengageAssignmentDetailsInput | string
+  input: GetCengageAssignmentDetailsInput | string,
+  deps: ToolDependencies = createDefaultToolDependencies()
 ) {
   const args = resolveAssignmentDetailsInput(input);
   const entryUrl = (args.entryUrl || args.ssoUrl || '').trim() || undefined;
@@ -542,7 +550,7 @@ export async function getCengageAssignmentDetails(
   let selectedCourseForResponse: CengageDashboardCourse | undefined;
 
   try {
-    scraper = new CengageScraper();
+    scraper = deps.createCengageScraper();
 
     const courses = entryUrl
       ? await scraper.listDashboardCoursesFromEntryLink(entryUrl)
@@ -785,7 +793,8 @@ export async function getCengageAssignmentDetails(
 }
 
 export async function getCengageAssignments(
-  input: GetCengageAssignmentsInput | string
+  input: GetCengageAssignmentsInput | string,
+  deps: ToolDependencies = createDefaultToolDependencies()
 ) {
   const args = resolveAssignmentsInput(input);
   const entryUrl = (args.entryUrl || args.ssoUrl || '').trim() || undefined;
@@ -811,7 +820,7 @@ export async function getCengageAssignments(
   let selectedCourseForResponse: CengageDashboardCourse | undefined;
 
   try {
-    scraper = new CengageScraper();
+    scraper = deps.createCengageScraper();
 
     if (!args.allCourses && shouldTryExplicitDirectLink(entryUrl)) {
       const expectedCourse = explicitExpectedCourse({

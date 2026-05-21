@@ -1,6 +1,12 @@
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import {
+  McpServer,
+  type ToolCallback,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolResultSchema,
+  type CallToolResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import type {
   ShapeOutput,
   ZodRawShapeCompat,
@@ -67,7 +73,23 @@ const bootstrapLog = rootLogger.child({ component: 'bootstrap' });
 const shutdownLog = rootLogger.child({ component: 'shutdown' });
 
 function asCallToolResult(result: unknown): CallToolResult {
-  return result as CallToolResult;
+  return CallToolResultSchema.parse(result);
+}
+
+function createInputToolCallback<const InputSchema extends ZodRawShapeCompat>(
+  name: string,
+  handler: (args: ShapeOutput<InputSchema>) => unknown | Promise<unknown>
+): ToolCallback<InputSchema> {
+  const callback = async (
+    args: ShapeOutput<InputSchema>
+  ): Promise<CallToolResult> => {
+    const result = await runWithToolContext(name, async () => handler(args));
+    return asCallToolResult(result);
+  };
+
+  // The SDK's registerTool generic order makes InputSchema inference ambiguous
+  // when no outputSchema is supplied. Keep the compatibility cast isolated here.
+  return callback as unknown as ToolCallback<InputSchema>;
 }
 
 function registerNoInputTool(
@@ -89,22 +111,10 @@ function registerInputTool<const InputSchema extends ZodRawShapeCompat>(
   inputSchema: InputSchema,
   handler: (args: ShapeOutput<InputSchema>) => unknown | Promise<unknown>
 ): void {
-  type TypedRegisterCallback = Parameters<
-    typeof server.registerTool<ZodRawShapeCompat, InputSchema>
-  >[2];
-  const callback = (async (
-    args: ShapeOutput<InputSchema>
-  ): Promise<CallToolResult> => {
-    const typedArgs = args as ShapeOutput<InputSchema>;
-    const result = await runWithToolContext(name, async () =>
-      handler(typedArgs)
-    );
-    return asCallToolResult(result);
-  }) as unknown as TypedRegisterCallback;
   server.registerTool<ZodRawShapeCompat, InputSchema>(
     name,
     { description, inputSchema },
-    callback
+    createInputToolCallback(name, handler)
   );
 }
 
@@ -377,7 +387,7 @@ function registerMcpTools(server: McpServer, deps: ToolDependencies): void {
     'get_assignments',
     'Canonical assignment resolver. Use this first for homework, assignments, due dates, or deadlines because it checks eClass and, when needed, Cengage/WebAssign via the permanent course-platform index. It verifies active WebAssign course context and may return needs_course_activation instead of treating wrong-course landing as no assignments or auth expiry.',
     getAssignmentsInputSchema,
-    (args) => getAssignments(args)
+    (args) => getAssignments(args, false, false, deps)
   );
 
   registerInputTool(
@@ -466,7 +476,7 @@ function registerMcpTools(server: McpServer, deps: ToolDependencies): void {
     'Lists visible Cengage dashboard course materials from saved session state or a provided entry URL, including WebAssign and OWLv2/CengageNOW cards. OWLv2 courses are reported but assignment scraping is currently WebAssign-only.',
     listCengageCoursesInputSchema,
     ({ entryUrl, discoveredLink, courseQuery }) =>
-      listCengageCourses({ entryUrl, discoveredLink, courseQuery })
+      listCengageCourses({ entryUrl, discoveredLink, courseQuery }, deps)
   );
 
   registerInputTool(
@@ -484,16 +494,19 @@ function registerMcpTools(server: McpServer, deps: ToolDependencies): void {
       maxCourses,
       maxAssignmentsPerCourse,
     }) =>
-      getCengageAssignments({
-        entryUrl,
-        ssoUrl,
-        courseId,
-        courseKey,
-        courseQuery,
-        allCourses,
-        maxCourses,
-        maxAssignmentsPerCourse,
-      })
+      getCengageAssignments(
+        {
+          entryUrl,
+          ssoUrl,
+          courseId,
+          courseKey,
+          courseQuery,
+          allCourses,
+          maxCourses,
+          maxAssignmentsPerCourse,
+        },
+        deps
+      )
   );
 
   registerInputTool(
@@ -526,31 +539,34 @@ function registerMcpTools(server: McpServer, deps: ToolDependencies): void {
       maxQuestionTextChars,
       maxAnswerTextChars,
     }) =>
-      getCengageAssignmentDetails({
-        entryUrl,
-        ssoUrl,
-        courseId,
-        courseKey,
-        courseQuery,
-        assignmentUrl,
-        assignmentId,
-        assignmentQuery,
-        includeAnswers,
-        includeResources,
-        includeAssetInventory,
-        includeRenderedMedia,
-        maxRenderedImages,
-        maxCaptureUnits,
-        maxCapturePerQuestion,
-        maxInteractiveAssets,
-        maxMediaAssets,
-        maxMediaPayloadBytes,
-        minTextForSafeText,
-        captureDpi,
-        maxQuestions,
-        maxQuestionTextChars,
-        maxAnswerTextChars,
-      })
+      getCengageAssignmentDetails(
+        {
+          entryUrl,
+          ssoUrl,
+          courseId,
+          courseKey,
+          courseQuery,
+          assignmentUrl,
+          assignmentId,
+          assignmentQuery,
+          includeAnswers,
+          includeResources,
+          includeAssetInventory,
+          includeRenderedMedia,
+          maxRenderedImages,
+          maxCaptureUnits,
+          maxCapturePerQuestion,
+          maxInteractiveAssets,
+          maxMediaAssets,
+          maxMediaPayloadBytes,
+          minTextForSafeText,
+          captureDpi,
+          maxQuestions,
+          maxQuestionTextChars,
+          maxAnswerTextChars,
+        },
+        deps
+      )
   );
 
   registerInputTool(
@@ -614,7 +630,7 @@ export function createMcpServer(
 ): McpServer {
   const server = new McpServer({
     name: 'eclass-mcp',
-    version: '1.0.0-beta.2',
+    version: '1.0.0-beta.3',
   });
   registerMcpTools(server, deps);
   return server;

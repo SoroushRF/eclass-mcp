@@ -96,7 +96,7 @@ export async function getSectionText(
           }
         }
         let mainText = '';
-        let mainLinks: any[] = [];
+        let mainLinks: Array<{ name: string; url: string }> = [];
 
         if (summaryBox) {
           const clone = summaryBox.cloneNode(true) as HTMLElement;

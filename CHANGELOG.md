@@ -16,15 +16,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added E20 write-preflight contract helpers: shared Zod schemas, signed preflight references, and write-specific machine codes for future assignment/calendar write tools.
-- Added MCP protocol-level integration tests that construct the real server through the SDK path and verify tool discovery, schemas, safe validation errors, and cache calls through protocol semantics.
+- Added MCP protocol-level integration tests that construct the real server through the SDK path and verify tool discovery, schemas, safe validation errors, and cache-tool protocol semantics. Direct cache suites cover real cache behavior; the initial protocol cache checks use safe mocks where needed.
 - Added an RMP external-service circuit breaker so repeated upstream failures fail fast with structured `RATE_LIMITED` responses instead of hammering RateMyProfessors.
-- Added structured trace correlation fields (`traceId`, `spanId`, `parentSpanId`) and high-value spans around tool execution, RMP, circuit-breaker, shutdown, and tool-boundary paths.
+- Added structured trace correlation fields (`traceId`, `spanId`, `parentSpanId`) with root tool spans, tool-boundary spans, RMP GraphQL spans, and structured runtime events for circuit-breaker and shutdown paths.
 - Added read-only cache observability with process-local cache metrics, cache health scanning, and the public `cache_health` MCP tool.
 - Added a safe manual E2E/release harness template generator with current 25-tool Inspector and Claude Desktop matrices.
 
 ### Changed
 
-- Eliminated production `as any` casts and kept MCP registration on typed `registerTool` helpers.
+- Eliminated production `as any` casts, tightened remaining production `any` annotations, and kept MCP registration on typed `registerTool` helpers.
 - Centralized common eClass/SIS tool error and auth handling behind a shared tool boundary while preserving public response shapes.
 - Added graceful shutdown cleanup for stdio transport, auth server/browser resources, eClass scraper, Cengage scraper registry, and SIS browser tracking.
 - Reduced tool-layer scraper/client singleton coupling through explicit manual dependency injection for eClass, SIS, and RMP tools.
@@ -105,7 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added eClass DOM scraper, file-download, announcements, item-details, auth-retry, secure-session, selector-registry, and parser regression tests.
 - Added doctor/setup script tests that exercise Claude config path resolution, dry-run behavior, backups, restore validation, env checks, and session-file diagnostics without mutating real user config.
 - Added contract and structured-error tests for E11/E12 machine-code response behavior.
-- Added focused property/regression tests for cache keys, Cengage URL normalization, cache invalidation, PDF range validation, and RMP timeouts.
+- Added focused property tests for cache keys and Cengage URL normalization, plus regression tests for cache invalidation, PDF range validation, and RMP timeouts.
 
 ### Documentation
 

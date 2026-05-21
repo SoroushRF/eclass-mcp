@@ -39,7 +39,7 @@ function parseToolJson(
 ): Record<string, unknown> {
   const block = result.content[0];
   expect(block.type).toBe('text');
-  return JSON.parse(block.text) as Record<string, unknown>;
+  return JSON.parse(block.text ?? '{}') as Record<string, unknown>;
 }
 
 describe('RMP circuit breaker', () => {

@@ -10,7 +10,7 @@ Browser cookies and storage state allow access to student-specific academic data
 
 ## Decision
 
-Store eClass/SIS and Cengage/WebAssign session artifacts in encrypted local files using the user-provided `ECLASS_MCP_SESSION_SECRET`. Reject legacy plaintext session files instead of silently accepting weaker storage.
+Store eClass/SIS and Cengage/WebAssign session artifacts in encrypted local files using the user-provided `ECLASS_MCP_SESSION_SECRET`. The secure-session envelope uses AES-256-GCM with a 12-byte IV, a per-file random salt, and a 32-byte key derived with Node's `scrypt`. Reject legacy plaintext session files instead of silently accepting weaker storage.
 
 ## Consequences
 

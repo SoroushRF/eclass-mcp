@@ -19,7 +19,7 @@ const originalSessionSecret = process.env.ECLASS_MCP_SESSION_SECRET;
 function request(url: string): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     http
-      .get(url, (res) => {
+      .get(url, { agent: false }, (res) => {
         let body = '';
         res.setEncoding('utf-8');
         res.on('data', (chunk: string) => {
@@ -71,8 +71,10 @@ function mockAuthBrowser(pageOverrides: Record<string, unknown> = {}) {
   return { browser, context, page };
 }
 
-describe('auth server shutdown', () => {
-  beforeEach(() => {
+describe.sequential('auth server shutdown', () => {
+  beforeEach(async () => {
+    await stopAuthServer();
+    await closeAuthBrowsers();
     vi.clearAllMocks();
     process.env.ECLASS_MCP_SESSION_SECRET = 'x'.repeat(32);
   });
@@ -98,6 +100,29 @@ describe('auth server shutdown', () => {
     await expect(stopAuthServer()).resolves.toBeUndefined();
   });
 
+  it('closes launched auth browsers when auth route handling fails', async () => {
+    const { browser } = mockAuthBrowser({
+      goto: vi.fn(async () => {
+        throw new Error('navigation failed');
+      }),
+    });
+
+    await startAuthServer();
+    const responsePromise = request(getAuthUrl('eclass')).catch((error) => ({
+      status: 0,
+      body: error instanceof Error ? error.message : String(error),
+    }));
+    await waitForAssertion(() =>
+      expect(chromium.launch).toHaveBeenCalledTimes(1)
+    );
+    const response = await responsePromise;
+
+    expect([0, 500]).toContain(response.status);
+    await waitForAssertion(() =>
+      expect(browser.close).toHaveBeenCalledTimes(1)
+    );
+  });
+
   it('closes tracked auth browsers during shutdown', async () => {
     let rejectWaitForUrl: (error: Error) => void = () => undefined;
     const { browser, page } = mockAuthBrowser({
@@ -121,23 +146,6 @@ describe('auth server shutdown', () => {
     rejectWaitForUrl(new Error('browser closed'));
     const response = await responsePromise;
     expect(response.status).toBe(500);
-    expect(browser.close).toHaveBeenCalledTimes(1);
-  });
-
-  it('closes launched auth browsers when auth route handling fails', async () => {
-    const { browser } = mockAuthBrowser({
-      goto: vi.fn(async () => {
-        throw new Error('navigation failed');
-      }),
-    });
-
-    await startAuthServer();
-    const response = await request(getAuthUrl('eclass')).catch((error) => ({
-      status: 0,
-      body: error instanceof Error ? error.message : String(error),
-    }));
-
-    expect([0, 500]).toContain(response.status);
     expect(browser.close).toHaveBeenCalledTimes(1);
   });
 });

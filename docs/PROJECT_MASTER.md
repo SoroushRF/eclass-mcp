@@ -50,8 +50,8 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T27**     | Engine post-beta automation — Cron / proactive notifications                                                                                                                                                                                                                                             |
 | **T21-T23** | Optional product polish (parallel track; does not block T14-T20)                                                                                                                                                                                                                                         |
 | **T24**     | [x] Maintainer: split [`src/scraper/eclass.ts`](../src/scraper/eclass.ts) into `src/scraper/eclass/` — completed; see [2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown)                                                                                                        |
-| **T25**     | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool)                                                                                                                               |
-| **T26**     | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools)                                                                                                                                                 |
+| **T25**     | [x] Smart cache policy, response freshness metadata, `clear_cache` tool, login invalidation — see [2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool)                                                                                                                                  |
+| **T26**     | [x] User-pinned cache tier, on-disk quota, pin/unpin/list/refresh/delete tools — see [2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools)                                                                                                                                                   |
 | **T28**     | [x] Cengage Integration Phase 1 complete: foundation + discovery/link metadata hardening — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)       |
 | **T29**     | [x] Cengage Integration Phase 2 complete: authentication routing and session handling — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)          |
 | **T30**     | [x] Cengage Integration Phases 3-4 complete: scraper core + MCP wiring + cache metadata parity — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md) |
@@ -772,7 +772,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (24)
+### 3.1 MCP tools currently registered (25)
 
 | Tool                             | Purpose                                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -795,6 +795,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 | `get_cengage_assignments`        | Retrieve Cengage/WebAssign assignment lists with direct-link-first compatibility, dashboard activation, and context guard |
 | `get_cengage_assignment_details` | Retrieve question-level Cengage/WebAssign assignment details with active-course verification and rendered-media metadata  |
 | `clear_cache`                    | Clear **non-pinned** cache by scope; pinned entries unchanged                                                             |
+| `cache_health`                   | Read-only aggregate cache/pin health, warning summaries, and process-local cache metrics                                  |
 | `cache_pin`                      | Pin file / section / course content cache entry (quota-limited)                                                           |
 | `cache_unpin`                    | Remove pin from registry (does not delete cache file)                                                                     |
 | `cache_list_pins`                | List pins + quota usage                                                                                                   |
@@ -822,7 +823,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 - Local HTTP server (default port from env, e.g. `AUTH_PORT=3000`) exposes routes such as **`/auth`** for interactive login and **`/status`** for session validity.
 - Successful eClass login persists **all** Playwright cookies for the context to encrypted **`.eclass-mcp/session.json`** via `saveSession()`; Cengage/WebAssign persists encrypted Playwright storage state to **`.eclass-mcp/cengage-state.json`**. Both require `ECLASS_MCP_SESSION_SECRET`; headless scrapers use decrypted in-memory cookies/storage state and return `SESSION_STORAGE_UNAVAILABLE` when secure storage is unavailable.
-- **Server logging:** use **`console.error`** for diagnostics ? **stdout** is reserved for MCP protocol traffic.
+- **Server logging:** use the Pino stderr logger and redaction helpers for diagnostics; **stdout** is reserved for MCP protocol traffic.
 
 ---
 
@@ -848,7 +849,11 @@ Authenticated tools follow a layered error-handling pattern: check for `SecureSe
 // Pattern (representative ? see src/tools/courses.ts for a real example)
 const run = async () => {
   const { data, cacheMeta } = await getDataWithCache();
-  return asValidatedMcpText('tool_name', Schema, attachCacheMeta(data, cacheMeta));
+  return asValidatedMcpText(
+    'tool_name',
+    Schema,
+    attachCacheMeta(data, cacheMeta)
+  );
 };
 
 try {
@@ -862,9 +867,14 @@ try {
   }
   if (e instanceof SessionExpiredError) {
     return handleEclassSessionExpired(e, run, (error) =>
-      asValidatedMcpText('tool_name', Schema, sessionExpiredPayload(error.message, {
-        afterAuth: true, authUrl: getAuthUrl('eclass'),
-      }))
+      asValidatedMcpText(
+        'tool_name',
+        Schema,
+        sessionExpiredPayload(error.message, {
+          afterAuth: true,
+          authUrl: getAuthUrl('eclass'),
+        })
+      )
     );
   }
   throw e;
@@ -925,7 +935,7 @@ Treat them as **post-v1 excellence**, not greenfield:
 
 **Checkbox status** for T01?T13: see [?2.2](#22-tracker--v1-foundation-t01t13).
 
-The original spec targeted **6 tools**; the repo now ships **24**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20**, **T28?T31**, and engineering track **E\***.
+The original spec targeted **6 tools**; the repo now ships **25**. Optional follow-ons mentioned there (RMP, subreddit, multi-user, hosted server) are superseded by **T14?T20**, **T28?T31**, and engineering track **E\***.
 
 ---
 
@@ -1008,7 +1018,7 @@ const SIS_URLS = [
 ];
 for (const sisUrl of SIS_URLS) {
   try {
-    await page.goto(sisUrl, { timeout: 15000, waitUntil: 'networkidle' });
+    await page.goto(sisUrl, { timeout: 30000, waitUntil: 'load' });
   } catch {
     /* timeouts OK ? cookie acquisition is the goal */
   }

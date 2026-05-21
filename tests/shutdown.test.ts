@@ -8,6 +8,10 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setImmediate(resolve));
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 describe('shutdown controller', () => {
   it('closes all registered resources exactly once', async () => {
     const first = vi.fn(async () => undefined);
@@ -106,5 +110,81 @@ describe('shutdown controller', () => {
       'SIGINT',
       expect.any(Function)
     );
+  });
+
+  it('exits non-zero when signal cleanup times out', async () => {
+    const close = vi.fn(
+      () =>
+        new Promise<void>(() => {
+          // Intentionally never resolves.
+        })
+    );
+    const exit = vi.fn();
+    const warn = vi.fn();
+    const listeners = new Map<NodeJS.Signals, () => void>();
+    const signalTarget: SignalTarget = {
+      once: vi.fn((signal, listener) => {
+        listeners.set(signal, listener);
+      }),
+      off: vi.fn(),
+    };
+    const controller = createShutdownController({
+      exit,
+      logger: { warn },
+      signalShutdownTimeoutMs: 1,
+      closers: [{ name: 'slow_resource', close }],
+    });
+
+    controller.installSignalHandlers(['SIGTERM'], signalTarget);
+    listeners.get('SIGTERM')?.();
+    await wait(20);
+
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'shutdown_timeout',
+        signal: 'SIGTERM',
+        timeoutMs: 1,
+      }),
+      'Shutdown timed out before process exit'
+    );
+    expect(exit).toHaveBeenCalledWith(1);
+  });
+
+  it('exits non-zero after signal cleanup if a resource fails', async () => {
+    const exit = vi.fn();
+    const warn = vi.fn();
+    const listeners = new Map<NodeJS.Signals, () => void>();
+    const signalTarget: SignalTarget = {
+      once: vi.fn((signal, listener) => {
+        listeners.set(signal, listener);
+      }),
+      off: vi.fn(),
+    };
+    const controller = createShutdownController({
+      exit,
+      logger: { warn },
+      closers: [
+        {
+          name: 'failing_resource',
+          close: vi.fn(async () => {
+            throw new Error('cleanup failed');
+          }),
+        },
+      ],
+    });
+
+    controller.installSignalHandlers(['SIGINT'], signalTarget);
+    listeners.get('SIGINT')?.();
+    await flushMicrotasks();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        event: 'shutdown_resource_close_error',
+        resource: 'failing_resource',
+      }),
+      'Shutdown resource cleanup failed'
+    );
+    expect(exit).toHaveBeenCalledWith(1);
   });
 });

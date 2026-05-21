@@ -4,6 +4,7 @@ import {
 } from '../scraper/eclass';
 import { RMPClient } from '../scraper/rmp';
 import { SISScraper } from '../scraper/sis';
+import { CengageScraper } from '../scraper/cengage';
 
 export type EclassScraperDependency = Pick<
   EClassScraper,
@@ -28,10 +29,13 @@ export type RmpClientDependency = Pick<
   'searchTeachersWithDiagnostics' | 'getTeacherDetails'
 >;
 
+export type CengageScraperDependency = CengageScraper;
+
 export interface ToolDependencies {
   eclassScraper: EclassScraperDependency;
   createSisScraper: () => SisScraperDependency;
   createRmpClient: () => RmpClientDependency;
+  createCengageScraper: () => CengageScraperDependency;
 }
 
 export function createDefaultToolDependencies(): ToolDependencies {
@@ -39,5 +43,6 @@ export function createDefaultToolDependencies(): ToolDependencies {
     eclassScraper: defaultEClassScraper,
     createSisScraper: () => new SISScraper(),
     createRmpClient: () => new RMPClient(),
+    createCengageScraper: () => new CengageScraper(),
   };
 }

@@ -5,7 +5,6 @@ import {
 } from '../auth/server';
 import { SessionExpiredError, type Course } from '../scraper/eclass';
 import { ScrapeLayoutError } from '../scraper/scrape-errors';
-import { CengageScraper } from '../scraper/cengage';
 import type { CengageDashboardCourse } from '../scraper/cengage-courses';
 import {
   CengageAuthRequiredError,
@@ -18,6 +17,7 @@ import { toErrorPayload } from '../errors/tool-error';
 import { SecureSessionStorageError } from '../security/secure-session-store';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { handleEclassSessionExpired } from './auth-retry';
+import type { McpTextResponse } from './tool-boundary';
 import {
   AssignmentResolverResponseSchema,
   type AssignmentResolverResponse,
@@ -54,6 +54,10 @@ import {
   type CoursePlatformEClassIdentity,
   type CoursePlatformRecord,
 } from './assignments/platform-index';
+import {
+  createDefaultToolDependencies,
+  type ToolDependencies,
+} from './dependencies';
 
 interface CourseResolution {
   status: 'all' | 'selected' | 'ambiguous' | 'not_found';
@@ -333,8 +337,9 @@ async function fetchCengageAllCourses(params: {
   args: GetAssignmentsInput;
   sources: SourceState;
   assignments: NormalizedAssignment[];
+  deps: ToolDependencies;
 }): Promise<void> {
-  const scraper = new CengageScraper();
+  const scraper = params.deps.createCengageScraper();
   try {
     const courses = await getCengageDashboardInventory({ scraper });
     const selectedCourses = courses.slice(0, DEFAULT_CENGAGE_ALL_COURSES_LIMIT);
@@ -380,12 +385,13 @@ async function fetchCengageForCourse(params: {
   sources: SourceState;
   assignments: NormalizedAssignment[];
   refreshPlatformIndex: boolean;
+  deps: ToolDependencies;
 }): Promise<{
   record?: CoursePlatformRecord;
   indexUpdated: boolean;
   match?: CengageCourseMatchResult;
 }> {
-  const scraper = new CengageScraper();
+  const scraper = params.deps.createCengageScraper();
   let indexUpdated = false;
   let record = params.record;
 
@@ -578,8 +584,9 @@ function finalMessage(params: {
 export async function getAssignments(
   args: GetAssignmentsInput,
   cengageAuthRetryAttempted: boolean = false,
-  eclassAuthRetryAttempted: boolean = false
-): Promise<any> {
+  eclassAuthRetryAttempted: boolean = false,
+  deps: ToolDependencies = createDefaultToolDependencies()
+): Promise<McpTextResponse> {
   const includeExternal = args.includeExternal || 'auto';
   const sources = defaultSources();
   let assignments: NormalizedAssignment[] = [];
@@ -589,7 +596,7 @@ export async function getAssignments(
   let indexUpdated = false;
 
   try {
-    const { courses } = await getEclassCoursesWithCache();
+    const { courses } = await getEclassCoursesWithCache(deps.eclassScraper);
     const courseResolution = resolveTargetCourse(args, courses);
 
     if (courseResolution.status === 'ambiguous') {
@@ -617,14 +624,17 @@ export async function getAssignments(
     );
 
     if (courseResolution.status === 'selected' && selectedCourse?.id) {
-      const deadlineResult = await getEclassDeadlineItems({
-        courseId: selectedCourse.id,
-        scope: args.scope,
-        month: args.month,
-        year: args.year,
-        from: args.from,
-        to: args.to,
-      });
+      const deadlineResult = await getEclassDeadlineItems(
+        {
+          courseId: selectedCourse.id,
+          scope: args.scope,
+          month: args.month,
+          year: args.year,
+          from: args.from,
+          to: args.to,
+        },
+        deps.eclassScraper
+      );
       assignments = deadlineResult.items.map(normalizeEclassAssignment);
       sources.eclass = {
         checked: true,
@@ -632,13 +642,16 @@ export async function getAssignments(
         assignmentCount: assignments.length,
       };
     } else if (courseResolution.status === 'all') {
-      const deadlineResult = await getEclassDeadlineItems({
-        scope: args.scope,
-        month: args.month,
-        year: args.year,
-        from: args.from,
-        to: args.to,
-      });
+      const deadlineResult = await getEclassDeadlineItems(
+        {
+          scope: args.scope,
+          month: args.month,
+          year: args.year,
+          from: args.from,
+          to: args.to,
+        },
+        deps.eclassScraper
+      );
       assignments = deadlineResult.items.map(normalizeEclassAssignment);
       sources.eclass = {
         checked: true,
@@ -715,7 +728,7 @@ export async function getAssignments(
       }
       if (latestCengageValidity.valid) {
         if (courseResolution.status === 'all') {
-          await fetchCengageAllCourses({ args, sources, assignments });
+          await fetchCengageAllCourses({ args, sources, assignments, deps });
         } else if (eclassIdentity && computeHasIdentity(eclassIdentity)) {
           const result = await fetchCengageForCourse({
             args,
@@ -724,6 +737,7 @@ export async function getAssignments(
             sources,
             assignments,
             refreshPlatformIndex: !!args.refreshPlatformIndex,
+            deps,
           });
           platformRecord = result.record || platformRecord;
           indexUpdated = indexUpdated || result.indexUpdated;
@@ -802,7 +816,7 @@ export async function getAssignments(
       if (!eclassAuthRetryAttempted) {
         return handleEclassSessionExpired(
           error,
-          () => getAssignments(args, cengageAuthRetryAttempted, true),
+          () => getAssignments(args, cengageAuthRetryAttempted, true, deps),
           fallback
         );
       }
@@ -814,7 +828,7 @@ export async function getAssignments(
         openAuthWindow('cengage');
         const authenticated = await waitForCengageAuthSession();
         if (authenticated) {
-          return getAssignments(args, true, eclassAuthRetryAttempted);
+          return getAssignments(args, true, eclassAuthRetryAttempted, deps);
         }
       }
 

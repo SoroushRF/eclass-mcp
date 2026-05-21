@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import fc from 'fast-check';
 import { ValidationError } from '../src/errors/validation-error';
 import {
   isAllowedUrlForPolicy,
@@ -144,5 +145,39 @@ describe('URL security policy', () => {
       );
       expect((error as ValidationError).details?.url).not.toContain('secret');
     }
+  });
+
+  it('rejects generated eClass host-spoofing variants', () => {
+    fc.assert(
+      fc.property(
+        fc
+          .string({ minLength: 1, maxLength: 24 })
+          .filter((suffix) => /^[a-z0-9.-]+$/i.test(suffix)),
+        (suffix) => {
+          const url = `https://eclass.yorku.ca.${suffix}/pluginfile.php/1/a.pdf`;
+          expect(isAllowedUrlForPolicy(url, 'eclass_file')).toBe(false);
+          expect(() => validateUrlForPolicy(url, 'eclass_file')).toThrow(
+            ValidationError
+          );
+        }
+      )
+    );
+  });
+
+  it('rejects generated unsafe schemes for eClass paths', () => {
+    fc.assert(
+      fc.property(
+        fc.constantFrom('http', 'file', 'data', 'javascript', 'ftp'),
+        fc.string({ maxLength: 20 }),
+        (scheme, tail) => {
+          const encodedTail = encodeURIComponent(tail);
+          const url =
+            scheme === 'javascript'
+              ? `javascript:${encodedTail}`
+              : `${scheme}://eclass.yorku.ca/pluginfile.php/${encodedTail}`;
+          expect(isAllowedUrlForPolicy(url, 'eclass_file')).toBe(false);
+        }
+      )
+    );
   });
 });

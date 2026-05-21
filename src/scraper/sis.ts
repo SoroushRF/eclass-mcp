@@ -195,7 +195,7 @@ export class SISScraper {
         const tables = Array.from(
           document.querySelectorAll('table[border="2"]')
         );
-        const allEntries: any[] = [];
+        const allEntries: SISTimetableEntry[] = [];
 
         tables.forEach((table) => {
           const rows = Array.from(table.querySelectorAll('tr')).slice(1);

@@ -1,13 +1,24 @@
 import type { Assignment } from '../scraper/eclass';
 import { ValidationError } from '../errors/validation-error';
-import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import {
+  cache,
+  TTL,
+  getCacheKey,
+  attachCacheMeta,
+  type CacheMetadata,
+} from '../cache/store';
 import { ItemDetails } from '../types/deadlines';
+import type { Attachment } from '../types/deadlines';
 import {
   EclassToolJsonPayloadSchema,
   ItemDetailsMetaSchema,
 } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
+import {
+  runEclassToolBoundary,
+  sessionExpiredResponse,
+  type McpTextResponse,
+} from './tool-boundary';
 import { getEclassDeadlineItems, type DeadlineScope } from './eclass-service';
 import { validateUrlForPolicy } from '../security/url-policy';
 import {
@@ -15,9 +26,18 @@ import {
   type ToolDependencies,
 } from './dependencies';
 
+type ItemDetailsContentBlock =
+  | { type: 'text'; text: string }
+  | { type: 'image'; data: string; mimeType: string; text?: undefined };
+
+type ItemDetailsToolResult = {
+  content: ItemDetailsContentBlock[];
+  isError?: boolean;
+};
+
 function attachEclassDeadlinePayload(
   items: unknown[],
-  cacheMeta: any,
+  cacheMeta: CacheMetadata,
   context: {
     scope: string;
     courseId?: string;
@@ -47,8 +67,8 @@ export async function getUpcomingDeadlines(
   courseId?: string,
   authRetryAttempted: boolean = false,
   deps: ToolDependencies = createDefaultToolDependencies()
-): Promise<any> {
-  const run = async () => {
+): Promise<McpTextResponse> {
+  const run = async (): Promise<McpTextResponse> => {
     const cacheKey = getCacheKey('deadlines', 'upcoming', courseId || 'all');
     const cached = cache.getWithMeta<Assignment[]>(cacheKey);
 
@@ -116,7 +136,7 @@ function detailsCacheKey(url: string) {
 async function getDetailsWithMeta(
   url: string,
   deps: ToolDependencies
-): Promise<{ data: ItemDetails; meta: any }> {
+): Promise<{ data: ItemDetails; meta: CacheMetadata }> {
   const safeUrl = validateUrlForPolicy(url, 'eclass_item');
   const key = detailsCacheKey(safeUrl);
   const cached = cache.getWithMeta<ItemDetails>(key);
@@ -160,7 +180,7 @@ export async function getDeadlines(
   },
   authRetryAttempted: boolean = false,
   deps: ToolDependencies = createDefaultToolDependencies()
-): Promise<any> {
+): Promise<McpTextResponse> {
   const {
     courseId,
     scope = 'upcoming',
@@ -172,7 +192,7 @@ export async function getDeadlines(
     maxDetails = 7,
   } = params || {};
 
-  const run = async () => {
+  const run = async (): Promise<McpTextResponse> => {
     const deadlineResult = await getEclassDeadlineItems(
       {
         courseId,
@@ -244,8 +264,8 @@ export async function getItemDetails(
   },
   authRetryAttempted: boolean = false,
   deps: ToolDependencies = createDefaultToolDependencies()
-): Promise<any> {
-  const run = async () => {
+): Promise<ItemDetailsToolResult> {
+  const run = async (): Promise<ItemDetailsToolResult> => {
     const url = params?.url;
     if (!url) {
       throw new ValidationError('url is required', { field: 'url' });
@@ -278,14 +298,17 @@ export async function getItemDetails(
       );
     }
 
-    const content: any[] = [];
-    const meta: any = attachCacheMeta({ ...details }, cacheMeta);
+    const content: ItemDetailsContentBlock[] = [];
+    const meta: Record<string, unknown> & { _cache: CacheMetadata } = {
+      ...details,
+      _cache: cacheMeta,
+    };
 
     // --- CSV inlining (optional) ---
-    let csvAttachments = Array.isArray(details.attachments)
+    let csvAttachments: Attachment[] = Array.isArray(details.attachments)
       ? details.attachments
       : [];
-    csvAttachments = csvAttachments.filter((a: any) => a?.kind === 'csv');
+    csvAttachments = csvAttachments.filter((a) => a.kind === 'csv');
 
     const csvIncluded: Array<{
       name?: string;

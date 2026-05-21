@@ -1,6 +1,9 @@
 import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
-import type { RMPTeacherSearch } from '../scraper/rmp';
-import { UpstreamError } from '../scraper/scrape-errors';
+import type {
+  RMPRating,
+  RMPSearchDiagnostics,
+  RMPTeacherSearch,
+} from '../scraper/rmp';
 import { cache, TTL, getCacheKey } from '../cache/store';
 import {
   EclassToolErrorResponseSchema,
@@ -15,20 +18,73 @@ import {
   createDefaultToolDependencies,
   type ToolDependencies,
 } from './dependencies';
+import {
+  runToolBoundary,
+  upstreamErrorResponse,
+  type McpToolResult,
+} from './tool-boundary';
+
+type SearchProfessorArgs = {
+  name?: string;
+  campus?: 'Keele' | 'Glendon' | 'Markham';
+};
+
+type ProfessorDetailsArgs = {
+  teacherId?: string;
+};
+
+type CacheMeta = {
+  hit: boolean;
+  fetched_at: string;
+  expires_at: string;
+};
+
+type SearchMatch = {
+  teacherId: string;
+  legacyId: number;
+  name: string;
+  department: string;
+  school: string;
+};
+
+type SearchToolPayload = {
+  matches: SearchMatch[];
+  diagnostics: RMPSearchDiagnostics;
+  _cache?: CacheMeta;
+};
+
+type ProfessorDetailsPayload = {
+  professor: {
+    name: string;
+    department: string;
+    school: string;
+    metrics: {
+      overallRating: number;
+      difficulty: number;
+      numRatings: number;
+      wouldTakeAgainPercent: number;
+    };
+  };
+  recentReviews: Array<{
+    rating: number;
+    difficulty: number;
+    course: string;
+    date: string;
+    grade: string;
+    comment: string;
+    wouldTakeAgain: string;
+    tags: string[];
+  }>;
+  _cache?: CacheMeta;
+};
 
 function normalizeSearchName(name: string): string {
   return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
 function buildSearchSummary(response: {
-  matches: Array<{
-    teacherId: string;
-    legacyId: number;
-    name: string;
-    department: string;
-    school: string;
-  }>;
-  diagnostics: any;
+  matches: SearchMatch[];
+  diagnostics: RMPSearchDiagnostics;
 }): string {
   const lines: string[] = [];
 
@@ -62,17 +118,7 @@ function buildSearchSummary(response: {
   return lines.join('\n');
 }
 
-function toSearchToolResult(response: {
-  matches: Array<{
-    teacherId: string;
-    legacyId: number;
-    name: string;
-    department: string;
-    school: string;
-  }>;
-  diagnostics: any;
-  _cache?: any;
-}) {
+function toSearchToolResult(response: SearchToolPayload) {
   return asValidatedMcpText('search_professors', RmpSearchToolResponseSchema, {
     summary: buildSearchSummary(response),
     matches: response.matches,
@@ -130,30 +176,7 @@ function buildDetailsSummary(response: {
   return lines.join('\n');
 }
 
-function toDetailsToolResult(response: {
-  professor: {
-    name: string;
-    department: string;
-    school: string;
-    metrics: {
-      overallRating: number;
-      difficulty: number;
-      numRatings: number;
-      wouldTakeAgainPercent: number;
-    };
-  };
-  recentReviews: Array<{
-    rating: number;
-    difficulty: number;
-    course: string;
-    date: string;
-    grade: string;
-    comment: string;
-    wouldTakeAgain: string;
-    tags: string[];
-  }>;
-  _cache?: any;
-}) {
+function toDetailsToolResult(response: ProfessorDetailsPayload) {
   return asValidatedMcpText(
     'get_professor_details',
     RmpProfessorDetailsToolResponseSchema,
@@ -170,25 +193,25 @@ function toDetailsToolResult(response: {
  * Tool to search for professor profiles on RMP
  */
 export async function searchProfessorsTool(
-  args: any,
+  args: SearchProfessorArgs,
   deps: ToolDependencies = createDefaultToolDependencies()
-) {
-  const { name, campus } = args;
+): Promise<McpToolResult> {
+  const run = async (): Promise<McpToolResult> => {
+    const { name, campus } = args;
 
-  if (!name) {
-    return asValidatedMcpText(
-      'search_professors',
-      EclassToolErrorResponseSchema,
-      toErrorPayload('VALIDATION_FAILED', 'Professor name is required', {
-        details: { field: 'name' },
-      })
-    );
-  }
+    if (!name) {
+      return asValidatedMcpText(
+        'search_professors',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('VALIDATION_FAILED', 'Professor name is required', {
+          details: { field: 'name' },
+        })
+      );
+    }
 
-  try {
     const normalizedName = normalizeSearchName(name);
     const cacheKey = getCacheKey('rmp_search', normalizedName, campus || 'all');
-    const cached = cache.getWithMeta<any>(cacheKey);
+    const cached = cache.getWithMeta<SearchToolPayload>(cacheKey);
 
     if (cached) {
       getLogger().debug(
@@ -215,7 +238,7 @@ export async function searchProfessorsTool(
       .createRmpClient()
       .searchTeachersWithDiagnostics(name, campus);
 
-    const response = {
+    const response: SearchToolPayload = {
       matches: report.matches.map((t: RMPTeacherSearch) => ({
         teacherId: t.id,
         legacyId: t.legacyId,
@@ -226,7 +249,7 @@ export async function searchProfessorsTool(
       diagnostics: report.diagnostics,
     };
 
-    const finalResp: any = { ...response };
+    const finalResp: SearchToolPayload = { ...response };
     if (
       response.matches.length > 0 &&
       !report.diagnostics.usedCrossCampusProbe
@@ -260,47 +283,45 @@ export async function searchProfessorsTool(
       );
     }
     return toSearchToolResult(finalResp);
-  } catch (error: any) {
-    if (error instanceof UpstreamError) {
-      return asValidatedMcpText(
-        'search_professors',
-        EclassToolErrorResponseSchema,
-        toErrorPayload(error.code, error.message, {
-          ...(error.httpStatus !== undefined
-            ? { details: { httpStatus: error.httpStatus } }
-            : {}),
-        })
+  };
+
+  return runToolBoundary({
+    toolName: 'search_professors',
+    run,
+    onUpstreamError: (error) =>
+      upstreamErrorResponse('search_professors', error),
+    onUnknownError: (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to search RMP: ${message}`
       );
-    }
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to search RMP: ${error.message}`
-    );
-  }
+    },
+  });
 }
 
 /**
  * Tool to get detailed ratings for a professor
  */
 export async function getProfessorDetailsTool(
-  args: any,
+  args: ProfessorDetailsArgs,
   deps: ToolDependencies = createDefaultToolDependencies()
-) {
-  const { teacherId } = args;
+): Promise<McpToolResult> {
+  const run = async (): Promise<McpToolResult> => {
+    const { teacherId } = args;
 
-  if (!teacherId) {
-    return asValidatedMcpText(
-      'get_professor_details',
-      EclassToolErrorResponseSchema,
-      toErrorPayload('VALIDATION_FAILED', 'teacherId is required', {
-        details: { field: 'teacherId' },
-      })
-    );
-  }
+    if (!teacherId) {
+      return asValidatedMcpText(
+        'get_professor_details',
+        EclassToolErrorResponseSchema,
+        toErrorPayload('VALIDATION_FAILED', 'teacherId is required', {
+          details: { field: 'teacherId' },
+        })
+      );
+    }
 
-  try {
     const cacheKey = getCacheKey('rmp_details', teacherId);
-    const cached = cache.getWithMeta<any>(cacheKey);
+    const cached = cache.getWithMeta<ProfessorDetailsPayload>(cacheKey);
 
     if (cached) {
       getLogger().debug({ teacherId }, '[RMP] detail cache hit');
@@ -330,7 +351,7 @@ export async function getProfessorDetailsTool(
       );
     }
 
-    const data = {
+    const data: ProfessorDetailsPayload = {
       professor: {
         name: `${details.firstName} ${details.lastName}`,
         department: details.department,
@@ -342,7 +363,7 @@ export async function getProfessorDetailsTool(
           wouldTakeAgainPercent: details.wouldTakeAgainPercent,
         },
       },
-      recentReviews: details.ratings.map((r: any) => ({
+      recentReviews: details.ratings.map((r: RMPRating) => ({
         rating: r.clarityRating,
         difficulty: r.difficultyRating,
         course: r.class,
@@ -378,21 +399,19 @@ export async function getProfessorDetailsTool(
     };
 
     return toDetailsToolResult(response);
-  } catch (error: any) {
-    if (error instanceof UpstreamError) {
-      return asValidatedMcpText(
-        'get_professor_details',
-        EclassToolErrorResponseSchema,
-        toErrorPayload(error.code, error.message, {
-          ...(error.httpStatus !== undefined
-            ? { details: { httpStatus: error.httpStatus } }
-            : {}),
-        })
+  };
+
+  return runToolBoundary({
+    toolName: 'get_professor_details',
+    run,
+    onUpstreamError: (error) =>
+      upstreamErrorResponse('get_professor_details', error),
+    onUnknownError: (error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to fetch RMP details: ${message}`
       );
-    }
-    throw new McpError(
-      ErrorCode.InternalError,
-      `Failed to fetch RMP details: ${error.message}`
-    );
-  }
+    },
+  });
 }

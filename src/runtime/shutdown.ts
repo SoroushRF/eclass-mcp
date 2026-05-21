@@ -50,6 +50,7 @@ export function createShutdownController(
   options: ShutdownControllerOptions
 ): ShutdownController {
   let shutdownPromise: Promise<void> | null = null;
+  let shutdownHadFailures = false;
   const signalShutdownTimeoutMs =
     options.signalShutdownTimeoutMs ?? DEFAULT_SIGNAL_SHUTDOWN_TIMEOUT_MS;
 
@@ -99,6 +100,7 @@ export function createShutdownController(
         },
         'Shutdown resource cleanup failed'
       );
+      shutdownHadFailures = true;
     }
   }
 
@@ -152,7 +154,7 @@ export function createShutdownController(
             );
           }
 
-          options.exit?.(0);
+          options.exit?.(result === 'timeout' || shutdownHadFailures ? 1 : 0);
         })();
       };
 
