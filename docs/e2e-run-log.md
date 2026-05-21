@@ -2,6 +2,27 @@
 
 Status note: **T20 (E2E engine beta)** is complete as of **2026-03-23**. **T22 (PDF pipeline)** is also complete as of **2026-03-23**; the `get_file_text` rows below reflect the shipped hybrid PDF analyzer. SIS verification was already recorded in Run [2], and RMP professor search/details were verified afterward. **T25 (scraper modularization)** regression passed on **2026-03-23** with all eClass/SIS/RMP prompts passing in the new T25 matrix. **T23 (Cengage scenario coverage)** is complete as of **2026-04-10** with passing direct-dashboard, direct-course, and auth-expired recovery rows. **P11b (Cengage live-like coverage expansion)** is complete as of **2026-04-11** with dedicated fixture/navigation semantics coverage and explicit mocked-vs-live-like naming split. **T41 (cross-platform assignment resolver)** landed on **2026-05-04** and should be the default assignment/deadline E2E path going forward. **T42 (Cengage/WebAssign activation hardening)** landed on **2026-05-08**; wrong active WebAssign course must now return `needs_course_activation` / `COURSE_CONTEXT_MISMATCH`, not auth retry or no-data.
 
+## Current Release Harness Template (Task 10)
+
+Task 10 refreshes the manual E2E and release harness for the current 25-tool MCP surface. It does not claim fresh live validation by itself. Historical evidence below remains historical evidence, and rows marked "Not re-run" stay that way until a human operator fills in concrete, redacted results.
+
+Generate a blank current template with:
+
+```powershell
+npm.cmd run e2e:template
+npm.cmd run e2e:template -- --phase "v1.0.0-beta.2 Manual E2E"
+```
+
+The generated template separates automated checks from manual Inspector and Claude Desktop passes, includes `cache_health`, keeps `get_assignments` as the default assignment/deadline path, preserves T41/T42 Cengage/WebAssign activation rows, and labels cache mutation tools as optional local-state rows.
+
+If appending a blank template to this log, use explicit append mode:
+
+```powershell
+npm.cmd run e2e:template -- --phase "Manual E2E" --append --output docs/e2e-run-log.md
+```
+
+Do not fill Result or Evidence cells unless the row was actually run. Redact names, IDs, grades, cookies, tokens, local usernames, local paths, cache filenames, and sensitive URLs.
+
 ## P00 Baseline Snapshot - 2026-04-10 (Pre Dashboard-First Runtime Pivot)
 
 - Historical pre-pivot baseline: `list_cengage_courses` was explicit-link driven in runtime behavior.

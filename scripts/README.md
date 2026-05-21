@@ -5,6 +5,7 @@ Only **setup** and a few **smoke tests** stay in the active scripts root. One-of
 | File                           | Purpose                                                                                 |
 | ------------------------------ | --------------------------------------------------------------------------------------- |
 | `doctor.mjs`                   | Read-only environment health check invoked by `npm run doctor`                          |
+| `e2e-template.mjs`             | Read-only manual E2E/release run template generator invoked by `npm run e2e:template`   |
 | `setup.mjs`                    | Invoked by `npm run setup` - safe Claude Desktop config merge, dry-run, backup, restore |
 | `setup-claude.sh`              | Writes/merges `eclass` into `claude_desktop_config.json`                                |
 | `tsconfig.json`                | TypeScript for `ts-node` when running tests below                                       |
@@ -19,6 +20,8 @@ Only **setup** and a few **smoke tests** stay in the active scripts root. One-of
 ```bash
 npm run build
 npm run doctor
+npm run e2e:template
+npm run e2e:template -- --phase "Task 10 Harness Smoke"
 npm run setup -- --dry-run
 npm run setup
 npm run setup -- --list-backups
@@ -31,6 +34,13 @@ npx ts-node -P scripts/tsconfig.json scripts/inspect-cengage-dashboard.ts
 Large dumps go under `scripts/output/` (gitignored).
 
 `setup.mjs` also accepts the advanced/test-only `ECLASS_MCP_CLAUDE_CONFIG_PATH` environment override to target a temporary Claude config path during setup, backup, and restore validation.
+
+## Safety notes
+
+- `doctor.mjs` and `e2e-template.mjs` are read-only by default.
+- `e2e-template.mjs` prints Markdown to stdout unless `--append --output <path>` is provided.
+- The live scraper smoke scripts require valid local credentials/session state and may open browsers or call upstream services.
+- `inspect-cengage-dashboard.ts` may write authenticated page dumps under `scripts/output/`; keep those files out of commits.
 
 ## Archived probes
 

@@ -38,6 +38,28 @@ Expected:
 - The release tag does not already exist.
 - Latest commit is the release-prep commit.
 
+## Optional Manual E2E Evidence
+
+Manual host validation is optional for routine internal hardening commits, but it is recommended before public release notes or recruiter-facing demos.
+
+Run:
+
+```powershell
+npm.cmd run doctor
+npm.cmd run e2e:template
+npm.cmd run e2e:template -- --phase "v1.0.0-beta.2 Manual E2E"
+```
+
+Then, when credentials and the host apps are available:
+
+1. Build the tested commit with `npm.cmd run build`.
+2. Run the Inspector smoke pass from `docs/t11-e2e-handbook.md`.
+3. Run the Claude Desktop prompt matrix for user-facing rows.
+4. Record redacted evidence in `docs/e2e-run-log.md`.
+5. Keep T41/T42 Cengage/WebAssign activation rows marked "Not re-run" unless they were actually exercised.
+
+Do not treat the generated template as live evidence. It is only the run scaffold.
+
 ## Commit
 
 Commit release prep separately from feature, hardening, or test work:

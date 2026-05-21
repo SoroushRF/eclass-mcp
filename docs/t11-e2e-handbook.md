@@ -13,6 +13,8 @@ What this handbook covers:
 - prerequisites and environment capture
 - the exact prompt matrix
 - **Phase A.1: Inspector Smoke Pass (Server-only)**
+- the current 25-tool MCP surface, including `cache_health`
+- maturity regression rows for protocol validation, cache health, shutdown, trace logs, and RMP circuit breaker behavior
 - pass/fail/skip rules
 - session-expiry regression
 - how to record evidence and file failures
@@ -27,10 +29,32 @@ What this handbook does not do:
 
 - it does not replace CI
 - it does not replace unit or fixture tests
+- it does not claim live validation unless `docs/e2e-run-log.md` contains filled-in, redacted evidence
 
 ---
 
-### 1.1 Status & History
+## 1.1 Current Release Harness
+
+Task 10 refreshes the manual release harness. Generate a blank, current run template with:
+
+```powershell
+npm.cmd run e2e:template
+npm.cmd run e2e:template -- --phase "Task 10 Harness Smoke"
+```
+
+The generator prints Markdown to stdout by default. It captures safe environment metadata only, never reads session cookies, cache contents, course names, grades, or personal data, and does not write to the run log unless the operator explicitly uses append mode.
+
+Use this split:
+
+- automated CI evidence: `doctor`, typecheck, lint, tests, coverage, build, package dry-run, and whitespace checks
+- manual host evidence: MCP Inspector and Claude Desktop rows filled in with redacted snippets
+- optional local-state evidence: `clear_cache` and pin tools, because they mutate local cache or pin state
+
+The default manual matrix should use `get_assignments` for user-facing assignment/deadline prompts. `get_upcoming_deadlines` and `get_deadlines` remain eClass-only regression checks.
+
+---
+
+## 1.2 Status & History
 
 - **Run [1]:** Successfully executed on **2026-03-22**. 10/10 tools passed.
 - **Run [2]:** Successfully executed on **2026-03-22** (SIS integration phase, pre-RMP). 12/12 tools passed.
@@ -116,6 +140,27 @@ Use these prompts as written unless the local data forces a small adjustment.
 | 12  | What is my class schedule?                                  | `get_class_timetable`   | List of LECT/LAB/TUTR entries for the session                                                             |
 | 13  | Search RateMyProfessors for professor John Doe              | `search_professors`     | List of professor profiles matching the name                                                              |
 | 14  | Get professor details for ID XXXXX                          | `get_professor_details` | Detailed ratings and comments for a specific ID                                                           |
+| 15  | Check local cache health                                    | `cache_health`          | `ok=true`; includes cache, pins, metrics, and warnings without raw filenames, raw URLs, or absolute paths  |
+
+`clear_cache`, `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, and `cache_delete_pinned` are part of the public tool surface, but they are not default live rows. Run them only in an optional local-state pass where cache and pin mutation is expected and recorded.
+
+## 5.1 Inspector Smoke Additions
+
+Before credentialed rows, use Inspector to confirm the server exposes the current public tool surface:
+
+- `listTools` reports exactly 25 public tools.
+- `cache_health` is listed with a no-input object schema and a clear read-only description.
+- No tool names from the prior matrix disappeared.
+
+Add these maturity regression rows when preparing a release:
+
+| #   | Area                  | Expected result                                                                 |
+| --- | --------------------- | ------------------------------------------------------------------------------- |
+| M-1 | Unsafe URL validation | `VALIDATION_FAILED` for unsafe eClass-like URLs, without upstream navigation     |
+| M-2 | Cache health          | `cache_health` returns redacted aggregate cache, pin, and runtime metrics        |
+| M-3 | RMP circuit breaker   | Optional mocked/local evidence only; do not hammer live RMP to prove fail-fast   |
+| M-4 | Graceful shutdown     | Disconnect, SIGINT, or SIGTERM leaves no orphan auth server or Chromium process |
+| M-5 | Trace correlation     | stderr JSON logs include `requestId`, `traceId`, `spanId`, and `tool`           |
 
 ## 6. Session Expiry Regression
 
@@ -157,7 +202,7 @@ Pass:
 Fail:
 
 - the wrong tool was invoked
-- the tool errored
+- the tool errored in a way that is not the documented response for that scenario
 - the response did not satisfy the pass criteria
 
 Skip:
@@ -165,6 +210,8 @@ Skip:
 - the course data does not contain an appropriate artifact to test
 - the prompt cannot be answered for a legitimate data reason
 - document the exact reason in the log
+
+Legitimate no-data is not automatically a failure. It is Pass or Skip when the response shape is correct and the tool gives the expected next action, such as auth guidance, course activation guidance, or an explicit empty result for current data.
 
 ## 9. Failure Handling
 
@@ -215,11 +262,11 @@ Title: T11 E2E failure - <tool name> - <short symptom>
 T11 is complete when all of the following are true:
 
 - the run log exists and is filled in
-- all 14 matrix rows are marked Pass, Fail, or Skip
+- all required rows from the current generated template are marked Pass, Fail, or Skip
 - the session-expiry row is recorded
 - every non-Skip row has evidence
 - every Fail has an issue number
-- `npx tsc --noEmit` was clean for the tested commit
+- the automated preflight commands recorded in the template were clean for the tested commit
 
 T20 is complete as of **2026-03-23** after SIS and RMP verification finished.
 
