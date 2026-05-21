@@ -98,7 +98,7 @@ function isTransientReplaceError(error: unknown): boolean {
 }
 
 function replaceFileWithRetry(tmpPath: string, targetPath: string): void {
-  const maxAttempts = process.platform === 'win32' ? 5 : 1;
+  const maxAttempts = 5;
   let lastError: unknown;
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
