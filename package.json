@@ -1,6 +1,6 @@
 {
   "name": "eclass-mcp",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "Local MCP server for York eClass, SIS, Cengage/WebAssign, course files, and RateMyProfessors.",
   "main": "dist/index.js",
   "files": [

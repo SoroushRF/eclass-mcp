@@ -28,7 +28,7 @@ Then confirm:
 
 ```powershell
 git status --short
-git tag --list v1.0.0-beta.2
+git tag --list v1.0.0-beta.3
 git log --oneline --decorate --max-count=10
 ```
 
@@ -47,7 +47,7 @@ Run:
 ```powershell
 npm.cmd run doctor
 npm.cmd run e2e:template
-npm.cmd run e2e:template -- --phase "v1.0.0-beta.2 Manual E2E"
+npm.cmd run e2e:template -- --phase "v1.0.0-beta.3 Manual E2E"
 ```
 
 Then, when credentials and the host apps are available:
@@ -66,7 +66,7 @@ Commit release prep separately from feature, hardening, or test work:
 
 ```powershell
 git add -- CHANGELOG.md README.md package.json package-lock.json docs/PROJECT_MASTER.md docs/releases
-git commit -m "chore(release): prepare v1.0.0-beta.2"
+git commit -m "chore(release): prepare v1.0.0-beta.3"
 ```
 
 ## Tag And Push
@@ -74,7 +74,7 @@ git commit -m "chore(release): prepare v1.0.0-beta.2"
 Only after explicit confirmation:
 
 ```powershell
-git tag -a v1.0.0-beta.2 -m "v1.0.0-beta.2"
+git tag -a v1.0.0-beta.3 -m "v1.0.0-beta.3"
 git push origin master --follow-tags
 ```
 
@@ -86,11 +86,11 @@ git branch --show-current
 
 ## Publish GitHub Release
 
-1. Open a GitHub Release for tag `v1.0.0-beta.2`.
-2. Use `v1.0.0-beta.2` as the release title.
-3. Paste `docs/releases/1.0.0-beta.2.md` as the release body.
+1. Open a GitHub Release for tag `v1.0.0-beta.3`.
+2. Use `v1.0.0-beta.3` as the release title.
+3. Paste `docs/releases/1.0.0-beta.3.md` as the release body.
 4. Verify the upgrade notes and known limitations remain present.
 
 ## Historical Tag Policy
 
-The repo currently has historical local tags `v0.9.0-core` and `v0.9.0-alpha`. `1.0.0-beta.1` exists as a documented release section but has no local tag. Do not retroactively invent old tags unless explicitly deciding to repair public release history. `v1.0.0-beta.2` starts the clean beta tagging discipline.
+The repo currently has historical local tags `v0.9.0-core`, `v0.9.0-alpha`, and `v1.0.0-beta.2`. `1.0.0-beta.1` exists as a documented release section but has no local tag. Do not retroactively invent old tags unless explicitly deciding to repair public release history. `v1.0.0-beta.3` continues the clean beta tagging discipline after the maturity initiative.

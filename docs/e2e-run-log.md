@@ -10,7 +10,7 @@ Generate a blank current template with:
 
 ```powershell
 npm.cmd run e2e:template
-npm.cmd run e2e:template -- --phase "v1.0.0-beta.2 Manual E2E"
+npm.cmd run e2e:template -- --phase "v1.0.0-beta.3 Manual E2E"
 ```
 
 The generated template separates automated checks from manual Inspector and Claude Desktop passes, includes `cache_health`, keeps `get_assignments` as the default assignment/deadline path, preserves T41/T42 Cengage/WebAssign activation rows, and labels cache mutation tools as optional local-state rows.
@@ -335,7 +335,7 @@ Result summary:
 
 ### Inspector / Claude Desktop Rows To Record
 
-These rows are not claimed as re-run for `1.0.0-beta.2` unless the Result/Evidence columns contain concrete live evidence.
+These rows are not claimed as re-run for `1.0.0-beta.3` unless the Result/Evidence columns contain concrete live evidence.
 
 | #      | Prompt / Tool input                                                         | Expected tool                    | Result | Evidence | Notes                                                                                                       |
 | ------ | --------------------------------------------------------------------------- | -------------------------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------- |

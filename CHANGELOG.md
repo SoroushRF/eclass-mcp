@@ -9,12 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- _None yet._
+
+## [1.0.0-beta.3] - 2026-05-20
+
+### Added
+
 - Added E20 write-preflight contract helpers: shared Zod schemas, signed preflight references, and write-specific machine codes for future assignment/calendar write tools.
+- Added MCP protocol-level integration tests that construct the real server through the SDK path and verify tool discovery, schemas, safe validation errors, and cache calls through protocol semantics.
+- Added an RMP external-service circuit breaker so repeated upstream failures fail fast with structured `RATE_LIMITED` responses instead of hammering RateMyProfessors.
+- Added structured trace correlation fields (`traceId`, `spanId`, `parentSpanId`) and high-value spans around tool execution, RMP, circuit-breaker, shutdown, and tool-boundary paths.
+- Added read-only cache observability with process-local cache metrics, cache health scanning, and the public `cache_health` MCP tool.
+- Added a safe manual E2E/release harness template generator with current 25-tool Inspector and Claude Desktop matrices.
+
+### Changed
+
+- Eliminated production `as any` casts and kept MCP registration on typed `registerTool` helpers.
+- Centralized common eClass/SIS tool error and auth handling behind a shared tool boundary while preserving public response shapes.
+- Added graceful shutdown cleanup for stdio transport, auth server/browser resources, eClass scraper, Cengage scraper registry, and SIS browser tracking.
+- Reduced tool-layer scraper/client singleton coupling through explicit manual dependency injection for eClass, SIS, and RMP tools.
+- Updated package metadata, docs, and release surfaces for `1.0.0-beta.3`.
+
+### Fixed
+
+- Hardened authenticated URL boundaries against unsafe schemes, host spoofing, arbitrary authenticated navigation/fetch, private-network targets, and sensitive URL leakage.
+
+### Tests
+
+- Added static production-any regression coverage.
+- Added protocol, boundary, shutdown, lifecycle, circuit-breaker, trace, cache-health, dependency-injection, and E2E-template regression suites.
 
 ### Documentation
 
 - Added `docs/operational-limits.md` to document current timeouts, auth waits, concurrency posture, retry behavior, rate-limit handling, and future runtime safety guidance.
 - Replaced the old write-tool env-gate plan with an accuracy-first preflight + confirmation + target revalidation model in README, SECURITY, E11/E12 docs, and the master tracker.
+- Updated live/manual E2E, release, logging, cache, protocol, and operational docs to reflect the completed maturity initiative.
 
 ## [1.0.0-beta.2] - 2026-05-15
 

@@ -1,7 +1,7 @@
 # eClass MCP ? Project master document
 
 **Canonical planning and history for the eClass MCP repository.**  
-**Last updated:** 2026-05-15
+**Last updated:** 2026-05-20
 
 This file subsumes the former root docs (CoYork TODO, v1 implementation plan, engine beta SIS/RMP plan, gap-to-9+ review), which were **removed** from the repo root in favor of this single source of truth.
 
@@ -85,11 +85,15 @@ This repository now treats the MCP server as an **engine line** that can stay op
   - The engine is useful and real, but still being hardened for broader use.
 
 - `1.0.0-beta.2`
-  - Current engine stage in this repo.
   - Cengage/WebAssign assignment platform integration.
   - Platform discovery engine: passive detection of external platform links from eClass course content — no manual URL configuration required from the user.
   - Cengage auth endpoint and durable course-platform mapping; WeBWorK remains pending under T32-T35.
   - Blocking poll / auto-retry pattern retrofitted to eClass and SIS (T36) so those tools respond seamlessly without requiring a re-prompt after login.
+
+- `1.0.0-beta.3`
+  - Current engine stage in this repo.
+  - Professional Engineering Maturity release: security URL boundary hardening, typed MCP registration, protocol integration tests, centralized tool error/auth boundary, graceful shutdown cleanup, RMP circuit breaker, structured trace correlation, observable cache health, manual dependency injection, and refreshed manual E2E/release harness.
+  - Still read-only-first; WeBWorK and future write tools remain outside this release.
 
 - `1.0.0`
   - First stable engine release.
@@ -168,8 +172,8 @@ This repository now treats the MCP server as an **engine line** that can stay op
 #### Current repo status
 
 - Historical core-only release: `0.9.0-core`
-- Current engine stage: `1.0.0-beta.2`
-- Current beta includes Cengage/WebAssign, secure session storage, selector drift diagnostics, doctor/setup productization, and release discipline; WeBWorK remains pending.
+- Current engine stage: `1.0.0-beta.3`
+- Current beta includes Cengage/WebAssign, secure session storage, selector drift diagnostics, doctor/setup productization, release discipline, and the completed Professional Engineering Maturity initiative; WeBWorK remains pending.
 - Next major public engine milestone: `1.0.0`
 - Future planning should assume the engine and product will eventually diverge into separate release lines.
 
@@ -184,7 +188,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - [x] **T05** ? eClass scraper core (`src/scraper/eclass.ts`, `SessionExpiredError`, real scraping APIs; evolved well beyond original mock stage).
 - [x] **T06** ? File parsers (`src/parser/pdf.ts`, `docx.ts`, `pptx.ts`; PDF path later upgraded ? see file-tool docs).
 - [x] **T07** ? MCP tool modules (`src/tools/*.ts`, cache + session error handling).
-- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **24 tools** today vs original 6).
+- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **25 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** ??? **Formal Claude Desktop E2E verification** ??? **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
@@ -269,7 +273,7 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 | [x] **E15** | Selector registry + drift diagnostics; optional debug snapshot mode — typed selector groups under `src/scraper/selectors/`, selector winner logging, `SCRAPE_LAYOUT_CHANGED` drift context, and opt-in `.eclass-mcp/debug/selectors/` snapshots.                                                                                      | C    |
 | [x] **E16** | `npm run doctor` environment and setup health check: Node/npm, build artifact, Playwright Chromium, `.env` and `ECLASS_MCP_SESSION_SECRET`, auth/session hints, Claude Desktop config target, permissions, and parser dependencies.                                                                                                   | D    |
 | [x] **E17** | Setup script `--dry-run` + backup/restore for merged Claude config: preview diff, timestamped backups, backup listing, safe restore from `latest` or a validated path, and atomic Claude config writes.                                                                                                                               | D    |
-| [x] **E18** | `CHANGELOG.md` + full-history commit audit ledger + GitHub Release body/checklist for `v1.0.0-beta.2`; tag creation intentionally stops for user confirmation.                                                                                                                                                                        | D    |
+| [x] **E18** | `CHANGELOG.md` + commit audit ledgers + GitHub Release bodies/checklist for beta releases through `v1.0.0-beta.3`; tag creation intentionally stops for user confirmation.                                                                                                                                                            | D    |
 | [x] **E19** | Runtime limits documentation for external calls: navigation/auth waits, current concurrency posture, rate-limit behavior, retry semantics, and future write-tool safety guidance in [`docs/operational-limits.md`](./operational-limits.md).                                                                                          | D    |
 | [x] **E20** | **Write tools ? pre-ship gates:** accuracy-first write contract: shared Zod schemas, signed preflight references, per-call `confirm: true`, target revalidation before mutation, write-specific machine codes, README/`SECURITY.md` risk copy; no actual write tool implemented yet.                                                  | C    |
 | [ ] **E21** | **Write tools ? post-write hygiene:** append-only **local audit log** (action, resource ids, outcome, timestamp; **no** secrets or file bytes; redact paths per **E14**); **invalidate** volatile cache keys affected by a successful write (deadlines, item details, grades, content as applicable; align with **T25** when present) | C    |
@@ -458,7 +462,7 @@ jobs:
 
 - **E16 `doctor`:** Done. `npm run doctor` is a read-only setup health check covering Node/npm, `dist/index.js`, Playwright Chromium launchability, `.env` and `ECLASS_MCP_SESSION_SECRET`, auth/session hints, Claude Desktop config path/target, project permissions, and parser dependencies.
 - **E17 setup:** Done. `npm run setup -- --dry-run` previews the merged Claude config diff without writing; normal setup creates timestamped backups before overwriting existing config; `--list-backups` and `--restore latest|path` provide reversible config recovery; writes are atomic.
-- **E18 releases:** Done. `CHANGELOG.md` is reconstructed from a full-history commit audit; `docs/releases/1.0.0-beta.2.md` is the GitHub Release body; `docs/releases/release-checklist.md` documents the final tag/push flow. `v1.0.0-beta.2` tagging is intentionally left for explicit user confirmation.
+- **E18 releases:** Done. `CHANGELOG.md` is reconstructed from commit-audit evidence; `docs/releases/1.0.0-beta.2.md` and `docs/releases/1.0.0-beta.3.md` are GitHub Release bodies; `docs/releases/release-checklist.md` documents the final tag/push flow. `v1.0.0-beta.3` tagging is intentionally left for explicit user confirmation.
 - **E19 operational limits:** Done. [`docs/operational-limits.md`](./operational-limits.md) documents current auth wait windows, scraper navigation timeouts, selector waits, Cengage recovery waits, absent global concurrency limiting, RMP `RATE_LIMITED` behavior, and future runtime defaults for write-tool safety.
 
 #### 2.9.7 E20?E21 ? Future write-tool safety
@@ -1036,7 +1040,7 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 | Category               | Python ref | This repo | Notes                                       |
 | ---------------------- | ---------- | --------- | ------------------------------------------- |
 | Architecture clarity   | 8.0        | 8.5       | Modularized scrapers, typed selectors       |
-| Feature depth          | 4.0        | 9.0       | 24 tools, cross-platform resolver           |
+| Feature depth          | 4.0        | 9.0       | 25 tools, cross-platform resolver           |
 | Reliability/resilience | 5.5        | 8.5       | Selector registry, auth retry, drift codes  |
 | Security posture       | 5.5        | 8.5       | AES-256-GCM sessions, signed preflight refs |
 | Testing maturity       | 4.5        | 8.0       | 60 test suites, 75% branch gate             |
@@ -1084,7 +1088,7 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 | ----------------------------------------- | ---------------------------------------------------------- |
 | **This master plan**                      | `docs/PROJECT_MASTER.md`                                   |
 | Engine versioning policy                  | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (24 tools)        | `docs/tools/README.md`                                     |
+| Tool-by-tool docs index (25 tools)        | `docs/tools/README.md`                                     |
 | T11 / T20 ? Claude Desktop E2E procedure  | `docs/t11-e2e-handbook.md`                                 |
 | E2E run log (create when running T11)     | `docs/e2e-run-log.md`                                      |
 | Deadlines tool ? roadmap & testing        | `docs/tools/deadlines/roadmap.md`                          |

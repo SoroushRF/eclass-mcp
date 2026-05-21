@@ -2,7 +2,7 @@
 
 > **Connect Claude to York University's eClass — assignments, deadlines, grades, and course files, right inside your AI assistant.**
 
-> **Current engine stage:** `1.0.0-beta.2`
+> **Current engine stage:** `1.0.0-beta.3`
 >
 > The engine versioning and release policy now lives in [`docs/PROJECT_MASTER.md`](docs/PROJECT_MASTER.md#engine-versioning--release-policy). The historical core-only release is treated as `0.9.0-core`, and the engine line is versioned separately from the eventual product surfaces.
 
@@ -361,7 +361,7 @@ rm -rf dist && npm.cmd run build
 
 | Topic                                                                   | Location                                                                                                                                 |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool-by-tool docs index (all 24 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
+| Tool-by-tool docs index (all 25 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
 | Cross-platform assignment resolver                                      | [`docs/tools/get_assignments/README.md`](docs/tools/get_assignments/README.md)                                                           |
 | Cengage implementation and migration plan                               | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md)                                     |
 | Deadlines tool — full roadmap & architecture                            | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md)                                                                     |
