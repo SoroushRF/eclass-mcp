@@ -10,6 +10,9 @@ import {
   type ToolDependencies,
 } from './dependencies';
 
+const INTERNAL_ERROR_MESSAGE =
+  'The tool failed due to an unexpected internal error.';
+
 export async function getExamSchedule(
   deps: ToolDependencies = createDefaultToolDependencies()
 ) {
@@ -56,17 +59,12 @@ export async function getExamSchedule(
           },
         }),
     },
-    onUnknownError: (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      return asValidatedMcpText(
-        'get_exam_schedule',
-        SisExamScheduleResponseSchema,
-        {
-          status: 'error',
-          message: `Error fetching exam schedule: ${message}`,
-        }
-      );
-    },
+    onUnknownError: () =>
+      asValidatedMcpText('get_exam_schedule', SisExamScheduleResponseSchema, {
+        status: 'error',
+        code: 'INTERNAL_ERROR',
+        message: INTERNAL_ERROR_MESSAGE,
+      }),
   });
 }
 
@@ -117,16 +115,11 @@ export async function getClassTimetable(
           },
         }),
     },
-    onUnknownError: (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      return asValidatedMcpText(
-        'get_class_timetable',
-        SisTimetableResponseSchema,
-        {
-          status: 'error',
-          message: `Error fetching class timetable: ${message}`,
-        }
-      );
-    },
+    onUnknownError: () =>
+      asValidatedMcpText('get_class_timetable', SisTimetableResponseSchema, {
+        status: 'error',
+        code: 'INTERNAL_ERROR',
+        message: INTERNAL_ERROR_MESSAGE,
+      }),
   });
 }

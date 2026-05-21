@@ -132,7 +132,11 @@ describe('auth retry tool behavior', () => {
     );
     payload = parsePayload(await getExamSchedule());
     expect(payload.status).toBe('error');
-    expect(payload.message).toContain('sis exploded');
+    expect(payload.code).toBe('INTERNAL_ERROR');
+    expect(payload.message).toBe(
+      'The tool failed due to an unexpected internal error.'
+    );
+    expect(JSON.stringify(payload)).not.toContain('sis exploded');
   });
 
   it('get_class_timetable returns ok, empty, storage, and generic errors with stable envelopes', async () => {
@@ -168,7 +172,11 @@ describe('auth retry tool behavior', () => {
     );
     payload = parsePayload(await getClassTimetable());
     expect(payload.status).toBe('error');
-    expect(payload.message).toContain('timetable failed');
+    expect(payload.code).toBe('INTERNAL_ERROR');
+    expect(payload.message).toBe(
+      'The tool failed due to an unexpected internal error.'
+    );
+    expect(JSON.stringify(payload)).not.toContain('timetable failed');
   });
 
   it('get_class_timetable returns auth_required when auth wait times out', async () => {

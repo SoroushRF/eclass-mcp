@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cache, getCacheKey } from '../src/cache/store';
 import { scraper as singletonEClassScraper } from '../src/scraper/eclass';
+import { UpstreamError } from '../src/scraper/scrape-errors';
 import { createMcpServer } from '../src/index';
 import { listCourses } from '../src/tools/courses';
 import { getCourseContent, getSectionText } from '../src/tools/content';
@@ -25,6 +26,10 @@ import type {
   SisScraperDependency,
   ToolDependencies,
 } from '../src/tools/dependencies';
+import {
+  SisExamScheduleResponseSchema,
+  SisTimetableResponseSchema,
+} from '../src/tools/eclass-contracts';
 
 const touchedCacheKeys = new Set<string>();
 let protocolHarness: { client: Client; server: McpServer } | undefined =
@@ -406,6 +411,42 @@ describe('tool dependency injection', () => {
     expect(sisScraper.scrapeTimetable).toHaveBeenCalledTimes(1);
   });
 
+  it('redacts unexpected SIS scraper errors', async () => {
+    const { deps, sisScraper } = createFakeDependencies();
+    vi.mocked(sisScraper.scrapeExams).mockRejectedValueOnce(
+      new Error('secret browser path C:\\Users\\student\\session.json')
+    );
+    vi.mocked(sisScraper.scrapeTimetable).mockRejectedValueOnce(
+      new Error('cookie/session detail')
+    );
+
+    const examResult = await getExamSchedule(deps);
+    const timetableResult = await getClassTimetable(deps);
+    const examPayload = parsePayload(examResult);
+    const timetablePayload = parsePayload(timetableResult);
+    const examText = examResult.content[0].text ?? '';
+    const timetableText = timetableResult.content[0].text ?? '';
+
+    expect(examPayload).toMatchObject({
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'The tool failed due to an unexpected internal error.',
+    });
+    expect(timetablePayload).toMatchObject({
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'The tool failed due to an unexpected internal error.',
+    });
+    expect(examText).not.toContain('secret browser path');
+    expect(timetableText).not.toContain('cookie/session detail');
+    expect(SisExamScheduleResponseSchema.safeParse(examPayload).success).toBe(
+      true
+    );
+    expect(SisTimetableResponseSchema.safeParse(timetablePayload).success).toBe(
+      true
+    );
+  });
+
   it('routes RMP tools through the injected client factory', async () => {
     const { deps, rmpClient, createRmpClient } = createFakeDependencies();
     const professorName = uniqueId('ada lovelace');
@@ -438,6 +479,52 @@ describe('tool dependency injection', () => {
       undefined
     );
     expect(rmpClient.getTeacherDetails).toHaveBeenCalledWith('teacher-1');
+  });
+
+  it('redacts unexpected RMP client errors as tool JSON', async () => {
+    const { deps, rmpClient } = createFakeDependencies();
+    const professorName = uniqueId('raw upstream internals');
+    const normalizedName = professorName.trim().replace(/\s+/g, ' ');
+    rememberCacheKey(
+      getCacheKey('rmp_search', normalizedName.toLowerCase(), 'all')
+    );
+    rememberCacheKey(getCacheKey('rmp_details', 'secret-detail-teacher'));
+    for (const key of touchedCacheKeys) {
+      cache.invalidate(key);
+    }
+
+    vi.mocked(rmpClient.searchTeachersWithDiagnostics).mockRejectedValueOnce(
+      new Error('raw upstream internals')
+    );
+    vi.mocked(rmpClient.getTeacherDetails).mockRejectedValueOnce(
+      new Error('raw detail internals')
+    );
+
+    const searchResult = await searchProfessorsTool(
+      { name: professorName },
+      deps
+    );
+    const detailsResult = await getProfessorDetailsTool(
+      { teacherId: 'secret-detail-teacher' },
+      deps
+    );
+    const searchPayload = parsePayload(searchResult);
+    const detailsPayload = parsePayload(detailsResult);
+    const searchText = searchResult.content[0].text ?? '';
+    const detailsText = detailsResult.content[0].text ?? '';
+
+    expect(searchPayload).toMatchObject({
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'The tool failed due to an unexpected internal error.',
+    });
+    expect(detailsPayload).toMatchObject({
+      status: 'error',
+      code: 'INTERNAL_ERROR',
+      message: 'The tool failed due to an unexpected internal error.',
+    });
+    expect(searchText).not.toContain('raw upstream internals');
+    expect(detailsText).not.toContain('raw detail internals');
   });
 
   it('routes Cengage tools through the injected scraper factory', async () => {
@@ -474,6 +561,40 @@ describe('tool dependency injection', () => {
     );
 
     expect(eclassScraper.getCourses).toHaveBeenCalled();
+    expect(eclassScraper.getDeadlines).toHaveBeenCalledWith('course-1');
+  });
+
+  it('maps assignment upstream errors to stable machine-code JSON', async () => {
+    const { deps, eclassScraper } = createFakeDependencies();
+    rememberCacheKey(getCacheKey('courses'));
+    rememberCacheKey(getCacheKey('deadlines', 'upcoming', 'course-1', ''));
+    for (const key of touchedCacheKeys) {
+      cache.invalidate(key);
+    }
+    vi.mocked(eclassScraper.getDeadlines).mockRejectedValueOnce(
+      new UpstreamError('TIMEOUT', 'eClass upstream timed out', 504)
+    );
+
+    const payload = parsePayload(
+      await getAssignments(
+        {
+          courseId: 'course-1',
+          includeExternal: 'never',
+        },
+        false,
+        false,
+        deps
+      )
+    );
+
+    expect(payload).toMatchObject({
+      status: 'error',
+      code: 'TIMEOUT',
+      message: 'eClass upstream timed out',
+      assignments: [],
+      sources: expect.any(Object),
+      platformIndex: expect.any(Object),
+    });
     expect(eclassScraper.getDeadlines).toHaveBeenCalledWith('course-1');
   });
 

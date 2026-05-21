@@ -1,4 +1,3 @@
-import { McpError, ErrorCode } from '@modelcontextprotocol/sdk/types.js';
 import type {
   RMPRating,
   RMPSearchDiagnostics,
@@ -19,6 +18,7 @@ import {
   type ToolDependencies,
 } from './dependencies';
 import {
+  internalErrorResponse,
   runToolBoundary,
   upstreamErrorResponse,
   type McpToolResult,
@@ -290,13 +290,7 @@ export async function searchProfessorsTool(
     run,
     onUpstreamError: (error) =>
       upstreamErrorResponse('search_professors', error),
-    onUnknownError: (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to search RMP: ${message}`
-      );
-    },
+    onUnknownError: () => internalErrorResponse('search_professors'),
   });
 }
 
@@ -406,12 +400,6 @@ export async function getProfessorDetailsTool(
     run,
     onUpstreamError: (error) =>
       upstreamErrorResponse('get_professor_details', error),
-    onUnknownError: (error) => {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to fetch RMP details: ${message}`
-      );
-    },
+    onUnknownError: () => internalErrorResponse('get_professor_details'),
   });
 }

@@ -4,7 +4,7 @@ import {
   waitForCengageAuthSession,
 } from '../auth/server';
 import { SessionExpiredError, type Course } from '../scraper/eclass';
-import { ScrapeLayoutError } from '../scraper/scrape-errors';
+import { ScrapeLayoutError, UpstreamError } from '../scraper/scrape-errors';
 import type { CengageDashboardCourse } from '../scraper/cengage-courses';
 import {
   CengageAuthRequiredError,
@@ -785,6 +785,22 @@ export async function getAssignments(
     if (error instanceof ScrapeLayoutError) {
       const payload = toErrorPayload('SCRAPE_LAYOUT_CHANGED', error.message, {
         details: error.context,
+      });
+      return assignmentResponse({
+        status: 'error',
+        code: payload.code,
+        course: courseToResponse(selectedCourse),
+        assignments: [],
+        sources,
+        platformIndex: indexSummaryForResponse(platformRecord),
+        message: payload.message,
+      });
+    }
+    if (error instanceof UpstreamError) {
+      const payload = toErrorPayload(error.code, error.message, {
+        ...(error.httpStatus !== undefined
+          ? { details: { httpStatus: error.httpStatus } }
+          : {}),
       });
       return assignmentResponse({
         status: 'error',

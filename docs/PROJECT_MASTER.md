@@ -206,7 +206,7 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T16** ??? **SIS Tools** ??? Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [x] **T18** ? Implement `src/tools/rmp.ts`, register `search_professors` and `get_professor_details`, `TTL.PROFESSOR`.
-- [x] **T19** ? README + `PROJECT_MASTER` + tool table: **13 tools**, SIS cookie troubleshooting, example prompts.
+- [x] **T19** ? README + `PROJECT_MASTER` + tool table for the SIS/RMP beta milestone; current registered surface is **25 tools**.
 - [x] **T20** ? **E2E engine beta**: four new tools verified in Claude Desktop (SIS x2 + RMP x2). **Completed 2026-03-23**; see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
 ---
@@ -843,12 +843,15 @@ Key paths under `src/`:
 
 ### 4.2 Tool error pattern (canonical)
 
-Authenticated tools follow a layered error-handling pattern: check for `SecureSessionStorageError` first (session encryption issues), then `ScrapeLayoutError` (selector drift), then `SessionExpiredError` (with auto-retry via `handleEclassSessionExpired`). Public HTTP tools (RMP) omit session handling and propagate or wrap other errors as appropriate.
+MCP registration wrappers own protocol-facing concerns only: typed `registerTool` calls, `runWithToolContext`, trace/span metadata, and `CallToolResultSchema` validation. Business-level error mapping stays in the tool layer so each public JSON envelope remains stable.
+
+eClass read tools use `runEclassToolBoundary` for secure-session failures, eClass auth retry, `ValidationError`, `ScrapeLayoutError`, `UpstreamError`, and a default redacted `INTERNAL_ERROR` fallback for unexpected failures. SIS tools use the same boundary and retry behavior, but validate their redacted internal-error payloads against SIS-specific response schemas. RMP tools use `runToolBoundary` for validation, upstream, timeout, rate-limit, circuit-open, and redacted unknown-error JSON.
+
+Cengage/WebAssign tools keep custom envelopes because they carry richer auth state, course activation guidance, `needs_course_activation`, retry input metadata, and active-course verification details. `get_assignments` also stays custom because it merges eClass and Cengage/WebAssign state, preserves platform-index side effects, and returns a resolver-specific envelope while mapping shared E12 errors where possible. Cache and pin tools keep local-state envelopes; no auth retry is performed except for `cache_refresh_pin`, and `cache_health` failures are redacted.
 
 ```typescript
-// Pattern (representative ? see src/tools/courses.ts for a real example)
 const run = async () => {
-  const { data, cacheMeta } = await getDataWithCache();
+  const { data, cacheMeta } = await getDataWithCache(deps.eclassScraper);
   return asValidatedMcpText(
     'tool_name',
     Schema,
@@ -856,30 +859,25 @@ const run = async () => {
   );
 };
 
-try {
-  return await run();
-} catch (e) {
-  if (isSessionStorageUnavailable(e)) {
-    return sessionStorageUnavailableResponse('tool_name');
-  }
-  if (isScrapeLayoutChanged(e)) {
-    return scrapeLayoutChangedResponse('tool_name', e);
-  }
-  if (e instanceof SessionExpiredError) {
-    return handleEclassSessionExpired(e, run, (error) =>
-      asValidatedMcpText(
-        'tool_name',
-        Schema,
-        sessionExpiredPayload(error.message, {
-          afterAuth: true,
-          authUrl: getAuthUrl('eclass'),
-        })
-      )
-    );
-  }
-  throw e;
-}
+return runEclassToolBoundary({
+  toolName: 'tool_name',
+  run,
+  onSessionExpired: {
+    attempted: authRetryAttempted,
+    retry: () => toolName(args, true, deps),
+    fallback: (error) => sessionExpiredResponse('tool_name', Schema, error),
+  },
+});
 ```
+
+| Family | Boundary | Unknown error |
+| --- | --- | --- |
+| eClass | `runEclassToolBoundary` | Redacted `INTERNAL_ERROR` JSON |
+| SIS | `runEclassToolBoundary` plus SIS schemas | Redacted `INTERNAL_ERROR` JSON |
+| RMP | `runToolBoundary` | Redacted `INTERNAL_ERROR` JSON |
+| Cengage/WebAssign | Custom Cengage envelope | Custom envelope |
+| `get_assignments` | Custom resolver envelope | Resolver envelope |
+| Cache/pins | Custom local-state envelope | Local-state envelope |
 
 ### 4.3 Cache keys
 

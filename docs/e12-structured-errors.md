@@ -37,7 +37,7 @@ Defined in [`src/errors/codes.ts`](../src/errors/codes.ts) as `MACHINE_CODES` / 
 | `WRITE_PLATFORM_STATE_CHANGED` | The platform state no longer matches the signed preflight facts; call the prepare tool again.                                                                                         |
 | `UPLOAD_SLOT_NOT_FOUND`        | The expected Moodle/Cengage upload control could not be found.                                                                                                                        |
 | `SUBMISSION_ALREADY_FINALIZED` | The assignment appears already submitted/finalized and should not be changed by automation.                                                                                           |
-| `INTERNAL_ERROR`               | Reserved for uncategorized server-side failures (prefer mapping to a more specific code when possible).                                                                               |
+| `INTERNAL_ERROR`               | Reserved for uncategorized server-side failures. Tool boundaries return this with a redacted message when no more specific machine code applies.                                      |
 
 Zod: `MachineCodeSchema` / optional variants live in [`src/tools/eclass-contracts.ts`](../src/tools/eclass-contracts.ts).
 
@@ -64,11 +64,11 @@ MCP registration owns trace context and protocol result validation only. Busines
 
 | Tool family | Boundary policy |
 | --- | --- |
-| eClass and SIS | Shared `runEclassToolBoundary` for secure-session failures, eClass auth retry, validation, scrape-layout drift, and upstream errors. |
-| RateMyProfessors | Shared `runToolBoundary` with RMP-specific response schemas for validation, upstream, timeout, rate-limit, and circuit-open failures. |
+| eClass and SIS | Shared `runEclassToolBoundary` for secure-session failures, eClass auth retry, validation, scrape-layout drift, upstream errors, and redacted `INTERNAL_ERROR` unknowns. SIS validates the same redacted unknown fallback through SIS-specific schemas. |
+| RateMyProfessors | Shared `runToolBoundary` with RMP-specific response schemas for validation, upstream, timeout, rate-limit, circuit-open failures, and redacted `INTERNAL_ERROR` unknowns. |
 | Cengage/WebAssign | Custom Cengage envelopes for auth, course activation, and `needs_course_activation` guidance. |
-| `get_assignments` | Custom cross-platform resolver envelope because it merges eClass and Cengage/WebAssign state. |
-| Cache and pins | Local-state envelopes; `cache_refresh_pin` is the only pin tool that performs eClass auth retry. |
+| `get_assignments` | Custom cross-platform resolver envelope because it merges eClass and Cengage/WebAssign state; maps shared E12 errors, including `UpstreamError`, where possible. |
+| Cache and pins | Local-state envelopes; `cache_refresh_pin` is the only pin tool that performs eClass auth retry, and `cache_health` redacts unexpected local collector failures. |
 
 ---
 
@@ -127,7 +127,8 @@ MCP registration owns trace context and protocol result validation only. Busines
 | --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **`McpError` with `ErrorCode.InvalidParams`**                   | Prefer **only** for arguments that violate the MCP/SDK contract in a way the **host** should fix before retry (rare here because many tools take `any` and validate in code).    |
 | **JSON with `status: 'error'` and `code: 'VALIDATION_FAILED'`** | **User-visible** and **model-visible** validation: missing required fields, bad date ranges, empty URLs. The assistant sees the same structured JSON as for other tool failures. |
-| **`McpError` with `ErrorCode.InternalError`**                   | Unexpected failures after validation (e.g. RMP search threw a non-`UpstreamError`).                                                                                              |
+| **JSON with `status: 'error'` and `code: 'INTERNAL_ERROR'`**    | Unexpected tool failures after validation and after known E12 classes have been considered. Messages must be redacted and must not include raw exception text, stack traces, cookies, URLs, local paths, browser paths, or session details. |
+| **Protocol-level internal exception**                           | Reserved for SDK/protocol failures where no normal tool result can be produced. It should not be the routine path for expected tool-boundary failures.                         |
 
 RMP required-field checks were moved to **`VALIDATION_FAILED`** JSON for consistency with E12 and with deadlines/file validation UX.
 
@@ -148,7 +149,8 @@ RMP required-field checks were moved to **`VALIDATION_FAILED`** JSON for consist
 | Zod contracts          | `src/tools/eclass-contracts.ts`                                             |
 | Write preflight        | `src/tools/write-contracts.ts`, `src/tools/write-preflight-ref.ts`          |
 | Validation wrapper     | `src/tools/mcp-validated-response.ts`                                       |
-| Tools (representative) | `src/tools/deadlines.ts`, `src/tools/files.ts`, `src/tools/rmp.ts`          |
+| Tool boundary          | `src/tools/tool-boundary.ts`                                                |
+| Tools (representative) | `src/tools/deadlines.ts`, `src/tools/files.ts`, `src/tools/sis.ts`, `src/tools/rmp.ts`, `src/tools/assignments.ts` |
 
 ---
 

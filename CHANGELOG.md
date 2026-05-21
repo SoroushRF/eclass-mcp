@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added follow-up ADR coverage for the MCP tool boundary, RMP circuit breaker, structured trace correlation, manual dependency injection, and read-only cache observability (`docs/adr/0005` through `0009`, plus the ADR index).
 - Added stdio MCP smoke coverage for real entrypoint tool discovery, plus additional protocol coverage for read-only pin listing, Cengage argument validation, and RMP detail error responses.
 - Added deeper protocol coverage for injected SIS and Cengage tool calls, plus an unmocked RMP circuit-breaker path through MCP `callTool`.
+- Added safe MCP `callTool` coverage for injected eClass read paths (`get_course_content`, `get_upcoming_deadlines`, `get_deadlines`, `get_grades`, and `get_announcements`) without live credentials, browsers, or upstream network calls.
 - Added property-based coverage for eClass date parsing, URL-policy negative cases, and structured E12 error-envelope invariants.
 
 ### Changed
@@ -19,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Clarified that the shared tool boundary is intentionally family-specific: eClass/SIS and RMP use shared boundary helpers, while Cengage, assignment resolver, cache, and pin tools preserve their specialized envelopes.
 - Extended tool-layer dependency injection documentation and tests to include Cengage scraper factories.
 - Added the default eClass boundary fallback for unexpected errors as a redacted `INTERNAL_ERROR` JSON response while keeping generic and specialized tool-family boundaries explicit.
+- Changed SIS and RMP unknown failures to return redacted structured `INTERNAL_ERROR` JSON instead of leaking raw exception messages or surfacing protocol-level internal errors.
+- Mapped `get_assignments` upstream failures into its existing resolver envelope with stable E12 machine codes.
 
 ### Fixed
 
@@ -26,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a defensive, redacted `cache_health` failure envelope for unexpected local health-collector failures.
 - Fixed stale docs that still referenced old tool counts or request-id-only logging, and corrected changelog wording around Cengage dependency injection.
 - Fixed a Cengage assignment parser import order issue that could break real stdio startup before MCP initialization.
-- Fixed final maturity doc drift around the 25-tool manual matrix, Cengage's four-tool surface, T25/T26 cache labels, and E20/E21 write-safety status.
+- Aligned final maturity docs around the canonical tool-boundary model, redacted `INTERNAL_ERROR` policy, current 25-tool manual matrix, historical T19 tool-surface wording, Cengage's four-tool surface, T25/T26 cache labels, and E20/E21 write-safety status.
 
 ## [1.0.0-beta.3] - 2026-05-20
 
