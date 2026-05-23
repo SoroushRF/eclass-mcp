@@ -2,13 +2,14 @@
 
 This directory contains focused docs for the primary registered MCP tools in `src/index.ts`; small cache-management utilities are summarized from the main README instead of having one folder each.
 
-## Current tools (25)
+## Current tools (26)
 
 - `list_courses` -> `docs/tools/list_courses/README.md`
 - `get_course_content` -> `docs/tools/get_course_content/README.md`
 - `get_section_text` -> `docs/tools/get_section_text/README.md`
 - `get_file_text` -> `docs/tools/get_file_text/README.md` (T22 complete)
 - `get_assignments` -> `docs/tools/get_assignments/README.md` (canonical cross-platform eClass + Cengage/WebAssign resolver with active WebAssign context verification)
+- `prepare_assignment_submission` -> `docs/tools/prepare_assignment_submission/README.md` (read-only T37 preflight with signed `preflightRef` for future assignment writes)
 - `get_upcoming_deadlines` -> `docs/tools/get_upcoming_deadlines/README.md`
 - `get_deadlines` -> `docs/tools/get_deadlines/README.md`
 - `get_item_details` -> `docs/tools/get_item_details/README.md`

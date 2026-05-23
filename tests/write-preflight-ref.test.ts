@@ -200,8 +200,17 @@ describe('write preflight target hashing and contracts', () => {
   it('accepts local intended file paths but rejects URL uploads', () => {
     expect(
       AssignmentSubmissionPreflightInputSchema.safeParse({
+        platform: 'eclass',
         assignmentUrl: 'https://eclass.yorku.ca/mod/assign/view.php?id=55',
         intendedFiles: [{ path: 'C:\\tmp\\answer.pdf' }],
+      }).success
+    ).toBe(true);
+    expect(
+      AssignmentSubmissionPreflightInputSchema.safeParse({
+        platform: 'cengage',
+        entryUrl: 'https://www.cengage.com/dashboard/home',
+        courseKey: 'WA-123',
+        assignmentQuery: 'Homework 1',
       }).success
     ).toBe(true);
     expect(
@@ -215,10 +224,14 @@ describe('write preflight target hashing and contracts', () => {
     expect(
       AssignmentSubmissionPreflightResponseSchema.safeParse({
         status: 'ok',
+        platform: 'cengage',
+        writeSupport: 'unsupported_external_platform',
+        submissionMode: 'external',
         assignment: {
           url: 'https://eclass.yorku.ca/mod/assign/view.php?id=55',
           title: 'Lab 1',
         },
+        warnings: ['Cengage/WebAssign is read-only for now.'],
         targetHash: 'abc',
         preflightRef: 'preflight.payload.signature',
       }).success

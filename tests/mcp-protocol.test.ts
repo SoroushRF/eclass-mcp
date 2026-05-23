@@ -77,6 +77,7 @@ const mocks = vi.hoisted(() => ({
     downloadFile: vi.fn(),
     getSectionText: vi.fn(),
     getItemDetails: vi.fn(),
+    getAssignmentSubmissionPreflight: vi.fn(),
   },
 }));
 
@@ -155,6 +156,7 @@ const EXPECTED_TOOL_NAMES = [
   'get_upcoming_deadlines',
   'list_cengage_courses',
   'list_courses',
+  'prepare_assignment_submission',
   'search_professors',
 ] as const;
 
@@ -386,6 +388,23 @@ describe('MCP protocol integration', () => {
       ])
     );
 
+    const preflight = toolByName(tools, 'prepare_assignment_submission');
+    expect(Object.keys(schemaProperties(preflight))).toEqual(
+      expect.arrayContaining([
+        'platform',
+        'assignmentUrl',
+        'entryUrl',
+        'ssoUrl',
+        'courseId',
+        'courseKey',
+        'courseCode',
+        'courseQuery',
+        'assignmentId',
+        'assignmentQuery',
+        'intendedFiles',
+      ])
+    );
+
     const cengageAssignments = toolByName(tools, 'get_cengage_assignments');
     expect(Object.keys(schemaProperties(cengageAssignments))).toEqual(
       expect.arrayContaining([
@@ -613,6 +632,55 @@ describe('MCP protocol integration', () => {
       false,
       expect.any(Object)
     );
+  });
+
+  it('routes assignment submission preflight through protocol callTool', async () => {
+    const originalSecret = process.env.ECLASS_MCP_SESSION_SECRET;
+    process.env.ECLASS_MCP_SESSION_SECRET = 'protocol-secret'.repeat(3);
+    mocks.scraper.getAssignmentSubmissionPreflight.mockResolvedValueOnce({
+      kind: 'assign',
+      url: 'https://eclass.yorku.ca/mod/assign/view.php?id=777',
+      title: 'Protocol Preflight',
+      courseId: 'protocol-course',
+      cmId: '777',
+      submissionState: 'Draft',
+      canEditSubmission: true,
+      isFinalized: false,
+      uploadSlots: [
+        {
+          kind: 'file',
+          label: 'File submissions',
+          canUpload: true,
+        },
+      ],
+    });
+    try {
+      const { deps } = createFakeProtocolDependencies();
+      harness = await createProtocolHarness(deps);
+
+      const payload = parseFirstTextJson(
+        await harness.client.callTool({
+          name: 'prepare_assignment_submission',
+          arguments: {
+            assignmentUrl: 'https://eclass.yorku.ca/mod/assign/view.php?id=777',
+          },
+        })
+      );
+
+      expect(payload).toMatchObject({
+        status: 'ok',
+        platform: 'eclass',
+        assignment: expect.objectContaining({ title: 'Protocol Preflight' }),
+      });
+      expect(payload.preflightRef).toEqual(expect.any(String));
+      expect(mocks.scraper.getAssignmentSubmissionPreflight).toHaveBeenCalled();
+    } finally {
+      if (originalSecret === undefined) {
+        delete process.env.ECLASS_MCP_SESSION_SECRET;
+      } else {
+        process.env.ECLASS_MCP_SESSION_SECRET = originalSecret;
+      }
+    }
   });
 
   it('returns structured RMP circuit-open errors through protocol callTool', async () => {

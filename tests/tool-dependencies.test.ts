@@ -98,6 +98,12 @@ function createFakeDependencies(): {
       url,
       title: 'Injected Item',
     })),
+    getAssignmentSubmissionPreflight: vi.fn(async (url: string) => ({
+      kind: 'assign' as const,
+      url,
+      title: 'Injected Item',
+      uploadSlots: [],
+    })),
     downloadFile: vi.fn(async () => ({
       buffer: Buffer.from('plain text'),
       mimeType: 'text/plain',

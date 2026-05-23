@@ -14,6 +14,7 @@ const PUBLIC_TOOLS = [
   'get_section_text',
   'get_file_text',
   'get_assignments',
+  'prepare_assignment_submission',
   'get_upcoming_deadlines',
   'get_deadlines',
   'get_item_details',
@@ -170,7 +171,7 @@ ${tableRow(['Worktree state', metadata.worktree])}
 
 ### Tool Surface Inventory
 
-Expected public MCP tool count: 25.
+Expected public MCP tool count: 26.
 
 ${toolInventory}
 
@@ -184,26 +185,27 @@ npx.cmd @modelcontextprotocol/inspector node dist/index.js
 
 | # | Tool | Scope | Result | Evidence | Issue # | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| I-0 | tool discovery | no credential |  | Confirm exactly 25 tools, including \`cache_health\` |  | Record schema/listing drift here |
+| I-0 | tool discovery | no credential |  | Confirm exactly 26 tools, including \`cache_health\` and \`prepare_assignment_submission\` |  | Record schema/listing drift here |
 | I-1 | \`list_courses\` | eClass credential |  |  |  | Course list shape only, redact names |
 | I-2 | \`get_course_content\` | eClass credential |  |  |  | Use one course ID from I-1 |
 | I-3 | \`get_section_text\` | eClass credential |  |  |  | Safe eClass section URL only |
 | I-4 | \`get_file_text\` | eClass credential |  |  |  | Safe eClass file URL only |
 | I-5 | \`get_assignments\` | eClass plus optional Cengage |  |  |  | Default user-facing assignment/deadline path |
-| I-6 | \`get_upcoming_deadlines\` | eClass credential |  |  |  | eClass-only regression row |
-| I-7 | \`get_deadlines\` | eClass credential |  |  |  | eClass-only regression row |
-| I-8 | \`get_item_details\` | eClass credential |  |  |  | Assignment/quiz/page details |
-| I-9 | \`get_grades\` | eClass credential |  |  |  | Redact grade values in evidence |
-| I-10 | \`get_announcements\` | eClass credential |  |  |  | Redact names and course context |
-| I-11 | \`get_exam_schedule\` | SIS credential |  |  |  | Legitimate no-data is Skip, not Fail |
-| I-12 | \`get_class_timetable\` | SIS credential |  |  |  | Legitimate no-data is Skip, not Fail |
-| I-13 | \`search_professors\` | RMP upstream |  |  |  | Do not hammer upstream on failures |
-| I-14 | \`get_professor_details\` | RMP upstream |  |  |  | Use one ID from I-13 when available |
-| I-15 | \`discover_cengage_links\` | eClass/Cengage context |  |  |  | Discovery only, no credential evidence |
-| I-16 | \`list_cengage_courses\` | Cengage credential |  |  |  | Direct dashboard link if available |
-| I-17 | \`get_cengage_assignments\` | Cengage/WebAssign credential |  |  |  | Direct course URL or selected course |
-| I-18 | \`get_cengage_assignment_details\` | Cengage/WebAssign credential |  |  |  | Active-course context must match |
-| I-19 | \`cache_health\` | no credential |  |  |  | Read-only; no raw filenames, URLs, or absolute paths |
+| I-6 | \`prepare_assignment_submission\` | eClass plus optional Cengage |  |  |  | Read-only; returns status and signed \`preflightRef\` only on exact resolved targets |
+| I-7 | \`get_upcoming_deadlines\` | eClass credential |  |  |  | eClass-only regression row |
+| I-8 | \`get_deadlines\` | eClass credential |  |  |  | eClass-only regression row |
+| I-9 | \`get_item_details\` | eClass credential |  |  |  | Assignment/quiz/page details |
+| I-10 | \`get_grades\` | eClass credential |  |  |  | Redact grade values in evidence |
+| I-11 | \`get_announcements\` | eClass credential |  |  |  | Redact names and course context |
+| I-12 | \`get_exam_schedule\` | SIS credential |  |  |  | Legitimate no-data is Skip, not Fail |
+| I-13 | \`get_class_timetable\` | SIS credential |  |  |  | Legitimate no-data is Skip, not Fail |
+| I-14 | \`search_professors\` | RMP upstream |  |  |  | Do not hammer upstream on failures |
+| I-15 | \`get_professor_details\` | RMP upstream |  |  |  | Use one ID from I-14 when available |
+| I-16 | \`discover_cengage_links\` | eClass/Cengage context |  |  |  | Discovery only, no credential evidence |
+| I-17 | \`list_cengage_courses\` | Cengage credential |  |  |  | Direct dashboard link if available |
+| I-18 | \`get_cengage_assignments\` | Cengage/WebAssign credential |  |  |  | Direct course URL or selected course |
+| I-19 | \`get_cengage_assignment_details\` | Cengage/WebAssign credential |  |  |  | Active-course context must match |
+| I-20 | \`cache_health\` | no credential |  |  |  | Read-only; no raw filenames, URLs, or absolute paths |
 
 ### Claude Desktop Matrix
 
@@ -215,14 +217,15 @@ npx.cmd @modelcontextprotocol/inspector node dist/index.js
 | C-4 | Read this file: <fileUrl from content>. | \`get_file_text\` |  |  |  |  |
 | C-5 | What is due in the next two weeks? | \`get_assignments\` |  |  |  | Cross-platform default |
 | C-6 | Check assignments across eClass and Cengage/WebAssign for <course>. | \`get_assignments\` |  |  |  | Auth/activation guidance is acceptable |
-| C-7 | Get full details for this assignment URL: <url>. | \`get_item_details\` |  |  |  |  |
-| C-8 | What are my grades? | \`get_grades\` |  |  |  | Redact values |
-| C-9 | Recent announcements for <course>. | \`get_announcements\` |  |  |  |  |
-| C-10 | What are my upcoming exams? | \`get_exam_schedule\` |  |  |  | Skip if no current exam data |
-| C-11 | What is my class schedule? | \`get_class_timetable\` |  |  |  | Skip if no current timetable data |
-| C-12 | Search RateMyProfessors for professor <name>. | \`search_professors\` |  |  |  | Public data only |
-| C-13 | Get professor details for ID <id>. | \`get_professor_details\` |  |  |  | Public data only |
-| C-14 | Check local cache health. | \`cache_health\` |  |  |  | No credential, read-only |
+| C-7 | Prepare assignment submission preflight for this assignment URL: <url>. | \`prepare_assignment_submission\` |  |  |  | Read-only; redact course/assignment names; note \`status\` and whether \`preflightRef\` exists |
+| C-8 | Get full details for this assignment URL: <url>. | \`get_item_details\` |  |  |  |  |
+| C-9 | What are my grades? | \`get_grades\` |  |  |  | Redact values |
+| C-10 | Recent announcements for <course>. | \`get_announcements\` |  |  |  |  |
+| C-11 | What are my upcoming exams? | \`get_exam_schedule\` |  |  |  | Skip if no current exam data |
+| C-12 | What is my class schedule? | \`get_class_timetable\` |  |  |  | Skip if no current timetable data |
+| C-13 | Search RateMyProfessors for professor <name>. | \`search_professors\` |  |  |  | Public data only |
+| C-14 | Get professor details for ID <id>. | \`get_professor_details\` |  |  |  | Public data only |
+| C-15 | Check local cache health. | \`cache_health\` |  |  |  | No credential, read-only |
 | C-S | Force an expired eClass session, then ask for an eClass-only tool. | any eClass tool |  |  |  | Confirm re-auth guidance and recovery |
 
 ### Maturity Regression Rows

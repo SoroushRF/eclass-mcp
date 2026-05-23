@@ -112,5 +112,42 @@ export interface CourseContent {
   }[];
 }
 
+export interface SubmissionCurrentFile extends Record<string, unknown> {
+  name: string;
+  sizeBytes?: number;
+  mimeType?: string;
+}
+
+export interface SubmissionUploadSlot extends Record<string, unknown> {
+  kind: 'file' | 'online_text' | 'unknown';
+  id?: string;
+  label?: string;
+  required?: boolean;
+  accepts?: string[];
+  maxBytes?: number;
+  maxFiles?: number;
+  canUpload?: boolean;
+  currentFiles?: SubmissionCurrentFile[];
+}
+
+export interface AssignmentSubmissionPreflightData {
+  kind: 'assign';
+  url: string;
+  courseId?: string;
+  title: string;
+  cmId?: string;
+  dueDate?: string;
+  dueDateIso?: string;
+  cutoffDate?: string;
+  submissionState?: string;
+  gradingState?: string;
+  isFinalized?: boolean;
+  canEditSubmission?: boolean;
+  canSubmitFinal?: boolean;
+  fields?: Record<string, string>;
+  uploadSlots: SubmissionUploadSlot[];
+  warnings?: string[];
+}
+
 import { SessionExpiredError } from '../session';
 export { SessionExpiredError };

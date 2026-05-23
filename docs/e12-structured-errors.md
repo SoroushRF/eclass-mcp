@@ -113,9 +113,14 @@ MCP registration owns trace context and protocol result validation only. Busines
 
 ### Phase 5 — Future writes (E20)
 
-- Missing `preflightRef` is **`WRITE_PREFLIGHT_REQUIRED`**, not an auth failure.
-- Expired `preflightRef` is **`WRITE_PREFLIGHT_EXPIRED`**, not an internal failure; call the prepare tool again.
-- Ambiguous target resolution is **`WRITE_TARGET_AMBIGUOUS`** unless the DOM itself cannot be interpreted, in which case use **`SCRAPE_LAYOUT_CHANGED`**.
+- `prepare_assignment_submission` is the concrete T37 read-only prepare tool. It returns `status: "ok" | "ambiguous" | "blocked" | "error"` JSON and only includes a signed `preflightRef` when one exact target is resolved.
+- Missing `preflightRef` in a future write tool is **`WRITE_PREFLIGHT_REQUIRED`**, not an auth failure.
+- Expired `preflightRef` is **`WRITE_PREFLIGHT_EXPIRED`**, not an internal failure; call `prepare_assignment_submission` again.
+- Ambiguous target resolution in T37 is returned as `status: "ambiguous"` with **`WRITE_TARGET_AMBIGUOUS`** and candidates, unless the DOM itself cannot be interpreted, in which case use **`SCRAPE_LAYOUT_CHANGED`**.
+- T37 local-file prechecks return `status: "blocked"` with **`WRITE_PRECHECK_FAILED`** when an intended file is missing, unreadable, or a directory.
+- T37 Moodle upload-slot checks return `status: "blocked"` with **`UPLOAD_SLOT_NOT_FOUND`** when intended files were provided but no usable file-upload slot exists.
+- T37 finalized Moodle submissions return `status: "blocked"` with **`SUBMISSION_ALREADY_FINALIZED`** when editing is unavailable.
+- T37 Cengage/WebAssign active-course mismatches preserve the T42 behavior with **`COURSE_CONTEXT_MISMATCH`** and retry guidance.
 - Changed course, assignment title, due date, submission state, upload slots, or intended file facts after preflight is **`WRITE_PLATFORM_STATE_CHANGED`**. The model/user must call the prepare tool again before retrying the write.
 - Missing `confirm: true` is **`WRITE_CONFIRMATION_REQUIRED`**.
 

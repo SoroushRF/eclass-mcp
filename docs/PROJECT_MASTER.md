@@ -58,11 +58,12 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T31**     | [x] Cengage Integration Phase 5 complete: verification coverage and E2E run logging — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)            |
 | **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                |
 | **T36**     | [x] Auth blocking poll retrofit — eClass + SIS tools open `/auth`, wait briefly for login, and retry once before returning `auth_required` — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                     |
-| **T37-T40** | Future **write tools** (assignment preflight, submit, calendar, E2E) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                                            |
+| **T37-T40** | Future **write tools** (T37 assignment preflight done; submit, calendar, E2E pending) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                             |
 | **T41**     | [x] Cross-platform assignment resolver - canonical `get_assignments` tool checks eClass plus Cengage/WebAssign, with durable course-platform index outside TTL cache - see [2.15](#215-detailed-plan--t41-cross-platform-assignment-resolver)                                                            |
 | **T42**     | [x] Cengage/WebAssign course activation hardening - verifies active WebAssign course context, restores direct-link-first assignment behavior, and returns `needs_course_activation` for wrong-course landings - see [2.16](#216-detailed-plan--t42-cengagewebassign-course-activation-hardening)         |
+| **T43**     | [x] Windows Codex Desktop setup helper - global `%USERPROFILE%\.codex\config.toml` registration with dry-run, backup/restore, doctor diagnostics, and docs.                                                                                                                                              |
 | **E01-E19** | Engineering "gap to 9+" work items (mapped from former `review.md` epics A-D)                                                                                                                                                                                                                            |
-| **E20-E21** | Write-tool **safety** (**E20** preflight contracts complete; **E21** post-write audit + cache invalidation pending) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                          |
+| **E20-E21** | Write-tool **safety** (**E20** preflight contracts complete; **E21** post-write audit + cache invalidation pending) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                             |
 
 Status: `[x]` done in repo today ? `[ ]` not done / not verified to standard.
 
@@ -188,7 +189,7 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - [x] **T05** ? eClass scraper core (`src/scraper/eclass.ts`, `SessionExpiredError`, real scraping APIs; evolved well beyond original mock stage).
 - [x] **T06** ? File parsers (`src/parser/pdf.ts`, `docx.ts`, `pptx.ts`; PDF path later upgraded ? see file-tool docs).
 - [x] **T07** ? MCP tool modules (`src/tools/*.ts`, cache + session error handling).
-- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **25 tools** today vs original 6).
+- [x] **T08** ? MCP server entry (`src/index.ts`, stdio transport, tool registration ? **26 tools** today vs original 6).
 - [x] **T09** ? Claude Desktop setup helper (`scripts/setup-claude.sh`, `npm run setup` pattern).
 - [x] **T10** ? Real York eClass selectors and scraper hardening (ongoing refinement; baseline **done**).
 - [x] **T11** ??? **Formal Claude Desktop E2E verification** ??? **Completed 2026-03-22** (Run [1]). See [`docs/e2e-run-log.md`](./e2e-run-log.md).
@@ -206,16 +207,16 @@ Execute **in order**; do not skip inspect/research tasks.
 - [x] **T16** ??? **SIS Tools** ??? Registered `get_exam_schedule` and `get_class_timetable` in `src/index.ts`. **Completed 2026-03-22**.
 - [x] **T17** ? Add `scripts/inspect-rmp.ts`: resolve York school ID via RMP GraphQL; confirm `Authorization` token.
 - [x] **T18** ? Implement `src/tools/rmp.ts`, register `search_professors` and `get_professor_details`, `TTL.PROFESSOR`.
-- [x] **T19** ? README + `PROJECT_MASTER` + tool table for the SIS/RMP beta milestone; current registered surface is **25 tools**.
+- [x] **T19** ? README + `PROJECT_MASTER` + tool table for the SIS/RMP beta milestone; current registered surface is **26 tools**.
 - [x] **T20** ? **E2E engine beta**: four new tools verified in Claude Desktop (SIS x2 + RMP x2). **Completed 2026-03-23**; see [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
 ---
 
 ### 2.4 Tracker ??? engine polish / post-beta (T21-T42)
 
-Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retry work is tracked in T28-T36** (see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry)); **future write tools are T37-T40** and require completed **E20** preflight contracts plus pending **E21** post-write hygiene before destructive behavior ships (see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)).
+Optional parallel work (does not block T14-T20). **Cengage / WeBWorK / auth-retry work is tracked in T28-T36** (see [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry)); **future write tools are T37-T40**. T37 read-only preflight is complete; destructive behavior still requires completed **E20** preflight contracts plus pending **E21** post-write hygiene (see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)).
 
-T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cengage/WebAssign activation path after the MATH 1014 -> PHYS 1800 wrong-course landing regression.
+T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cengage/WebAssign activation path after the MATH 1014 -> PHYS 1800 wrong-course landing regression. T43 adds Windows Codex Desktop registration without changing the stdio MCP runtime.
 
 #### 2.4.1 Automation, scraper, cache (T21-T27)
 
@@ -240,10 +241,10 @@ T41 adds the read-only cross-platform assignment resolver. T42 hardens the Cenga
 
 **Prerequisites:** **E20** satisfied before implementing destructive tools; **E11** / **E12** are part of E20. **E21** must land **with** the first write tool merge (same PR or immediately after). **E13** (session at-rest hardening) is **strongly recommended** before relying on writes on shared machines.
 
-- [ ] **T37** ? **Assignment submission preflight:** scraper + MCP tool(s) to resolve an assignment activity (from course/URL/cm id), return **read-only** constraints (due date, allowed types/size, draft vs final, current submission summary). No upload. Supports human-in-the-loop workflows.
+- [x] **T37** ? **Assignment submission preflight:** registered `prepare_assignment_submission` as a read-only preflight tool for eClass/Moodle and Cengage/WebAssign. It resolves assignment targets, returns constraints/status/upload facts, hashes intended local files, signs `preflightRef`, and performs no upload or remote mutation. **Completed 2026-05-22**.
 - [ ] **T38** ? **`submit_assignment` (working name):** Playwright flow: upload file(s) / text per Moodle UI, final submit. **Required:** Zod input includes explicit **`confirm: true`** and a signed **`preflightRef`** from the prepare tool; the tool revalidates the target before mutating. Depends on **T37** for validation path reuse.
 - [ ] **T39** ? **`add_calendar_event` (working name):** narrow scope first (e.g. **personal** calendar events the UI allows for the student role); same **preflightRef** + **confirm** model as T38. Inspect script + selectors before implementation.
-- [ ] **T40** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for **T37-T39** (preflight, submit, calendar); include session-expired, missing/stale preflight reference, confirmation-required, and platform-state-changed cases.
+- [ ] **T40** ? **E2E future writes:** extend [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md) + [`docs/e2e-run-log.md`](./e2e-run-log.md) for the write track. T37 preflight smoke rows are in the handbook/template; submit/calendar rows should include session-expired, missing/stale preflight reference, confirmation-required, and platform-state-changed cases.
 
 #### 2.4.4 Cross-platform assignment resolver (T41)
 
@@ -286,7 +287,7 @@ _(E01?E07 = Epic A, E08?E12 = B, E13?E15 = C, E16?E19 = D; **E20?E21** = write-t
 
 **Goal:** Validate the real Claude Desktop host end-to-end and capture a reusable manual run record. The exact operator flow lives in [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md).
 
-**Minimum scope:** the current 25-tool Inspector/Claude Desktop matrix in [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md), the session-expiry regression, redacted evidence in [`docs/e2e-run-log.md`](./e2e-run-log.md), and clean automated verification at the tested commit.
+**Minimum scope:** the current 26-tool Inspector/Claude Desktop matrix in [`docs/t11-e2e-handbook.md`](./t11-e2e-handbook.md), the session-expiry regression, redacted evidence in [`docs/e2e-run-log.md`](./e2e-run-log.md), and clean automated verification at the tested commit.
 
 **Definition of done:** the handbook run was completed as written, every row is marked Pass/Fail/Skip with reasons, and every Fail has an issue number in the run log.
 
@@ -698,7 +699,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 #### Product shape (T37-T39)
 
-- **Preflight first (T37):** A read-only tool (or extension of existing detail fetch) that returns **constraints**, **current submission state**, warnings, and a signed **`preflightRef`** so the model and user can sanity-check before any upload.
+- **Preflight first (T37):** `prepare_assignment_submission` is the read-only tool that returns **constraints**, **current submission state**, warnings, intended-file facts, and a signed **`preflightRef`** so the model and user can sanity-check before any upload.
 - **Submit (T38):** One tool, narrow parameters (course/activity identity + local file path or agreed payload shape), mandatory **`preflightRef`** + **`confirm: true`**, strict MIME/size checks against preflight when feasible.
 - **Calendar (T39):** Start with events the **student role** can create in Moodle; same preflight reference + confirm model. Inspect script + selectors before implementation.
 
@@ -716,7 +717,8 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 - [x] **E20** checkboxes satisfied; write tools have shared contract schemas, signed preflight references, and write-specific error codes before implementation.
 - [ ] **E21** audit + invalidation behavior documented in README.
-- [ ] **T37-T39** implemented with shared validation helpers.
+- [x] **T37** implemented with shared E20 validation helpers and signed preflight references.
+- [ ] **T38-T39** implemented with shared validation helpers.
 - [ ] **T40** handbook + run log updated (or explicit Skip with reason).
 
 ---
@@ -772,7 +774,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 ## 3. Executive snapshot
 
-### 3.1 MCP tools currently registered (25)
+### 3.1 MCP tools currently registered (26)
 
 | Tool                             | Purpose                                                                                                                   |
 | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
@@ -781,6 +783,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 | `get_section_text`               | Paragraph text, links, and tabbed content for a section URL                                                               |
 | `get_file_text`                  | PDF / DOCX / PPTX extraction (hybrid text + rendered pages where applicable)                                              |
 | `get_assignments`                | Canonical cross-platform assignment resolver for eClass + Cengage/WebAssign with active-course verification               |
+| `prepare_assignment_submission`  | Read-only assignment submission preflight with exact target facts, intended-file hashes, and signed `preflightRef`        |
 | `get_upcoming_deadlines`         | eClass-only assignments due within N days (default 14); use `get_assignments` for external-platform coverage              |
 | `get_deadlines`                  | eClass-only deadlines by scope: `upcoming` \| `month` \| `range`                                                          |
 | `get_item_details`               | Deep fetch for one assignment/quiz URL (optional vision images, CSV inlining)                                             |
@@ -806,7 +809,7 @@ _Alternative:_ one `manage_cache` tool with a `mode` enum; trade-off is fewer re
 
 **Pinned cache ([T26](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools)):** **`cache_pin`** / **`cache_unpin`** / **`cache_list_pins`** / **`cache_refresh_pin`** / **`cache_delete_pinned`**; on-disk quota via **`ECLASS_MCP_PIN_QUOTA_BYTES`**.
 
-**Planned future writes ([T37-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), after completed **E20** preflight contracts and pending **E21** post-write hygiene in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names), plus **assignment preflight**; risky write calls require signed **`preflightRef`**, explicit **`confirm: true`**, and target revalidation immediately before mutation.
+**Planned future writes ([T38-T40](#2.14-detailed-plan---future-write-tools---safety-t37-t40), after completed **E20/T37** preflight contracts and pending **E21** post-write hygiene in §2.5):** **`submit_assignment`** and **`add_calendar_event`** (working names); risky write calls require signed **`preflightRef`** from `prepare_assignment_submission`, explicit **`confirm: true`**, and target revalidation immediately before mutation.
 
 **Source of truth:** [`src/index.ts`](../src/index.ts).
 
@@ -870,14 +873,14 @@ return runEclassToolBoundary({
 });
 ```
 
-| Family | Boundary | Unknown error |
-| --- | --- | --- |
-| eClass | `runEclassToolBoundary` | Redacted `INTERNAL_ERROR` JSON |
-| SIS | `runEclassToolBoundary` plus SIS schemas | Redacted `INTERNAL_ERROR` JSON |
-| RMP | `runToolBoundary` | Redacted `INTERNAL_ERROR` JSON |
-| Cengage/WebAssign | Custom Cengage envelope | Custom envelope |
-| `get_assignments` | Custom resolver envelope | Resolver envelope |
-| Cache/pins | Custom local-state envelope | Local-state envelope |
+| Family            | Boundary                                 | Unknown error                  |
+| ----------------- | ---------------------------------------- | ------------------------------ |
+| eClass            | `runEclassToolBoundary`                  | Redacted `INTERNAL_ERROR` JSON |
+| SIS               | `runEclassToolBoundary` plus SIS schemas | Redacted `INTERNAL_ERROR` JSON |
+| RMP               | `runToolBoundary`                        | Redacted `INTERNAL_ERROR` JSON |
+| Cengage/WebAssign | Custom Cengage envelope                  | Custom envelope                |
+| `get_assignments` | Custom resolver envelope                 | Resolver envelope              |
+| Cache/pins        | Custom local-state envelope              | Local-state envelope           |
 
 ### 4.3 Cache keys
 
@@ -973,7 +976,7 @@ Cengage hardening (**T28-T31**) is complete; the concise status summary lives in
 4. **Scraper structure** ? **T24** / [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
 5. **Cache / freshness (automatic)** ? **T25** / [?2.11](#211-detailed-plan--t25-smart-cache-metadata-clear_cache-tool).
 6. **User-pinned cache + quota** ? **T26** / [?2.12](#212-detailed-plan--t26-user-pinned-cache-quota-and-tools) _(after T25)_.
-7. **future write tools (preflight-first)** ? **T37-T40** + completed **E20** / pending **E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
+7. **future write tools (preflight-first)** ? completed **T37/E20** plus pending **T38-T40** / **E21** / [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40) _(after E11/E12; E13 recommended)_.
 8. **Auth retry (seamless)** ? **T36** / [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry).
 
 ---
@@ -1048,7 +1051,7 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 | Category               | Python ref | This repo | Notes                                       |
 | ---------------------- | ---------- | --------- | ------------------------------------------- |
 | Architecture clarity   | 8.0        | 8.5       | Modularized scrapers, typed selectors       |
-| Feature depth          | 4.0        | 9.0       | 25 tools, cross-platform resolver           |
+| Feature depth          | 4.0        | 9.0       | 26 tools, cross-platform resolver, T37 preflight |
 | Reliability/resilience | 5.5        | 8.5       | Selector registry, auth retry, drift codes  |
 | Security posture       | 5.5        | 8.5       | AES-256-GCM sessions, signed preflight refs |
 | Testing maturity       | 4.5        | 8.0       | 60 test suites, 75% branch gate             |
@@ -1063,7 +1066,7 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 - **SWOR:** strengths = York value, modular tools, Playwright realism, typed selector registry, signed preflight security; weaknesses = no global concurrency limiter, no write-tool audit log yet; opportunities = E21 audit, WeBWorK integration, proactive cron; risks = drift on untested Cengage/WebAssign pages, silent WAF changes.
 - **9.0+ means:** reliable, CI-tested, secure-enough local session, operable errors/logs, lifecycle docs, portable setup.
 - **KPIs:** CI pass rate, regression detection in one PR cycle, >75% branch coverage, zero cookie leaks in logs.
-- **Remaining sprint:** E21 (audit + cache invalidation), then T37?T40 write tools.
+- **Remaining sprint:** E21 (audit + cache invalidation), then T38-T40 write tools.
 
 ### 11.4 Score projection (after roadmap)
 
@@ -1085,26 +1088,26 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 ## 12. Phase D ? Maintainer / codebase health
 
 - **T24 ? `src/scraper/eclass/` modularization:** Completed; barrel re-export preserves downstream API. Full procedure in [?2.10b](#210b-detailed-plan--t24-scraper-modularization-eclassts-breakdown).
-- **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); completed **E20** preflight contracts and pending **E21** post-write hygiene in **§2.5**.
+- **T37-T40 future writes:** **§2.4.3** + [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40); completed **T37/E20** preflight contracts and pending **T38-T40/E21** write hygiene in **§2.5**.
 - **Align docs** when tool counts or auth flows change (README + ?2 trackers).
 
 ---
 
 ## Appendix A ? Documentation map
 
-| Topic                                     | Path                                                       |
-| ----------------------------------------- | ---------------------------------------------------------- |
-| **This master plan**                      | `docs/PROJECT_MASTER.md`                                   |
-| Engine versioning policy                  | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
-| Tool-by-tool docs index (25 tools)        | `docs/tools/README.md`                                     |
-| T11 / T20 ? Claude Desktop E2E procedure  | `docs/t11-e2e-handbook.md`                                 |
-| E2E run log (create when running T11)     | `docs/e2e-run-log.md`                                      |
-| Deadlines tool ? roadmap & testing        | `docs/tools/deadlines/roadmap.md`                          |
-| Deadlines ? history                       | `docs/tools/deadlines/history.md`                          |
-| File / PDF ? history & roadmap            | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
-| **E12 structured errors (machine codes)** | `docs/e12-structured-errors.md`                            |
+| Topic                                                  | Path                                                       |
+| ------------------------------------------------------ | ---------------------------------------------------------- |
+| **This master plan**                                   | `docs/PROJECT_MASTER.md`                                   |
+| Engine versioning policy                               | `docs/PROJECT_MASTER.md#engine-versioning--release-policy` |
+| Tool-by-tool docs index (26 tools)                     | `docs/tools/README.md`                                     |
+| T11 / T20 ? Claude Desktop E2E procedure               | `docs/t11-e2e-handbook.md`                                 |
+| E2E run log (create when running T11)                  | `docs/e2e-run-log.md`                                      |
+| Deadlines tool ? roadmap & testing                     | `docs/tools/deadlines/roadmap.md`                          |
+| Deadlines ? history                                    | `docs/tools/deadlines/history.md`                          |
+| File / PDF ? history & roadmap                         | `docs/tools/get_file_text/history.md`, `roadmap.md`        |
+| **E12 structured errors (machine codes)**              | `docs/e12-structured-errors.md`                            |
 | **E14 logging (Pino, stderr, trace/span correlation)** | `docs/logging.md`                                          |
-| User-facing README                        | `README.md`                                                |
+| User-facing README                                     | `README.md`                                                |
 
 ---
 

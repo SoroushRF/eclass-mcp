@@ -5,7 +5,7 @@ import {
   getDefaultEnvironment,
 } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-const EXPECTED_TOOL_COUNT = 25;
+const EXPECTED_TOOL_COUNT = 26;
 
 function smokeEnv(): Record<string, string> {
   return {
@@ -43,6 +43,7 @@ describe('MCP stdio smoke', () => {
       expect(toolNames).toHaveLength(EXPECTED_TOOL_COUNT);
       expect(toolNames).toContain('cache_health');
       expect(toolNames).toContain('get_assignments');
+      expect(toolNames).toContain('prepare_assignment_submission');
     } finally {
       await client.close();
       await transport.close();

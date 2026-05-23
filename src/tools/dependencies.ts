@@ -13,6 +13,7 @@ export type EclassScraperDependency = Pick<
   | 'getDeadlines'
   | 'getAllAssignmentDeadlines'
   | 'getItemDetails'
+  | 'getAssignmentSubmissionPreflight'
   | 'downloadFile'
   | 'getSectionText'
   | 'getGrades'

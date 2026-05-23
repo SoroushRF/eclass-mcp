@@ -3,6 +3,7 @@ import type {
   Announcement,
   Assignment,
   AssignmentDetails,
+  AssignmentSubmissionPreflightData,
   Course,
   CourseContent,
   DeadlineItem,
@@ -22,6 +23,7 @@ import { getCourses, getCourseContent } from './courses';
 import { getGrades } from './grades';
 import {
   getAssignmentDetails,
+  getAssignmentSubmissionPreflight,
   getItemDetails,
   getQuizDetails,
 } from './item-details';
@@ -60,6 +62,12 @@ export class EClassScraper {
 
   getAssignmentDetails(url: string): Promise<AssignmentDetails> {
     return getAssignmentDetails(this.session, url);
+  }
+
+  getAssignmentSubmissionPreflight(
+    url: string
+  ): Promise<AssignmentSubmissionPreflightData> {
+    return getAssignmentSubmissionPreflight(this.session, url);
   }
 
   getQuizDetails(url: string): Promise<QuizDetails> {

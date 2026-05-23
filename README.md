@@ -1,6 +1,6 @@
 # 🎓 eClass MCP
 
-> **Connect Claude to York University's eClass — assignments, deadlines, grades, and course files, right inside your AI assistant.**
+> **Connect Claude Desktop or Codex Desktop to York University's eClass — assignments, deadlines, grades, and course files, right inside your AI assistant.**
 
 > **Current engine stage:** `1.0.0-beta.3`
 >
@@ -17,7 +17,7 @@
 
 | ✅ This IS                                                                                                       | ❌ This is NOT                                               |
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| A local MCP server that lets Claude read your eClass data                                                        | A public API or cloud service                                |
+| A local MCP server that lets Claude Desktop or Codex Desktop read your eClass data                               | A public API or cloud service                                |
 | A scraping layer using your own authenticated session                                                            | A way to bypass any security or act on behalf of other users |
 | A tool for students to get faster, AI-assisted access to their own coursework                                    | A replacement for the eClass website                         |
 | Local-first — auth state/cache stay on your machine; tool requests go directly to the services you choose to use | Affiliated with or endorsed by York University               |
@@ -73,7 +73,7 @@ Navigation timeouts, auth wait windows, current concurrency posture, and rate-li
 
 ### Future write safety (E20)
 
-Future write tools are designed around accuracy-first preflight, not hidden registration gates. A risky write must first call a read-only prepare tool that returns the exact course, assignment, due date, submission state, upload constraints, warnings, and a signed `preflightRef`. The real write call must include that `preflightRef` plus `confirm: true`; the server rechecks the page before mutating and fails if the target is ambiguous, stale, or changed. Claude tool permissions are useful UX controls, but server-side target verification is the safety source of truth.
+Future write tools are designed around accuracy-first preflight, not hidden registration gates. A risky assignment write must first call the read-only `prepare_assignment_submission` tool, which returns the exact platform, course, assignment, due date, submission state, upload constraints, intended-file facts, warnings, and a signed `preflightRef`. The real write call must include that `preflightRef` plus `confirm: true`; the server rechecks the page before mutating and fails if the target is ambiguous, stale, or changed. Claude tool permissions are useful UX controls, but server-side target verification is the safety source of truth.
 
 ---
 
@@ -81,7 +81,7 @@ Future write tools are designed around accuracy-first preflight, not hidden regi
 
 ```mermaid
 flowchart LR
-    A[Claude Desktop] -- MCP stdio --> B[eclass-mcp server\nsrc/index.ts]
+    A[Claude Desktop / Codex Desktop] -- MCP stdio --> B[eclass-mcp server\nsrc/index.ts]
     B --> C{Tool Router}
     C --> D[Deadlines Tool\nsrc/tools/deadlines.ts]
     C --> E[Files Tool\nsrc/tools/files.ts]
@@ -108,6 +108,7 @@ flowchart LR
 | `get_course_content`             | Sections, files, assignments for one course                                                                                                                                                      | `courseId`                                                                                                                                                                                                                                                   |
 | `get_section_text`               | Section page text, links, and tabbed content                                                                                                                                                     | `url`                                                                                                                                                                                                                                                        |
 | `get_assignments`                | Canonical cross-platform resolver for eClass + Cengage/WebAssign assignments                                                                                                                     | `courseId?`, `courseCode?`, `courseQuery?`, `scope?`, `month?`, `year?`, `from?`, `to?`, `includeExternal?`, `platformSelection?`                                                                                                                            |
+| `prepare_assignment_submission`  | Read-only T37 preflight for future assignment writes; resolves eClass/Moodle upload state or Cengage/WebAssign assignment facts and signs an exact `preflightRef`                                | `platform?`, `assignmentUrl?`, `courseId?`, `courseCode?`, `courseQuery?`, `assignmentId?`, `assignmentQuery?`, `entryUrl?`, `ssoUrl?`, `courseKey?`, `intendedFiles?`                                                                                        |
 | `get_upcoming_deadlines`         | eClass-only assignments due in the next N days; use `get_assignments` for external-platform coverage                                                                                             | `daysAhead?`, `courseId?`                                                                                                                                                                                                                                    |
 | `get_deadlines`                  | eClass-only deadlines by scope: upcoming / month / range                                                                                                                                         | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?`                                                                                                                                                                                 |
 | `get_item_details`               | Full instructions + status + grade for one assignment or quiz URL                                                                                                                                | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?`                                                                                            |
@@ -187,12 +188,12 @@ _For formal E2E test runs, see the **[E2E Handbook](docs/t11-e2e-handbook.md)** 
 ### Prerequisites
 
 - Node.js ≥ 20.19.0
-- [Claude Desktop](https://claude.ai/download) (macOS or Windows)
+- [Claude Desktop](https://claude.ai/download) (macOS or Windows) or Codex Desktop on Windows
 - A York University eClass account
 
 ### 1 — Clone & Install
 
-```bash
+```powershell
 git clone <your-repo-url>
 cd eclass-mcp
 npm install
@@ -200,28 +201,51 @@ npm install
 
 ### 2 — Install Playwright's Chromium Browser
 
-```bash
-npx playwright install chromium
+```powershell
+npx.cmd playwright install chromium
 ```
 
 > ⚠️ This is required for scraping. If you see `ENOSPC`, free up disk space and retry.
 
 ### 3 — Configure Environment
 
-```bash
-cp .env.example .env
+```powershell
+copy .env.example .env
 # Edit .env and set ECLASS_MCP_SESSION_SECRET to a long local secret before authenticating.
 ```
 
-Run the read-only setup health check before debugging or registering Claude Desktop:
+Run the read-only setup health check before debugging or registering an MCP host:
 
-```bash
+```powershell
 npm run doctor
 ```
 
-Doctor checks Node/npm, the build artifact, Playwright Chromium, `.env`, secure session configuration, Claude Desktop config, permissions, and auth/session hints without opening a browser or changing local files.
+Doctor checks Node/npm, the build artifact, Playwright Chromium, `.env`, secure session configuration, Claude Desktop config, Codex Desktop config on Windows, permissions, and auth/session hints without opening a browser or changing local files.
 
-### 4 — Build & Register with Claude Desktop
+### 4 — Build & Register with a Desktop Host
+
+#### Codex Desktop on Windows
+
+Codex Desktop uses the global Codex config at `%USERPROFILE%\.codex\config.toml`.
+Preview the change first, then register the local stdio MCP server:
+
+```powershell
+npm run setup:codex -- --dry-run
+npm run setup:codex
+```
+
+The dry run prints the proposed Codex `mcp_servers.eclass` block without writing files. The real setup compiles TypeScript, creates a timestamped backup when an existing Codex config is present, and atomically writes the `eclass` MCP entry.
+
+To inspect or restore setup backups later:
+
+```powershell
+npm run setup:codex -- --list-backups
+npm run setup:codex -- --restore latest
+```
+
+Restart Codex Desktop after setup. In Codex, open the MCP/tools UI or ask a course question. If auth is missing, open `http://localhost:3000/auth`, complete York login, then retry.
+
+#### Claude Desktop
 
 ```bash
 npm run setup -- --dry-run
@@ -237,13 +261,13 @@ npm run setup -- --list-backups
 npm run setup -- --restore latest
 ```
 
-### 5 — Restart Claude Desktop
+### 5 — Restart Your Desktop Host
 
-Right-click the tray icon → **Quit**, then relaunch.
+For Claude Desktop, right-click the tray icon → **Quit**, then relaunch. For Codex Desktop, fully quit and relaunch the app so it reloads `%USERPROFILE%\.codex\config.toml`.
 
 ### 6 — Authenticate
 
-The first time Claude tries to use an eClass tool, you'll see:
+The first time Claude or Codex tries to use an eClass tool, you'll see:
 
 > _"eClass session not found. Please visit <http://localhost:3000/auth>"_
 
@@ -251,7 +275,7 @@ Open that URL. A visible browser window opens — log in with your York credenti
 
 Cengage/WebAssign auth uses the same encrypted local session store. If a Cengage tool returns `auth_required`, open the returned `/auth-cengage` URL after `ECLASS_MCP_SESSION_SECRET` is configured.
 
-You're done. Ask Claude anything about your courses.
+You're done. Ask Claude or Codex anything about your courses.
 
 ---
 
@@ -308,6 +332,8 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | Unsure what is misconfigured  | Run `npm run doctor` in the project root for a read-only checklist and exact next actions                                                                                                                                          |
 | Want to preview setup changes | Run `npm run setup -- --dry-run`; it prints the Claude config diff and does not write files                                                                                                                                        |
 | Claude config needs rollback  | Run `npm run setup -- --list-backups`, then `npm run setup -- --restore latest` or restore a specific listed backup path                                                                                                           |
+| Codex tools not visible       | Restart Codex Desktop, run `npm run doctor`, and inspect `%USERPROFILE%\.codex\config.toml`; rerun `npm run setup:codex` if the target is stale                                                                                    |
+| Codex login/tool timeout      | Confirm `tool_timeout_sec = 180` under `[mcp_servers.eclass]` in `%USERPROFILE%\.codex\config.toml`; rerun `npm run setup:codex` if needed                                                                                         |
 | `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                                                                                                                                                                                |
 | `SESSION_STORAGE_UNAVAILABLE` | Set `ECLASS_MCP_SESSION_SECRET` in `.env`, restart the MCP server, clear old plaintext auth sessions, then authenticate again                                                                                                      |
 | `SCRAPE_LAYOUT_CHANGED`       | The eClass/Cengage page layout no longer matches known selectors. Retry once after refreshing auth if the page was mid-login; otherwise inspect stderr `selector_match` / `selector_failure` logs and optional selector snapshots. |
@@ -361,7 +387,7 @@ rm -rf dist && npm.cmd run build
 
 | Topic                                                                   | Location                                                                                                                                 |
 | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Tool-by-tool docs index (all 25 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
+| Tool-by-tool docs index (all 26 tools)                                  | [`docs/tools/README.md`](docs/tools/README.md)                                                                                           |
 | Cross-platform assignment resolver                                      | [`docs/tools/get_assignments/README.md`](docs/tools/get_assignments/README.md)                                                           |
 | Cengage implementation and migration plan                               | [`docs/cengage-integration-implementation-plan.md`](docs/cengage-integration-implementation-plan.md)                                     |
 | Deadlines tool — full roadmap & architecture                            | [`docs/tools/deadlines/roadmap.md`](docs/tools/deadlines/roadmap.md)                                                                     |
@@ -437,7 +463,7 @@ The MCP server itself runs **entirely on your machine**, and local state stays l
 - When you use remote-backed tools, requests are sent directly from your machine to the relevant service: York eClass/SIS, Cengage/WebAssign, or RateMyProfessors.
 - URLs supplied by users or discovered from authenticated pages are restricted to HTTPS allowlisted upstream hosts and expected eClass/Cengage/WebAssign paths before authenticated fetch or navigation. Localhost/private-network URLs, unsafe protocols, embedded credentials, and host-spoofing suffixes are rejected.
 - Pinned cache refresh re-validates stored file and section URLs before re-fetching, including pins created by older versions.
-- No project-owned cloud service receives your data; Claude Desktop communicates with this MCP server over local stdio.
+- No project-owned cloud service receives your data; Claude Desktop and Codex Desktop communicate with this MCP server over local stdio. Codex configuration only points to the local process; auth state, cache, pins, and mappings remain under the project `.eclass-mcp/` directory.
 
 ---
 

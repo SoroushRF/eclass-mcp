@@ -34,12 +34,24 @@ export const IntendedUploadFileInputSchema = z
   .passthrough();
 
 export const AssignmentSubmissionPreflightInputSchema = z.object({
+  platform: z.enum(['auto', 'eclass', 'cengage']).optional(),
   assignmentUrl: z
     .string()
     .url()
     .optional()
     .describe('Preferred exact eClass assignment URL.'),
+  entryUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Optional Cengage/WebAssign dashboard, LTI, or course URL.'),
+  ssoUrl: z
+    .string()
+    .url()
+    .optional()
+    .describe('Legacy alias for entryUrl for Cengage/WebAssign flows.'),
   courseId: z.string().optional(),
+  courseKey: z.string().optional(),
   courseCode: z.string().optional(),
   courseQuery: z.string().optional(),
   assignmentId: z.string().optional(),
@@ -71,6 +83,7 @@ export const WriteAssignmentIdentitySchema = z
 
 export const UploadSlotSchema = z
   .object({
+    kind: z.enum(['file', 'online_text', 'unknown']).optional(),
     id: z.string().optional(),
     label: z.string().optional(),
     required: z.boolean().optional(),
@@ -107,6 +120,18 @@ export const AssignmentSubmissionPreflightResponseSchema = z
     status: z.enum(['ok', 'ambiguous', 'blocked', 'error']),
     code: optionalMachineCode,
     message: z.string().optional(),
+    platform: z.enum(['eclass', 'cengage']).optional(),
+    writeSupport: z
+      .enum([
+        'supported',
+        'unsupported_external_platform',
+        'unsupported_assignment_state',
+        'unknown',
+      ])
+      .optional(),
+    submissionMode: z
+      .enum(['file_upload', 'online_text', 'mixed', 'none', 'external'])
+      .optional(),
     course: WriteCourseIdentitySchema.optional(),
     assignment: WriteAssignmentIdentitySchema.optional(),
     uploadSlots: z.array(UploadSlotSchema).optional(),
@@ -114,6 +139,8 @@ export const AssignmentSubmissionPreflightResponseSchema = z
     warnings: z.array(z.string()).optional(),
     blockers: z.array(z.string()).optional(),
     candidates: z.array(z.unknown()).optional(),
+    retry: z.record(z.string(), z.unknown()).optional(),
+    nextActions: z.array(z.string()).optional(),
     targetHash: z.string().optional(),
     preflightRef: PreflightReferenceSchema.optional(),
     expiresAt: z.string().optional(),

@@ -5,6 +5,7 @@ import type {
   Attachment,
   AttachmentKind,
   AssignmentDetails,
+  AssignmentSubmissionPreflightData,
   ItemDetails,
   ItemDetailsBase,
   QuizDetails,
@@ -388,6 +389,344 @@ export async function getAssignmentDetails(
     await page.close();
     await context.close();
   }
+}
+
+function safeAssignmentFormUrl(value: string, baseUrl: string): string | null {
+  try {
+    const parsed = new URL(value, baseUrl);
+    if (parsed.protocol !== 'https:') return null;
+    if (parsed.hostname.toLowerCase() !== 'eclass.yorku.ca') return null;
+    if (!parsed.pathname.endsWith('/mod/assign/view.php')) return null;
+    const action = parsed.searchParams.get('action') || '';
+    if (!['editsubmission', 'addsubmission'].includes(action)) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+export async function getAssignmentSubmissionPreflight(
+  session: EClassBrowserSession,
+  url: string
+): Promise<AssignmentSubmissionPreflightData> {
+  const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+  const context = await session.getAuthenticatedContext();
+  const page = await context.newPage();
+  try {
+    await page.goto(safeUrl, { waitUntil: 'load', timeout: 60000 });
+    const currentPageUrl = getPageUrl(page);
+    if (currentPageUrl) {
+      validateFinalUrlForPolicy(currentPageUrl, 'eclass_item');
+    }
+
+    const data = await page.evaluate((pageUrl: string) => {
+      const normalize = (value: string | null | undefined) =>
+        (value || '').replace(/\s+/g, ' ').trim();
+      const parseBytes = (value: string): number | undefined => {
+        const match = value.match(
+          /(\d+(?:\.\d+)?)\s*(bytes?|kb|kib|mb|mib|gb|gib)/i
+        );
+        if (!match) return undefined;
+        const amount = Number(match[1]);
+        const unit = match[2].toLowerCase();
+        const multiplier = unit.startsWith('g')
+          ? 1024 * 1024 * 1024
+          : unit.startsWith('m')
+            ? 1024 * 1024
+            : unit.startsWith('k')
+              ? 1024
+              : 1;
+        return Math.round(amount * multiplier);
+      };
+      const extractCmId = (candidateUrl: string): string | undefined => {
+        try {
+          return (
+            new URL(candidateUrl, pageUrl).searchParams.get('id') || undefined
+          );
+        } catch {
+          return undefined;
+        }
+      };
+
+      const title =
+        normalize(
+          document.querySelector('h1')?.textContent || document.title
+        ) || 'Assignment';
+      const moodleWindow = window as Window & {
+        M?: { cfg?: { courseId?: unknown } };
+      };
+      const rawCourseId = moodleWindow.M?.cfg?.courseId;
+      const courseId =
+        (typeof rawCourseId === 'string' || typeof rawCourseId === 'number'
+          ? rawCourseId.toString()
+          : '') ||
+        document.body.className.match(/course-(\d+)/)?.[1] ||
+        '';
+      const cmId =
+        extractCmId(pageUrl) ||
+        document.body.className.match(/cmid-(\d+)/)?.[1] ||
+        undefined;
+
+      const fields: Record<string, string> = {};
+      const tables = Array.from(
+        document.querySelectorAll(
+          '.submissionstatustable, .feedbacktable, .generaltable'
+        )
+      );
+      for (const table of tables) {
+        const rows = Array.from(table.querySelectorAll('tr'));
+        for (const row of rows) {
+          const key = normalize(row.querySelector('th')?.textContent);
+          const value = normalize(row.querySelector('td')?.textContent);
+          if (key && value) fields[key] = value;
+        }
+      }
+
+      const allText = normalize(document.body?.innerText || '');
+      const dueDate =
+        fields['Due date'] ||
+        fields['Due'] ||
+        allText.match(/Due date\s+([^.]+)/i)?.[1]?.trim() ||
+        undefined;
+      const cutoffDate =
+        fields['Cut-off date'] ||
+        fields['Cutoff date'] ||
+        allText.match(/Cut-off date\s+([^.]+)/i)?.[1]?.trim() ||
+        undefined;
+      const submissionState =
+        fields['Submission status'] ||
+        fields['Status'] ||
+        fields['Attempt state'] ||
+        undefined;
+      const gradingState =
+        fields['Grading status'] || fields['Grade'] || undefined;
+
+      const anchors = Array.from(document.querySelectorAll('a[href]')).map(
+        (anchor) => {
+          const href =
+            (anchor as HTMLAnchorElement).href ||
+            anchor.getAttribute('href') ||
+            '';
+          return {
+            href,
+            text: normalize(anchor.textContent),
+          };
+        }
+      );
+      const editLink =
+        anchors.find((anchor) => /^(add|edit)\s+submission$/i.test(anchor.text))
+          ?.href || '';
+      const submitFinalLink =
+        anchors.find((anchor) => /submit assignment/i.test(anchor.text))
+          ?.href || '';
+
+      const currentFiles = anchors
+        .filter((anchor) => anchor.href.includes('pluginfile.php'))
+        .map((anchor) => ({ name: anchor.text || anchor.href }))
+        .filter((file, index, array) => {
+          return (
+            array.findIndex((candidate) => candidate.name === file.name) ===
+            index
+          );
+        });
+
+      const lowerState = `${submissionState || ''} ${allText}`.toLowerCase();
+      const isFinalized =
+        /submitted for grading|already submitted|submission is closed|no more submissions/i.test(
+          lowerState
+        ) && !editLink;
+
+      return {
+        url: pageUrl,
+        title,
+        courseId: courseId || undefined,
+        cmId,
+        dueDate,
+        cutoffDate,
+        submissionState,
+        gradingState,
+        isFinalized,
+        canEditSubmission: Boolean(editLink),
+        canSubmitFinal: Boolean(submitFinalLink),
+        fields,
+        currentFiles,
+        editUrl: editLink || undefined,
+        bodyMaxBytes: parseBytes(
+          allText.match(/Maximum file size[^.]*/i)?.[0] || ''
+        ),
+        bodyMaxFiles:
+          Number(
+            allText.match(/Maximum number of files\s*:?\s*(\d+)/i)?.[1] || ''
+          ) || undefined,
+      };
+    }, safeUrl);
+
+    const uploadSlots = [...extractReadOnlySlotsFromFields(data)];
+    const formUrl = data.editUrl
+      ? safeAssignmentFormUrl(data.editUrl, data.url)
+      : null;
+    if (formUrl) {
+      await page.goto(formUrl, { waitUntil: 'load', timeout: 60000 });
+      const formPageUrl = getPageUrl(page);
+      if (formPageUrl) {
+        validateFinalUrlForPolicy(formPageUrl, 'eclass_item');
+      }
+      const formSlots = await page.evaluate(() => {
+        const normalize = (value: string | null | undefined) =>
+          (value || '').replace(/\s+/g, ' ').trim();
+        const parseBytes = (value: string): number | undefined => {
+          const match = value.match(
+            /(\d+(?:\.\d+)?)\s*(bytes?|kb|kib|mb|mib|gb|gib)/i
+          );
+          if (!match) return undefined;
+          const amount = Number(match[1]);
+          const unit = match[2].toLowerCase();
+          const multiplier = unit.startsWith('g')
+            ? 1024 * 1024 * 1024
+            : unit.startsWith('m')
+              ? 1024 * 1024
+              : unit.startsWith('k')
+                ? 1024
+                : 1;
+          return Math.round(amount * multiplier);
+        };
+        const bodyText = normalize(document.body?.innerText || '');
+        const fileManagers = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '.filemanager, [data-fieldtype="filemanager"], input[name*="filemanager"]'
+          )
+        );
+        const slots: Array<{
+          kind: 'file' | 'online_text';
+          label: string;
+          canUpload: boolean;
+          maxBytes?: number;
+          maxFiles?: number;
+          accepts?: string[];
+        }> = fileManagers.length
+          ? [
+              {
+                kind: 'file' as const,
+                label: 'File submissions',
+                canUpload: true,
+                maxBytes: parseBytes(
+                  bodyText.match(/Maximum file size[^.]*/i)?.[0] || ''
+                ),
+                maxFiles:
+                  Number(
+                    bodyText.match(
+                      /Maximum number of files\s*:?\s*(\d+)/i
+                    )?.[1] || ''
+                  ) || undefined,
+                accepts: Array.from(
+                  new Set(
+                    Array.from(
+                      document.querySelectorAll<HTMLInputElement>(
+                        'input[accept]'
+                      )
+                    )
+                      .flatMap((input) => (input.accept || '').split(','))
+                      .map((item) => item.trim())
+                      .filter(Boolean)
+                  )
+                ),
+              },
+            ]
+          : [];
+        const onlineText = document.querySelector(
+          'textarea[name*="onlinetext"], [data-fieldtype="editor"] textarea'
+        );
+        if (onlineText) {
+          slots.push({
+            kind: 'online_text' as const,
+            label: 'Online text',
+            canUpload: true,
+          });
+        }
+        return slots;
+      });
+      uploadSlots.push(...formSlots);
+    }
+
+    const dedupedSlots = dedupeUploadSlots(uploadSlots);
+    if (
+      data.currentFiles.length > 0 &&
+      !dedupedSlots.some((slot) => slot.kind === 'file')
+    ) {
+      dedupedSlots.push({
+        kind: 'file',
+        label: 'File submissions',
+        canUpload: Boolean(data.canEditSubmission),
+        maxBytes: data.bodyMaxBytes,
+        maxFiles: data.bodyMaxFiles,
+        currentFiles: data.currentFiles,
+      });
+    } else if (data.currentFiles.length > 0) {
+      for (const slot of dedupedSlots) {
+        if (slot.kind === 'file' && !slot.currentFiles) {
+          slot.currentFiles = data.currentFiles;
+        }
+      }
+    }
+
+    return {
+      kind: 'assign',
+      url: data.url,
+      courseId: data.courseId,
+      title: data.title,
+      cmId: data.cmId,
+      dueDate: data.dueDate,
+      cutoffDate: data.cutoffDate,
+      submissionState: data.submissionState,
+      gradingState: data.gradingState,
+      isFinalized: data.isFinalized,
+      canEditSubmission: data.canEditSubmission,
+      canSubmitFinal: data.canSubmitFinal,
+      fields: Object.keys(data.fields).length ? data.fields : undefined,
+      uploadSlots: dedupedSlots,
+      warnings: formUrl
+        ? undefined
+        : data.canEditSubmission
+          ? ['Could not safely inspect the edit-submission form URL.']
+          : undefined,
+    };
+  } finally {
+    await page.close();
+    await context.close();
+  }
+}
+
+function extractReadOnlySlotsFromFields(data: {
+  currentFiles: { name: string; sizeBytes?: number; mimeType?: string }[];
+  canEditSubmission: boolean;
+  bodyMaxBytes?: number;
+  bodyMaxFiles?: number;
+}): AssignmentSubmissionPreflightData['uploadSlots'] {
+  if (data.currentFiles.length === 0) return [];
+  return [
+    {
+      kind: 'file',
+      label: 'File submissions',
+      canUpload: data.canEditSubmission,
+      maxBytes: data.bodyMaxBytes,
+      maxFiles: data.bodyMaxFiles,
+      currentFiles: data.currentFiles,
+    },
+  ];
+}
+
+function dedupeUploadSlots(
+  slots: AssignmentSubmissionPreflightData['uploadSlots']
+): AssignmentSubmissionPreflightData['uploadSlots'] {
+  const seen = new Set<string>();
+  const result: AssignmentSubmissionPreflightData['uploadSlots'] = [];
+  for (const slot of slots) {
+    const key = `${slot.kind}:${slot.label || ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(slot);
+  }
+  return result;
 }
 
 export async function getQuizDetails(

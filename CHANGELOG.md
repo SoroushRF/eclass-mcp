@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added T37 `prepare_assignment_submission`, a read-only assignment preflight tool that resolves eClass/Moodle and Cengage/WebAssign targets, signs exact `preflightRef` facts, blocks unsafe intended files or finalized/no-upload states, and marks external-platform writes unsupported for now.
+- Added Windows Codex Desktop setup support with `npm run setup:codex`, safe TOML merge/backup/restore handling, and doctor checks for the Codex `mcp_servers.eclass` registration.
 - Added follow-up ADR coverage for the MCP tool boundary, RMP circuit breaker, structured trace correlation, manual dependency injection, and read-only cache observability (`docs/adr/0005` through `0009`, plus the ADR index).
 - Added stdio MCP smoke coverage for real entrypoint tool discovery, plus additional protocol coverage for read-only pin listing, Cengage argument validation, and RMP detail error responses.
 - Added deeper protocol coverage for injected SIS and Cengage tool calls, plus an unmocked RMP circuit-breaker path through MCP `callTool`.

@@ -13,7 +13,7 @@ What this handbook covers:
 - prerequisites and environment capture
 - the exact prompt matrix
 - **Phase A.1: Inspector Smoke Pass (Server-only)**
-- the current 25-tool MCP surface, including `cache_health`
+- the current 26-tool MCP surface, including `cache_health` and `prepare_assignment_submission`
 - maturity regression rows for protocol validation, cache health, shutdown, trace logs, and RMP circuit breaker behavior
 - pass/fail/skip rules
 - session-expiry regression
@@ -133,14 +133,15 @@ Use these prompts as written unless the local data forces a small adjustment.
 | 5   | What is due in the next two weeks?                          | `get_assignments`       | Resolver envelope; checked sources are explicit; returned items have `platform`, `name`, and due metadata |
 | 6   | What deadlines are in March 2026?                           | `get_assignments`       | Resolver envelope; returned dates fall within the requested month                                         |
 | 7   | Assignments due between <start> and <end>                   | `get_assignments`       | Resolver envelope; returned dates fall within the requested range                                         |
-| 8   | Get full details for this assignment URL <url>              | `get_item_details`      | Has `kind` and at least one of `instructions` or `fields`                                                 |
-| 9   | What are my grades?                                         | `get_grades`            | Rows include item names and grade values                                                                  |
-| 10  | Recent announcements                                        | `get_announcements`     | Non-empty array; each entry has `title`, `date`, and `body`                                               |
-| 11  | What are my upcoming exams?                                 | `get_exam_schedule`     | List of exams with codes, dates, and times                                                                |
-| 12  | What is my class schedule?                                  | `get_class_timetable`   | List of LECT/LAB/TUTR entries for the session                                                             |
-| 13  | Search RateMyProfessors for professor John Doe              | `search_professors`     | List of professor profiles matching the name                                                              |
-| 14  | Get professor details for ID XXXXX                          | `get_professor_details` | Detailed ratings and comments for a specific ID                                                           |
-| 15  | Check local cache health                                    | `cache_health`          | `ok=true`; includes cache, pins, metrics, and warnings without raw filenames, raw URLs, or absolute paths  |
+| 8   | Prepare assignment submission preflight for this assignment URL <url> | `prepare_assignment_submission` | Read-only response with `status`; exact resolved targets include `targetHash` and `preflightRef`; ambiguous/blocked rows have no ref |
+| 9   | Get full details for this assignment URL <url>              | `get_item_details`      | Has `kind` and at least one of `instructions` or `fields`                                                 |
+| 10  | What are my grades?                                         | `get_grades`            | Rows include item names and grade values                                                                  |
+| 11  | Recent announcements                                        | `get_announcements`     | Non-empty array; each entry has `title`, `date`, and `body`                                               |
+| 12  | What are my upcoming exams?                                 | `get_exam_schedule`     | List of exams with codes, dates, and times                                                                |
+| 13  | What is my class schedule?                                  | `get_class_timetable`   | List of LECT/LAB/TUTR entries for the session                                                             |
+| 14  | Search RateMyProfessors for professor John Doe              | `search_professors`     | List of professor profiles matching the name                                                              |
+| 15  | Get professor details for ID XXXXX                          | `get_professor_details` | Detailed ratings and comments for a specific ID                                                           |
+| 16  | Check local cache health                                    | `cache_health`          | `ok=true`; includes cache, pins, metrics, and warnings without raw filenames, raw URLs, or absolute paths  |
 
 `clear_cache`, `cache_pin`, `cache_unpin`, `cache_list_pins`, `cache_refresh_pin`, and `cache_delete_pinned` are part of the public tool surface, but they are not default live rows. Run them only in an optional local-state pass where cache and pin mutation is expected and recorded.
 
@@ -148,8 +149,9 @@ Use these prompts as written unless the local data forces a small adjustment.
 
 Before credentialed rows, use Inspector to confirm the server exposes the current public tool surface:
 
-- `listTools` reports exactly 25 public tools.
+- `listTools` reports exactly 26 public tools.
 - `cache_health` is listed with a no-input object schema and a clear read-only description.
+- `prepare_assignment_submission` is listed with course, assignment, platform, Cengage, and intended-file selector fields.
 - No tool names from the prior matrix disappeared.
 
 Add these maturity regression rows when preparing a release:

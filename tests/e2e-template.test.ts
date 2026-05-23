@@ -42,8 +42,9 @@ describe('e2e template generator', () => {
     expect(output).toContain('| Git commit |');
     expect(output).toContain('### Inspector Smoke Matrix');
     expect(output).toContain('### Claude Desktop Matrix');
-    expect(output).toContain('Expected public MCP tool count: 25.');
+    expect(output).toContain('Expected public MCP tool count: 26.');
     expect(output).toContain('`cache_health`');
+    expect(output).toContain('`prepare_assignment_submission`');
     expect(output).toContain('T41-I1');
     expect(output).toContain('T42-I1');
     expect(output).toContain('Evidence And Redaction Rules');

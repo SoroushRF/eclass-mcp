@@ -30,6 +30,7 @@ import {
   getItemDetails,
 } from './tools/deadlines';
 import { getAssignments } from './tools/assignments';
+import { prepareAssignmentSubmission } from './tools/assignment-preflight';
 import { getGrades } from './tools/grades';
 import { getAnnouncements } from './tools/announcements';
 import { getExamSchedule, getClassTimetable } from './tools/sis';
@@ -55,6 +56,7 @@ import {
   ListCengageCoursesInputSchema,
 } from './tools/cengage-contracts';
 import { GetAssignmentsInputSchema } from './tools/assignment-contracts';
+import { AssignmentSubmissionPreflightInputSchema } from './tools/write-contracts';
 import { rootLogger } from './logging/logger';
 import { runWithToolContext } from './logging/context';
 import {
@@ -150,6 +152,9 @@ const getFileTextInputSchema = {
 
 const getAssignmentsInputSchema =
   GetAssignmentsInputSchema.shape satisfies ZodRawShapeCompat;
+
+const prepareAssignmentSubmissionInputSchema =
+  AssignmentSubmissionPreflightInputSchema.shape satisfies ZodRawShapeCompat;
 
 const getUpcomingDeadlinesInputSchema = {
   daysAhead: z.number().optional().describe('Days ahead (default 14)'),
@@ -388,6 +393,14 @@ function registerMcpTools(server: McpServer, deps: ToolDependencies): void {
     'Canonical assignment resolver. Use this first for homework, assignments, due dates, or deadlines because it checks eClass and, when needed, Cengage/WebAssign via the permanent course-platform index. It verifies active WebAssign course context and may return needs_course_activation instead of treating wrong-course landing as no assignments or auth expiry.',
     getAssignmentsInputSchema,
     (args) => getAssignments(args, false, false, deps)
+  );
+
+  registerInputTool(
+    server,
+    'prepare_assignment_submission',
+    'Read-only preflight for future assignment submission tools. Resolves an eClass or Cengage/WebAssign assignment, checks submission state and upload constraints when available, summarizes intended local files, and returns a signed preflightRef for later confirmed writes.',
+    prepareAssignmentSubmissionInputSchema,
+    (args) => prepareAssignmentSubmission(args, deps)
   );
 
   registerInputTool(

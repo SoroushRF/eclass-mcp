@@ -87,6 +87,12 @@ function createFakeDependencies(): {
       url,
       title: 'Protocol Item',
     })),
+    getAssignmentSubmissionPreflight: vi.fn(async (url: string) => ({
+      kind: 'assign' as const,
+      url,
+      title: 'Protocol Item',
+      uploadSlots: [],
+    })),
     downloadFile: vi.fn(async () => ({
       buffer: Buffer.from('protocol text'),
       mimeType: 'text/plain',
