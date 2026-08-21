@@ -4,6 +4,10 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cache } from '../src/cache/store';
 import { cengageCacheKey } from '../src/tools/cengage/cache';
+import {
+  clearActiveEclassAccountScope,
+  setActiveEclassAccountScope,
+} from '../src/cache/account-scope';
 import type {
   CengageScraperDependency,
   RmpClientDependency,
@@ -320,6 +324,7 @@ describe('MCP protocol integration', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    setActiveEclassAccountScope('https://eclass.yorku.ca', '123456');
   });
 
   afterEach(async () => {
@@ -329,6 +334,7 @@ describe('MCP protocol integration', () => {
       cache.invalidate(key);
     }
     touchedCacheKeys.clear();
+    clearActiveEclassAccountScope();
   });
 
   it('lists every public tool through MCP listTools', async () => {

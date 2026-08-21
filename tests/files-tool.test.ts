@@ -46,6 +46,11 @@ vi.mock('../src/cache/store', () => ({
   getCacheKey: (...parts: string[]) => parts.join(':'),
 }));
 
+vi.mock('../src/cache/account-scope', () => ({
+  tryGetEclassCacheKey: (prefix: string, ...segments: string[]) =>
+    [prefix, ...segments].join(':'),
+}));
+
 vi.mock('../src/parser/pdf-analyzer', () => ({
   parsePdfSmart: mocks.parsePdfSmart,
 }));

@@ -1,14 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as authServer from '../src/auth/server';
-import { cache, getCacheKey } from '../src/cache/store';
+import { cache } from '../src/cache/store';
 import { scraper, SessionExpiredError } from '../src/scraper/eclass';
 import { getItemDetails } from '../src/tools/deadlines';
+import {
+  clearActiveEclassAccountScope,
+  getEclassCacheKey,
+  setActiveEclassAccountScope,
+} from '../src/cache/account-scope';
 
 const touchedCacheKeys = new Set<string>();
 
 function detailsCacheKey(url: string): string {
   const shortened = url.length > 150 ? url.slice(-150) : url;
-  return getCacheKey('details', 'v2', shortened);
+  return getEclassCacheKey('details', 'v2', shortened);
 }
 
 function rememberDetailsKey(url: string): string {
@@ -26,10 +31,15 @@ afterEach(() => {
     cache.invalidate(key);
   }
   touchedCacheKeys.clear();
+  clearActiveEclassAccountScope();
   vi.restoreAllMocks();
 });
 
 describe('deadlines getItemDetails media and csv branches', () => {
+  beforeEach(() => {
+    setActiveEclassAccountScope('https://eclass.yorku.ca', '123456');
+  });
+
   it('returns cached item details payload when media flags are disabled', async () => {
     const url = 'https://eclass.yorku.ca/mod/assign/view.php?id=cache-1';
     rememberDetailsKey(url);

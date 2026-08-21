@@ -1,8 +1,13 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as authServer from '../src/auth/server';
-import { cache, getCacheKey, TTL } from '../src/cache/store';
+import { cache, TTL } from '../src/cache/store';
 import { scraper, SessionExpiredError } from '../src/scraper/eclass';
 import { getDeadlines, getUpcomingDeadlines } from '../src/tools/deadlines';
+import {
+  clearActiveEclassAccountScope,
+  getEclassCacheKey,
+  setActiveEclassAccountScope,
+} from '../src/cache/account-scope';
 
 let seq = 0;
 const touchedCacheKeys = new Set<string>();
@@ -15,6 +20,10 @@ function nextCourseId(tag: string): string {
 function rememberKey(key: string): string {
   touchedCacheKeys.add(key);
   return key;
+}
+
+function getCacheKey(prefix: string, ...segments: string[]): string {
+  return getEclassCacheKey(prefix, ...segments);
 }
 
 function parsePayload(result: { content: Array<{ text: string }> }) {
@@ -58,10 +67,15 @@ afterEach(() => {
     cache.invalidate(key);
   }
   touchedCacheKeys.clear();
+  clearActiveEclassAccountScope();
   vi.restoreAllMocks();
 });
 
 describe('deadlines tool branch behavior', () => {
+  beforeEach(() => {
+    setActiveEclassAccountScope('https://eclass.yorku.ca', '123456');
+  });
+
   it('getUpcomingDeadlines returns cache miss then cache hit', async () => {
     const courseId = nextCourseId('upcoming-tool');
     rememberKey(getCacheKey('deadlines', 'upcoming', courseId));

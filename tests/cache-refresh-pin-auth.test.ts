@@ -4,6 +4,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -15,7 +16,13 @@ import {
   invalidatePinsMemoryCache,
   upsertPin,
 } from '../src/cache/pins';
-import { cache, getCacheKey } from '../src/cache/store';
+import { cache } from '../src/cache/store';
+import {
+  clearActiveEclassAccountScope,
+  getActiveEclassAccountScope,
+  getEclassCacheKey,
+  setActiveEclassAccountScope,
+} from '../src/cache/account-scope';
 import { scraper, SessionExpiredError } from '../src/scraper/eclass';
 import { cacheRefreshPin } from '../src/tools/pins';
 
@@ -31,7 +38,8 @@ function seedContentPin(pinId: string, courseId: string) {
     pinId,
     resource_type: 'content',
     resource_key: courseId,
-    cacheKey: getCacheKey('content', courseId),
+    cacheKey: getEclassCacheKey('content', courseId),
+    accountScope: getActiveEclassAccountScope() ?? undefined,
     pinned_at: new Date().toISOString(),
   });
 }
@@ -49,10 +57,15 @@ beforeAll(() => {
   }
 });
 
+beforeEach(() => {
+  setActiveEclassAccountScope('https://eclass.yorku.ca', '123456');
+});
+
 afterEach(() => {
   vi.restoreAllMocks();
-  cache.invalidate(getCacheKey('content', 'auth-timeout-course'));
-  cache.invalidate(getCacheKey('content', 'auth-retry-course'));
+  cache.invalidate(getEclassCacheKey('content', 'auth-timeout-course'));
+  cache.invalidate(getEclassCacheKey('content', 'auth-retry-course'));
+  clearActiveEclassAccountScope();
   cleanupPinsFile();
 });
 

@@ -47,6 +47,7 @@ vi.mock('../src/cache/store', () => ({
     set: mocks.set,
     clearVolatile: mocks.clearVolatile,
     clearByPrefix: mocks.clearByPrefix,
+    clearEclassByPrefix: () => 0,
   },
   TTL: { CONTENT: 30 },
   getCacheKey: (...parts: string[]) => parts.join(':'),
@@ -57,6 +58,11 @@ vi.mock('../src/cache/store', () => ({
     ...data,
     _cache: meta,
   }),
+}));
+
+vi.mock('../src/cache/account-scope', () => ({
+  tryGetEclassCacheKey: (prefix: string, ...segments: string[]) =>
+    [prefix, ...segments].join(':'),
 }));
 
 vi.mock('../src/auth/server', () => ({
