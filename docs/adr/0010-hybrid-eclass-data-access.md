@@ -2,7 +2,8 @@
 
 ## Status
 
-Proposed. Investigation complete 13 August 2026. No production code has switched off Playwright HTML scraping yet.
+Accepted behind the `playwright` default. Investigation complete 13 August
+2026; API-primary remains an explicit, reversible local rollout mode.
 
 ## Context
 
@@ -42,7 +43,12 @@ Tool routing (initial):
 | SIS, Cengage | Unchanged |
 | Login / `SESSION_EXPIRED` | Unchanged visible auth |
 
-Implementation must dual-run JSON vs scrape behind a flag before deleting selectors. Re-check public `tool_mobile_get_public_config` if York changes mobile settings.
+Implementation dual-runs JSON vs scrape behind `ECLASS_API_SOURCE_MODE=shadow`
+before API-primary can be selected. The API provider compares normalized
+courses, visible course modules, and deadlines, keeps Playwright authoritative
+in shadow mode, and falls back once for bounded read-only failures. See the
+[canary acceptance record](../validation/eclass-hybrid-canary.md). Re-check
+public `tool_mobile_get_public_config` if York changes mobile settings.
 
 ## Consequences
 

@@ -19,6 +19,7 @@ Timeouts should be treated as platform health signals, auth state signals, or se
 | eClass announcements          |                              30s navigation | Uses shared announcement `GOTO_OPTS` with `domcontentloaded`.                                                                                                        | [`src/scraper/eclass/announcements.ts`](../src/scraper/eclass/announcements.ts) |
 | eClass grades                 |                              30s navigation | Uses shared grade `GOTO_OPTS`.                                                                                                                                       | [`src/scraper/eclass/grades.ts`](../src/scraper/eclass/grades.ts)               |
 | eClass file wrapper           | 20s wrapper navigation, 20s WAF reload wait | File wrapper pages wait for `domcontentloaded`; AWS WAF challenge reload is best-effort.                                                                             | [`src/scraper/eclass/files.ts`](../src/scraper/eclass/files.ts)                 |
+| eClass API reads              | 15s default, 60s maximum                    | Uses authenticated `BrowserContext.request` with bounded response bodies. `shadow` is Playwright-authoritative; API-primary permits one read-only Playwright fallback except for `SESSION_EXPIRED` and `RATE_LIMITED`. | [`src/scraper/eclass/api/transport.ts`](../src/scraper/eclass/api/transport.ts) |
 | eClass item details           |                              60s navigation | Assignment and quiz detail pages get longer because Moodle item pages can be heavier than table/list pages.                                                          | [`src/scraper/eclass/item-details.ts`](../src/scraper/eclass/item-details.ts)   |
 | SIS exam/timetable            |                              30s navigation | Exam schedule and timetable list pages use 30s `page.goto` calls.                                                                                                    | [`src/scraper/sis.ts`](../src/scraper/sis.ts)                                   |
 | Cengage/WebAssign navigation  |                     Commonly 45s navigation | Dashboard, SSO, direct assignment, and canonical bootstrap paths use longer navigation budgets.                                                                      | [`src/scraper/cengage.ts`](../src/scraper/cengage.ts)                           |
@@ -60,6 +61,14 @@ eClass and SIS auth retry opens the local auth route, waits for the saved encryp
 Cengage/WebAssign does not blindly retry every timeout. It classifies page state after navigation waits and returns specific outcomes such as `auth_required`, `needs_course_selection`, or `needs_course_activation` when the active WebAssign course does not match the selected course.
 
 File downloads treat WAF reloads as best effort. If the wrapper cannot expose file bytes or a direct file URL, E15 selector/layout diagnostics and E12 upstream errors decide whether the result is drift, timeout, rate limit, or generic upstream failure.
+
+For eClass API reads, `playwright` remains the safe default. `shadow` runs the
+API and Playwright paths independently but returns the Playwright result.
+Explicit `api` mode uses one bounded Playwright fallback for capability,
+malformed-response, timeout, and upstream failures. Valid empty API responses
+remain empty; invalid sessions use the normal auth retry; and HTTP 429 returns
+`RATE_LIMITED` without immediately adding browser traffic. See the
+[canary acceptance record](validation/eclass-hybrid-canary.md).
 
 ## Rate Limits
 
