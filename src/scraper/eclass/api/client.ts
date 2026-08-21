@@ -1,16 +1,7 @@
 import { z } from 'zod';
-import {
-  ECLASS_AJAX_METHODS,
-  getEclassApiConfig,
-} from './constants';
-import {
-  isMoodleApiError,
-  MoodleApiError,
-} from './errors';
-import {
-  PlaywrightMoodleTransport,
-  type MoodleTransport,
-} from './transport';
+import { ECLASS_AJAX_METHODS, getEclassApiConfig } from './constants';
+import { isMoodleApiError, MoodleApiError } from './errors';
+import { PlaywrightMoodleTransport, type MoodleTransport } from './transport';
 import type { EclassApiSession } from './session-context';
 import {
   MoodleAjaxResponseSchema,
@@ -100,10 +91,7 @@ function parseAjaxEnvelope(value: unknown): unknown {
   return entry.data;
 }
 
-function parseData<T>(
-  value: unknown,
-  schema: z.ZodType<T>
-): T {
+function parseData<T>(value: unknown, schema: z.ZodType<T>): T {
   const parsed = schema.safeParse(value);
   if (!parsed.success) {
     throw new MoodleApiError({ category: 'malformed_response' });
@@ -154,15 +142,12 @@ export class MoodleAjaxClient {
   }
 
   async getEnrolledCourses(): Promise<MoodleEnrolledCoursesData> {
-    const data = await this.call(
-      ECLASS_AJAX_METHODS.enrolledCourses,
-      {
-        classification: 'all',
-        limit: 0,
-        offset: 0,
-        sort: 'fullname',
-      }
-    );
+    const data = await this.call(ECLASS_AJAX_METHODS.enrolledCourses, {
+      classification: 'all',
+      limit: 0,
+      offset: 0,
+      sort: 'fullname',
+    });
     return parseData(data, MoodleEnrolledCoursesDataSchema);
   }
 
@@ -175,7 +160,9 @@ export class MoodleAjaxClient {
     return parseCourseFormatState(data);
   }
 
-  async getCalendarUpcoming(courseId: string | number = 1): Promise<MoodleCalendarData> {
+  async getCalendarUpcoming(
+    courseId: string | number = 1
+  ): Promise<MoodleCalendarData> {
     const data = await this.call(ECLASS_AJAX_METHODS.calendarUpcoming, {
       courseid: assertCourseId(courseId),
     });

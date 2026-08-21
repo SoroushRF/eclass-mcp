@@ -1,17 +1,10 @@
-import type {
-  APIRequestContext,
-  BrowserContext,
-  Page,
-} from 'playwright';
+import type { APIRequestContext, BrowserContext, Page } from 'playwright';
 import {
   clearActiveEclassAccountScope,
   setActiveEclassAccountScope,
 } from '../../../cache/account-scope';
 import { checkSession } from '../helpers';
-import {
-  ECLASS_DEFAULT_ORIGIN,
-  getEclassApiConfig,
-} from './constants';
+import { ECLASS_DEFAULT_ORIGIN, getEclassApiConfig } from './constants';
 
 export interface EclassBrowserSessionLike {
   getAuthenticatedContext(): Promise<BrowserContext>;

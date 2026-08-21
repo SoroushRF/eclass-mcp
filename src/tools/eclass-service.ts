@@ -127,9 +127,7 @@ export async function getEclassCoursesWithCache(
     .eclassScraper
 ): Promise<EclassCoursesWithCache> {
   const cacheKey = tryGetEclassCacheKey('courses');
-  const cached = cacheKey
-    ? cache.getWithMeta<Course[]>(cacheKey)
-    : null;
+  const cached = cacheKey ? cache.getWithMeta<Course[]>(cacheKey) : null;
 
   if (cached) {
     return {

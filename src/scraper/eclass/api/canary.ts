@@ -1,8 +1,4 @@
-import type {
-  Assignment,
-  Course,
-  CourseContent,
-} from '../types';
+import type { Assignment, Course, CourseContent } from '../types';
 
 export interface HybridCanaryComparison {
   passed: boolean;

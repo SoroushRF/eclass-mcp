@@ -22,13 +22,12 @@ describe('eClass hybrid canary gates', () => {
       apiCount: 1,
       playwrightCount: 1,
     });
-    expect(() =>
-      assertCanaryPassed(passing, 'courses')
-    ).not.toThrow();
+    expect(() => assertCanaryPassed(passing, 'courses')).not.toThrow();
 
-    const failing = compareCourseCanary([course], [
-      { ...course, name: 'Different course' },
-    ]);
+    const failing = compareCourseCanary(
+      [course],
+      [{ ...course, name: 'Different course' }]
+    );
     expect(failing.passed).toBe(false);
     expect(failing.mismatchCategories).toEqual(
       expect.arrayContaining(['course_set'])
@@ -91,12 +90,13 @@ describe('eClass hybrid canary gates', () => {
 
     expect(compareDeadlineCanary([item], [{ ...item }]).passed).toBe(true);
     expect(
-      compareDeadlineCanary([item], [
-        { ...item, dueDate: '2026-05-28T20:26:41.000Z' },
-      ]).mismatchCategories
+      compareDeadlineCanary(
+        [item],
+        [{ ...item, dueDate: '2026-05-28T20:26:41.000Z' }]
+      ).mismatchCategories
     ).toContain('timestamp_mismatch');
-    expect(
-      compareDeadlineCanary([item], []).mismatchCategories
-    ).toEqual(expect.arrayContaining(['count', 'missing_deadline']));
+    expect(compareDeadlineCanary([item], []).mismatchCategories).toEqual(
+      expect.arrayContaining(['count', 'missing_deadline'])
+    );
   });
 });

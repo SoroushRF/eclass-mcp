@@ -8,10 +8,7 @@ import {
 } from './constants';
 import { MoodleApiError } from './errors';
 import type { EclassApiSessionContext } from './session-context';
-import {
-  saveMobileCredential,
-  type MobileCredential,
-} from '../../session';
+import { saveMobileCredential, type MobileCredential } from '../../session';
 
 const MOBILE_TOKEN_PATTERN = /^[A-Za-z0-9._~+/=-]{16,4096}$/;
 const ACCEPTED_MOBILE_SCHEMES = new Set(['moodlemobile:', 'moodle:']);
@@ -66,10 +63,7 @@ export function parseMobileLaunchLocation(location: string): string {
 }
 
 export class MoodleMobileLauncher {
-  private readonly sessionContext: Pick<
-    EclassApiSessionContext,
-    'getSession'
-  >;
+  private readonly sessionContext: Pick<EclassApiSessionContext, 'getSession'>;
   private readonly origin: string;
   private readonly timeoutMs: number;
   private readonly credentialStore: MobileCredentialStore;

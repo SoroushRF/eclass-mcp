@@ -43,9 +43,7 @@ describe('typed Moodle wire contracts', () => {
 
   it('validates calendar events and error entries without accepting malformed data', () => {
     const calendarResponses = MoodleAjaxResponseSchema.parse(calendarFixture);
-    const calendar = MoodleCalendarDataSchema.parse(
-      calendarResponses[0]?.data
-    );
+    const calendar = MoodleCalendarDataSchema.parse(calendarResponses[0]?.data);
     const errors = MoodleAjaxResponseSchema.parse(errorFixture);
 
     expect(calendar.events[0]?.course?.id).toBe(101);

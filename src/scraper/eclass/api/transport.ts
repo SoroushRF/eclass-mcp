@@ -4,25 +4,16 @@ import {
   createSafeApiLogFields,
   serializeApiErrorForLog,
 } from '../../../logging/api-safe';
-import {
-  ECLASS_AJAX_PATH,
-  ECLASS_REST_PATH,
-} from './constants';
+import { ECLASS_AJAX_PATH, ECLASS_REST_PATH } from './constants';
 import {
   classifyHttpStatus,
   MoodleApiError,
   type MoodleApiErrorCategory,
 } from './errors';
-import {
-  MoodleAjaxCallSchema,
-  type MoodleAjaxCall,
-} from './types';
+import { MoodleAjaxCallSchema, type MoodleAjaxCall } from './types';
 
 export interface MoodleTransport {
-  postAjax(
-    calls: readonly MoodleAjaxCall[],
-    sesskey: string
-  ): Promise<unknown>;
+  postAjax(calls: readonly MoodleAjaxCall[], sesskey: string): Promise<unknown>;
 
   postRest(
     functionName: string,
@@ -112,9 +103,7 @@ export class PlaywrightMoodleTransport implements MoodleTransport {
     if (!sesskey.trim()) {
       throw new MoodleApiError({ category: 'session_invalid' });
     }
-    const parsedCalls = calls.map((call) =>
-      MoodleAjaxCallSchema.parse(call)
-    );
+    const parsedCalls = calls.map((call) => MoodleAjaxCallSchema.parse(call));
     const endpoint = new URL(ECLASS_AJAX_PATH, this.origin);
     endpoint.searchParams.set('sesskey', sesskey);
 
@@ -160,15 +149,12 @@ export class PlaywrightMoodleTransport implements MoodleTransport {
     endpointPath: string,
     operation: string
   ): Promise<unknown> {
-    return this.executeRequest(
-      endpointPath,
-      operation,
-      () =>
-        this.request.post(url, {
-          headers: { 'Content-Type': 'application/json' },
-          data: body,
-          timeout: this.timeoutMs,
-        })
+    return this.executeRequest(endpointPath, operation, () =>
+      this.request.post(url, {
+        headers: { 'Content-Type': 'application/json' },
+        data: body,
+        timeout: this.timeoutMs,
+      })
     );
   }
 
@@ -178,17 +164,14 @@ export class PlaywrightMoodleTransport implements MoodleTransport {
     endpointPath: string,
     operation: string
   ): Promise<unknown> {
-    return this.executeRequest(
-      endpointPath,
-      operation,
-      () =>
-        this.request.post(url, {
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          data: body,
-          timeout: this.timeoutMs,
-        })
+    return this.executeRequest(endpointPath, operation, () =>
+      this.request.post(url, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        data: body,
+        timeout: this.timeoutMs,
+      })
     );
   }
 

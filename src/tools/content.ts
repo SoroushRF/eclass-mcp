@@ -16,9 +16,7 @@ export async function getCourseContent(
 ) {
   const run = async () => {
     const cacheKey = tryGetEclassCacheKey('content', courseId);
-    const cached = cacheKey
-      ? cache.getWithMeta<CourseContent>(cacheKey)
-      : null;
+    const cached = cacheKey ? cache.getWithMeta<CourseContent>(cacheKey) : null;
 
     if (cached) {
       const stale = 'stale' in cached && cached.stale === true;

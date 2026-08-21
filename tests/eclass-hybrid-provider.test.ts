@@ -191,9 +191,7 @@ describe('EclassHybridProvider', () => {
     });
 
     await provider.getAllAssignmentDeadlines('101');
-    await provider.getSectionText(
-      `${ORIGIN}/course/view.php?id=101&section=1`
-    );
+    await provider.getSectionText(`${ORIGIN}/course/view.php?id=101&section=1`);
     await provider.getAssignmentSubmissionPreflight(
       `${ORIGIN}/mod/assign/view.php?id=11`
     );

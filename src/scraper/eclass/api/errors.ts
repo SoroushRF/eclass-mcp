@@ -22,9 +22,7 @@ export interface MoodleApiErrorOptions {
 
 type MoodlePublicCode = NonNullable<MoodleApiErrorOptions['publicCode']>;
 
-function defaultPublicCode(
-  category: MoodleApiErrorCategory
-): MoodlePublicCode {
+function defaultPublicCode(category: MoodleApiErrorCategory): MoodlePublicCode {
   switch (category) {
     case 'session_invalid':
       return 'SESSION_EXPIRED';

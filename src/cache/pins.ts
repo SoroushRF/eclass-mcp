@@ -89,10 +89,7 @@ export function buildFileCacheKey(
       : getCacheKey('file', ...segments);
   let cacheKey = createKey(fileUrl);
   if (startPage !== undefined || endPage !== undefined) {
-    cacheKey = createKey(
-      fileUrl,
-      `p${startPage ?? 1}-${endPage ?? 'end'}`
-    );
+    cacheKey = createKey(fileUrl, `p${startPage ?? 1}-${endPage ?? 'end'}`);
   }
   return cacheKey;
 }

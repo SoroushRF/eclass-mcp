@@ -55,9 +55,7 @@ export function createSafeApiLogFields(
     ...(typeof fields.responseBytes === 'number'
       ? { responseBytes: Math.max(0, Math.round(fields.responseBytes)) }
       : {}),
-    ...(fields.errorCode
-      ? { errorCode: safeErrorCode(fields.errorCode) }
-      : {}),
+    ...(fields.errorCode ? { errorCode: safeErrorCode(fields.errorCode) } : {}),
     ...(fields.tokenPresent !== undefined
       ? { tokenPresent: fields.tokenPresent }
       : {}),

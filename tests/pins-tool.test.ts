@@ -1,12 +1,5 @@
 import fs from 'fs';
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   canonicalResourceKey: vi.fn(),
@@ -96,10 +89,7 @@ const originalSessionSecret = process.env.ECLASS_MCP_SESSION_SECRET;
 
 describe('pin tool layer', () => {
   beforeEach(() => {
-    process.env.ECLASS_MCP_SESSION_SECRET = 'pins-test-secret-'.padEnd(
-      32,
-      'x'
-    );
+    process.env.ECLASS_MCP_SESSION_SECRET = 'pins-test-secret-'.padEnd(32, 'x');
     setActiveEclassAccountScope('https://eclass.yorku.ca', '123456');
     vi.restoreAllMocks();
     vi.clearAllMocks();

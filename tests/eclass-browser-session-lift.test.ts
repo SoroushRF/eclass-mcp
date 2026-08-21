@@ -36,8 +36,7 @@ describe('eclass browser session', () => {
     if (originalDebugDumpSetting === undefined) {
       delete process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS;
     } else {
-      process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS =
-        originalDebugDumpSetting;
+      process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS = originalDebugDumpSetting;
     }
   });
 

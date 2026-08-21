@@ -104,9 +104,7 @@ describe('Playwright Moodle transport', () => {
     const rateLimited = createTransport(
       vi.fn(async () => response(429, { token: 'not logged' }))
     );
-    await expect(
-      rateLimited.postAjax([], 'sesskey')
-    ).rejects.toMatchObject({
+    await expect(rateLimited.postAjax([], 'sesskey')).rejects.toMatchObject({
       category: 'rate_limited',
       publicCode: 'RATE_LIMITED',
     });

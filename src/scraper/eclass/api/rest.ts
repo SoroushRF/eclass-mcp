@@ -91,11 +91,7 @@ export class MoodleRestClient {
     if (this.capabilities && !force) {
       return new Set(this.capabilities);
     }
-    const raw = await this.callRaw(
-      MOODLE_REST_CAPABILITIES.siteInfo,
-      {},
-      true
-    );
+    const raw = await this.callRaw(MOODLE_REST_CAPABILITIES.siteInfo, {}, true);
     const parsed = MoodleRestSiteInfoSchema.safeParse(raw);
     if (!parsed.success) {
       throw new MoodleApiError({ category: 'malformed_response' });
@@ -147,7 +143,9 @@ export class MoodleRestClient {
     return parsed.data;
   }
 
-  async getAssignments(courseIds: readonly (string | number)[]): Promise<unknown> {
+  async getAssignments(
+    courseIds: readonly (string | number)[]
+  ): Promise<unknown> {
     const raw = await this.callCapability(
       MOODLE_REST_CAPABILITIES.assignments,
       { courseids: courseIds.map(Number) }
@@ -160,10 +158,9 @@ export class MoodleRestClient {
   }
 
   async getForums(courseIds: readonly (string | number)[]): Promise<unknown> {
-    const raw = await this.callCapability(
-      MOODLE_REST_CAPABILITIES.forums,
-      { courseids: courseIds.map(Number) }
-    );
+    const raw = await this.callCapability(MOODLE_REST_CAPABILITIES.forums, {
+      courseids: courseIds.map(Number),
+    });
     const parsed = MoodleRestForumsDataSchema.safeParse(raw);
     if (!parsed.success) {
       throw new MoodleApiError({ category: 'malformed_response' });
@@ -226,7 +223,6 @@ export class MoodleRestClient {
 
 function isMobileTokenError(error: unknown): boolean {
   return (
-    error instanceof MoodleApiError &&
-    error.category === 'mobile_token_invalid'
+    error instanceof MoodleApiError && error.category === 'mobile_token_invalid'
   );
 }

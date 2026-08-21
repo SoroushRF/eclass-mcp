@@ -10,9 +10,7 @@ import type { EclassApiSession } from '../src/scraper/eclass/api/session-context
 const ORIGIN = 'https://eclass.yorku.ca';
 const TOKEN = 'mobile-token-0123456789';
 
-function sessionContext(request: {
-  get: ReturnType<typeof vi.fn>;
-}) {
+function sessionContext(request: { get: ReturnType<typeof vi.fn> }) {
   return {
     getSession: vi.fn(
       async () =>
@@ -46,9 +44,9 @@ describe('Moodle mobile launch handshake', () => {
     expect(() =>
       parseMobileLaunchLocation('moodlemobile://launch?token=short')
     ).toThrow(MoodleApiError);
-    expect(() =>
-      parseMobileLaunchLocation('moodlemobile://launch')
-    ).toThrow(MoodleApiError);
+    expect(() => parseMobileLaunchLocation('moodlemobile://launch')).toThrow(
+      MoodleApiError
+    );
   });
 
   it('does not follow redirects and stores only the parsed token', async () => {
@@ -113,15 +111,15 @@ describe('Moodle mobile launch handshake', () => {
       });
     };
 
-    await expect(
-      makeLauncher(302).launch()
-    ).rejects.toMatchObject({ category: 'malformed_response' });
-    await expect(
-      makeLauncher(200).launch()
-    ).rejects.toMatchObject({ category: 'upstream' });
-    await expect(
-      makeLauncher(401).launch()
-    ).rejects.toMatchObject({ category: 'session_invalid' });
+    await expect(makeLauncher(302).launch()).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+    await expect(makeLauncher(200).launch()).rejects.toMatchObject({
+      category: 'upstream',
+    });
+    await expect(makeLauncher(401).launch()).rejects.toMatchObject({
+      category: 'session_invalid',
+    });
     const timeout = new Error('timeout');
     timeout.name = 'TimeoutError';
     await expect(

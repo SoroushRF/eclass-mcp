@@ -5,7 +5,10 @@ import {
   CENGAGE_SESSION_META_PATH,
   CENGAGE_STATE_PATH,
 } from '../scraper/cengage-session';
-import { clearActiveEclassAccountScope, getActiveEclassAccountScope } from '../cache/account-scope';
+import {
+  clearActiveEclassAccountScope,
+  getActiveEclassAccountScope,
+} from '../cache/account-scope';
 import { cache } from '../cache/store';
 import { secureDeleteFile } from './secure-session-store';
 

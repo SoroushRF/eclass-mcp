@@ -24,9 +24,7 @@ export type MoodleAjaxResponseEntry = z.infer<
   typeof MoodleAjaxResponseEntrySchema
 >;
 
-export const MoodleAjaxResponseSchema = z.array(
-  MoodleAjaxResponseEntrySchema
-);
+export const MoodleAjaxResponseSchema = z.array(MoodleAjaxResponseEntrySchema);
 
 export type MoodleAjaxResponse = z.infer<typeof MoodleAjaxResponseSchema>;
 
@@ -152,13 +150,7 @@ export const MoodleRestSiteInfoSchema = z
     sitename: z.string().optional(),
     username: z.string().optional(),
     userid: z.union([z.number(), z.string()]).optional(),
-    functions: z
-      .array(
-        z
-          .object({ name: z.string() })
-          .passthrough()
-      )
-      .optional(),
+    functions: z.array(z.object({ name: z.string() }).passthrough()).optional(),
   })
   .passthrough();
 

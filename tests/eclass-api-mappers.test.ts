@@ -80,9 +80,7 @@ describe('Moodle anti-corruption mappers', () => {
       visible: false,
     });
 
-    expect(mapMoodleCourseContent(state, 101, ORIGIN).sections).toHaveLength(
-      1
-    );
+    expect(mapMoodleCourseContent(state, 101, ORIGIN).sections).toHaveLength(1);
     expect(isMoodleCourseContentComplete(state)).toBe(true);
     expect(
       isMoodleCourseContentComplete({

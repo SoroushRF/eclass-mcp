@@ -3,23 +3,15 @@ import {
   createSafeApiLogFields,
   serializeApiErrorForLog,
 } from '../../../logging/api-safe';
-import {
-  getEclassApiConfig,
-  type EclassSourceMode,
-} from './constants';
+import { getEclassApiConfig, type EclassSourceMode } from './constants';
 import {
   compareCourseCanary,
   compareCourseContentCanary,
   compareDeadlineCanary,
   type HybridCanaryComparison,
 } from './canary';
-import {
-  isMoodleApiError,
-  MoodleApiError,
-} from './errors';
-import type {
-  MoodleAjaxClient,
-} from './client';
+import { isMoodleApiError, MoodleApiError } from './errors';
+import type { MoodleAjaxClient } from './client';
 import {
   isMoodleCourseContentComplete,
   mapMoodleCalendarToAssignments,
@@ -35,7 +27,6 @@ import type { EclassApiSessionContext } from './session-context';
 import type {
   Announcement,
   Assignment,
-  AssignmentDetails,
   AssignmentSubmissionPreflightData,
   Course,
   CourseContent,
@@ -74,8 +65,7 @@ const DEFAULT_SHADOW_TIMEOUT_MS = 2_000;
 function isFallbackEligible(error: unknown): boolean {
   if (!isMoodleApiError(error)) return true;
   return (
-    error.category !== 'session_invalid' &&
-    error.category !== 'rate_limited'
+    error.category !== 'session_invalid' && error.category !== 'rate_limited'
   );
 }
 
@@ -127,8 +117,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
     this.closeOwnedResources = options.closeOwnedResources;
     this.mode = options.mode ?? config.sourceMode;
     this.origin = options.origin ?? config.origin;
-    this.shadowTimeoutMs =
-      options.shadowTimeoutMs ?? DEFAULT_SHADOW_TIMEOUT_MS;
+    this.shadowTimeoutMs = options.shadowTimeoutMs ?? DEFAULT_SHADOW_TIMEOUT_MS;
   }
 
   async getCourses(): Promise<Course[]> {

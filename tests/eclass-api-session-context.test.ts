@@ -87,9 +87,9 @@ describe('EclassApiSessionContext', () => {
       sesskey: 'ephemeral-sesskey',
       userId: '42',
     });
-    expect(fixture.browserSession.getAuthenticatedContext).toHaveBeenCalledTimes(
-      1
-    );
+    expect(
+      fixture.browserSession.getAuthenticatedContext
+    ).toHaveBeenCalledTimes(1);
     expect(fixture.page.goto).toHaveBeenCalledWith(
       'https://eclass.yorku.ca/my/',
       expect.objectContaining({

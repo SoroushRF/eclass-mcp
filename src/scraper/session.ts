@@ -185,9 +185,7 @@ export function saveMobileCredential(
   });
 }
 
-export function clearMobileCredential(
-  fileName: string = 'session.json'
-): void {
+export function clearMobileCredential(fileName: string = 'session.json'): void {
   const file = getSessionFilePath(fileName);
   if (!fs.existsSync(file)) return;
   const data = loadSessionData(file);

@@ -74,9 +74,7 @@ export async function getUpcomingDeadlines(
       'upcoming',
       courseId || 'all'
     );
-    const cached = cacheKey
-      ? cache.getWithMeta<Assignment[]>(cacheKey)
-      : null;
+    const cached = cacheKey ? cache.getWithMeta<Assignment[]>(cacheKey) : null;
 
     if (cached) {
       const cacheMeta = {

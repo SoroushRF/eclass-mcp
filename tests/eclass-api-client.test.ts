@@ -194,7 +194,10 @@ describe('MoodleAjaxClient', () => {
     );
     expect(retryContext.refresh).toHaveBeenCalledTimes(1);
     expect(sessionErrorTransport.postAjax).toHaveBeenCalledTimes(1);
-    expect(retryTransport.postAjax).toHaveBeenCalledWith(expect.any(Array), 'new-sesskey');
+    expect(retryTransport.postAjax).toHaveBeenCalledWith(
+      expect.any(Array),
+      'new-sesskey'
+    );
   });
 
   it('converts malformed upstream data into a stable API error', async () => {

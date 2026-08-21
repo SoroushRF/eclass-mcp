@@ -18,9 +18,7 @@ describe('eClass API configuration', () => {
     expect(parseEclassApiTimeoutMs(undefined)).toBe(
       DEFAULT_ECLASS_API_TIMEOUT_MS
     );
-    expect(
-      getEclassApiConfig({} as NodeJS.ProcessEnv)
-    ).toMatchObject({
+    expect(getEclassApiConfig({} as NodeJS.ProcessEnv)).toMatchObject({
       origin: ECLASS_DEFAULT_ORIGIN,
       sourceMode: 'playwright',
       timeoutMs: DEFAULT_ECLASS_API_TIMEOUT_MS,
@@ -69,9 +67,7 @@ describe('eClass API configuration', () => {
   it('keeps API endpoint paths and proven method names centralized', () => {
     expect(ECLASS_AJAX_PATH).toBe('/lib/ajax/service.php');
     expect(ECLASS_REST_PATH).toBe('/webservice/rest/server.php');
-    expect(ECLASS_MOBILE_LAUNCH_PATH).toBe(
-      '/admin/tool/mobile/launch.php'
-    );
+    expect(ECLASS_MOBILE_LAUNCH_PATH).toBe('/admin/tool/mobile/launch.php');
     expect(ECLASS_AJAX_METHODS.enrolledCourses).toBe(
       'core_course_get_enrolled_courses_by_timeline_classification'
     );

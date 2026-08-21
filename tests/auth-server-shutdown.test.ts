@@ -206,11 +206,9 @@ describe.sequential('auth server shutdown', () => {
     });
     expect(clearSpy).not.toHaveBeenCalled();
 
-    const forged = await post(
-      logoutUrl,
-      `_csrf=${csrf}`,
-      { Origin: 'http://localhost:3000' }
-    );
+    const forged = await post(logoutUrl, `_csrf=${csrf}`, {
+      Origin: 'http://localhost:3000',
+    });
     expect(forged.status).toBe(403);
     expect(clearSpy).not.toHaveBeenCalled();
 

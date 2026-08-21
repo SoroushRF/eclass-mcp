@@ -3,12 +3,7 @@ import {
   extractCourseCode,
   inferItemType,
 } from '../helpers';
-import type {
-  Assignment,
-  Course,
-  CourseContent,
-  DeadlineItem,
-} from '../types';
+import type { Assignment, Course, CourseContent, DeadlineItem } from '../types';
 import {
   classifyExternalPlatformCandidate,
   type ExternalPlatformMatch,
@@ -158,43 +153,46 @@ export function mapMoodleCourseContent(
 ): CourseContent {
   const normalizedOrigin = normalizeOrigin(origin);
   const normalizedCourseId = String(courseId);
-  const modules = data.cm.filter((module) =>
-    isVisible(module.visible) && isVisible(module.uservisible)
+  const modules = data.cm.filter(
+    (module) => isVisible(module.visible) && isVisible(module.uservisible)
   );
   const sections = data.section
-    .filter((section) => isVisible(section.visible) && isVisible(section.uservisible))
+    .filter(
+      (section) => isVisible(section.visible) && isVisible(section.uservisible)
+    )
     .map((section) => {
-    const number = sectionNumber(section);
-    const sectionModules = modules.filter((module) =>
-      moduleBelongsToSection(module, section)
-    );
-    const items = sectionModules.map((module) => {
-      const id = String(module.id);
-      const modname = module.modname || module.plugin || 'resource';
-      const url = sameOriginMoodleUrl(
-        module.url,
-        `/mod/${encodeURIComponent(modname)}/view.php?id=${encodeURIComponent(id)}`,
-        normalizedOrigin
+      const number = sectionNumber(section);
+      const sectionModules = modules.filter((module) =>
+        moduleBelongsToSection(module, section)
       );
+      const items = sectionModules.map((module) => {
+        const id = String(module.id);
+        const modname = module.modname || module.plugin || 'resource';
+        const url = sameOriginMoodleUrl(
+          module.url,
+          `/mod/${encodeURIComponent(modname)}/view.php?id=${encodeURIComponent(id)}`,
+          normalizedOrigin
+        );
+        return {
+          type: moduleType(module, url),
+          name: cleanText(module.name, `Activity ${id}`),
+          url,
+        };
+      });
       return {
-        type: moduleType(module, url),
-        name: cleanText(module.name, `Activity ${id}`),
-        url,
+        title: cleanText(
+          section.title || section.rawtitle,
+          number === '0' ? 'General' : `Section ${number}`
+        ),
+        items,
       };
-    });
-    return {
-      title: cleanText(
-        section.title || section.rawtitle,
-        number === '0' ? 'General' : `Section ${number}`
-      ),
-      items,
-    };
     });
 
   const withUnassignedModules = modules.filter(
-    (module) => !sections.some((section) =>
-      section.items.some((item) => item.url.includes(`id=${module.id}`))
-    )
+    (module) =>
+      !sections.some((section) =>
+        section.items.some((item) => item.url.includes(`id=${module.id}`))
+      )
   );
   if (withUnassignedModules.length > 0) {
     sections.push({
@@ -216,7 +214,9 @@ export function mapMoodleCourseContent(
     });
   }
 
-  const nonEmptySections = sections.filter((section) => section.items.length > 0);
+  const nonEmptySections = sections.filter(
+    (section) => section.items.length > 0
+  );
   const platforms = externalPlatforms(nonEmptySections);
   return {
     courseId: normalizedCourseId,

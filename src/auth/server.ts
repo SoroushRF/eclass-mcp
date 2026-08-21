@@ -238,7 +238,10 @@ function writeInvalidCsrfResponse(res: http.ServerResponse): void {
   );
 }
 
-function isValidLogoutRequest(req: http.IncomingMessage, body: string): boolean {
+function isValidLogoutRequest(
+  req: http.IncomingMessage,
+  body: string
+): boolean {
   if (!authCsrfNonce || !isSameOriginRequest(req)) return false;
   const submittedNonce = new URLSearchParams(body).get('_csrf') ?? '';
   return constantTimeEquals(submittedNonce, authCsrfNonce);
@@ -330,10 +333,7 @@ export async function startAuthServer() {
 
   authCsrfNonce = randomBytes(32).toString('hex');
   const server = http.createServer(async (req, res) => {
-    const requestUrl = new URL(
-      req.url || '/',
-      getAuthOrigin()
-    );
+    const requestUrl = new URL(req.url || '/', getAuthOrigin());
     const pathname = requestUrl.pathname;
 
     if (pathname === '/' || pathname === '') {
@@ -395,9 +395,8 @@ export async function startAuthServer() {
         const cookies: Cookie[] = await context.cookies();
         saveSession(cookies);
         const previousAccountScope = getActiveEclassAccountScope();
-        const { closeAllEclassApiSessionContexts } = await import(
-          '../scraper/eclass/api/session-context'
-        );
+        const { closeAllEclassApiSessionContexts } =
+          await import('../scraper/eclass/api/session-context');
         await closeAllEclassApiSessionContexts();
         clearActiveEclassAccountScope();
         const { cache } = await import('../cache/store');
@@ -527,9 +526,8 @@ export async function startAuthServer() {
           writeInvalidCsrfResponse(res);
           return;
         }
-        const { closeAllEclassApiSessionContexts } = await import(
-          '../scraper/eclass/api/session-context'
-        );
+        const { closeAllEclassApiSessionContexts } =
+          await import('../scraper/eclass/api/session-context');
         await closeAllEclassApiSessionContexts();
         const result = clearAllAuthSessions();
         const status = result.errors.length > 0 ? 500 : 200;

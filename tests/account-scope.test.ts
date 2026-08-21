@@ -30,10 +30,7 @@ describe('eClass account cache scope', () => {
       'https://eclass.yorku.ca/my/',
       123456
     );
-    const same = deriveEclassAccountScope(
-      'https://eclass.yorku.ca',
-      '123456'
-    );
+    const same = deriveEclassAccountScope('https://eclass.yorku.ca', '123456');
     const otherAccount = deriveEclassAccountScope(
       'https://eclass.yorku.ca',
       '654321'
