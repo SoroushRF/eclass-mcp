@@ -2,11 +2,15 @@ import fs from 'fs';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
   clearSession,
+  clearMobileCredential,
   getSessionFilePath,
+  hasMobileCredential,
   isSavedSessionFresh,
   isSessionValid,
+  loadMobileCredential,
   loadSessionDataForTests,
   loadSession,
+  saveMobileCredential,
   saveSession,
   SESSION_DATA_SCHEMA_VERSION,
   SESSION_STALE_HOURS,
@@ -33,6 +37,7 @@ afterEach(() => {
     'vitest-session-invalid.json',
     'vitest-session-delete.json',
     'vitest-session-save-error.json',
+    'vitest-session-mobile.json',
   ];
   for (const fileName of files) {
     cleanupSessionFile(fileName);
@@ -107,6 +112,49 @@ describe('session file behavior', () => {
     );
     expect(raw).toContain(SECURE_SESSION_FORMAT);
     expect(raw).not.toContain('abc123');
+  });
+
+  it('round-trips mobile credentials only through the encrypted session envelope', () => {
+    const fileName = 'vitest-session-mobile.json';
+    const token = 'mobile-token-never-plaintext';
+    const credential = {
+      service: 'moodle_mobile_app' as const,
+      token,
+      issuedAt: '2026-08-21T20:00:00.000Z',
+      expiresAt: '2026-08-22T20:00:00.000Z',
+    };
+
+    saveSession([], fileName);
+    saveMobileCredential(credential, fileName);
+
+    expect(loadMobileCredential(fileName)).toEqual(credential);
+    expect(hasMobileCredential(fileName)).toBe(true);
+    expect(loadSessionDataForTests(fileName)).toMatchObject({
+      schema_version: SESSION_DATA_SCHEMA_VERSION,
+      mobile: credential,
+    });
+    expect(
+      fs.readFileSync(getSessionFilePath(fileName), 'utf-8')
+    ).not.toContain(token);
+
+    clearMobileCredential(fileName);
+    expect(loadMobileCredential(fileName)).toBeNull();
+    expect(hasMobileCredential(fileName)).toBe(false);
+  });
+
+  it('loads schema-version-one cookie sessions without a mobile credential', () => {
+    const fileName = 'vitest-session-mobile.json';
+    writeSecureJsonFile(getSessionFilePath(fileName), {
+      schema_version: 1,
+      saved_at: new Date().toISOString(),
+      cookies: [],
+    });
+
+    expect(loadSessionDataForTests(fileName)).toMatchObject({
+      schema_version: SESSION_DATA_SCHEMA_VERSION,
+      cookies: [],
+    });
+    expect(loadMobileCredential(fileName)).toBeNull();
   });
 
   it('rejects stale sessions from disk', () => {

@@ -56,17 +56,27 @@ export interface Cookie {
   sameSite: 'Strict' | 'Lax' | 'None';
 }
 
-export const SESSION_DATA_SCHEMA_VERSION = 1 as const;
+export const LEGACY_SESSION_DATA_SCHEMA_VERSION = 1 as const;
+export const SESSION_DATA_SCHEMA_VERSION = 2 as const;
+
+export interface MobileCredential {
+  service: 'moodle_mobile_app';
+  token: string;
+  issuedAt: string;
+  expiresAt?: string;
+}
 
 export interface SessionData {
   schema_version: typeof SESSION_DATA_SCHEMA_VERSION;
   saved_at: string;
   cookies: Cookie[];
+  mobile?: MobileCredential;
 }
 
 export function saveSession(
   cookies: Cookie[],
-  fileName: string = 'session.json'
+  fileName: string = 'session.json',
+  mobile?: MobileCredential
 ): void {
   if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
@@ -76,6 +86,7 @@ export function saveSession(
     schema_version: SESSION_DATA_SCHEMA_VERSION,
     saved_at: new Date().toISOString(),
     cookies: cookies,
+    ...(mobile ? { mobile } : {}),
   };
 
   try {
@@ -92,6 +103,22 @@ interface LegacySessionData {
   schema_version?: unknown;
   saved_at: string;
   cookies: unknown;
+  mobile?: unknown;
+}
+
+function isMobileCredential(value: unknown): value is MobileCredential {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Partial<MobileCredential>;
+  return (
+    candidate.service === 'moodle_mobile_app' &&
+    typeof candidate.token === 'string' &&
+    candidate.token.trim().length > 0 &&
+    typeof candidate.issuedAt === 'string' &&
+    !Number.isNaN(Date.parse(candidate.issuedAt)) &&
+    (candidate.expiresAt === undefined ||
+      (typeof candidate.expiresAt === 'string' &&
+        !Number.isNaN(Date.parse(candidate.expiresAt))))
+  );
 }
 
 function isSessionData(value: unknown): value is LegacySessionData {
@@ -115,6 +142,7 @@ function loadSessionData(file: string): SessionData {
   }
   if (
     data.schema_version !== undefined &&
+    data.schema_version !== LEGACY_SESSION_DATA_SCHEMA_VERSION &&
     data.schema_version !== SESSION_DATA_SCHEMA_VERSION
   ) {
     throw new SecureSessionStorageError(
@@ -123,11 +151,73 @@ function loadSessionData(file: string): SessionData {
       { filePath: file }
     );
   }
+  if (data.mobile !== undefined && !isMobileCredential(data.mobile)) {
+    throw new SecureSessionStorageError(
+      'malformed_envelope',
+      'Secure session mobile credential is malformed.',
+      { filePath: file }
+    );
+  }
   return {
     schema_version: SESSION_DATA_SCHEMA_VERSION,
     saved_at: data.saved_at,
     cookies: data.cookies as Cookie[],
+    ...(data.mobile ? { mobile: data.mobile } : {}),
   };
+}
+
+export function saveMobileCredential(
+  mobile: MobileCredential,
+  fileName: string = 'session.json'
+): void {
+  if (!isMobileCredential(mobile)) {
+    throw new SecureSessionStorageError(
+      'malformed_envelope',
+      'Mobile credential is malformed.'
+    );
+  }
+  const file = getSessionFilePath(fileName);
+  const data = loadSessionData(file);
+  writeSecureJsonFile(file, {
+    ...data,
+    schema_version: SESSION_DATA_SCHEMA_VERSION,
+    mobile,
+  });
+}
+
+export function clearMobileCredential(
+  fileName: string = 'session.json'
+): void {
+  const file = getSessionFilePath(fileName);
+  if (!fs.existsSync(file)) return;
+  const data = loadSessionData(file);
+  const { mobile: _mobile, ...withoutMobile } = data;
+  writeSecureJsonFile(file, {
+    ...withoutMobile,
+    schema_version: SESSION_DATA_SCHEMA_VERSION,
+  });
+}
+
+export function loadMobileCredential(
+  fileName: string = 'session.json'
+): MobileCredential | null {
+  const file = getSessionFilePath(fileName);
+  if (!fs.existsSync(file)) return null;
+  const data = loadSessionData(file);
+  if (!data.mobile) return null;
+  if (
+    data.mobile.expiresAt &&
+    new Date(data.mobile.expiresAt).getTime() <= Date.now()
+  ) {
+    return null;
+  }
+  return data.mobile;
+}
+
+export function hasMobileCredential(
+  fileName: string = 'session.json'
+): boolean {
+  return loadMobileCredential(fileName) !== null;
 }
 
 export function loadSessionDataForTests(
