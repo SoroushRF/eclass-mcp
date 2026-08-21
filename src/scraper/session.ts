@@ -14,7 +14,7 @@ export class SessionExpiredError extends Error {
   readonly code = 'SESSION_EXPIRED' as const;
 
   constructor(
-    message: string = 'eClass session expired or invalid. Please re-authenticate at http://localhost:3000/auth'
+    message: string = 'eClass session expired or invalid. Please re-authenticate at http://127.0.0.1:3000/auth'
   ) {
     super(message);
     this.name = 'SessionExpiredError';

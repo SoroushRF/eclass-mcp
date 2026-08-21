@@ -1,4 +1,5 @@
 import http from 'http';
+import { randomBytes, timingSafeEqual } from 'crypto';
 import { chromium, type Browser } from 'playwright';
 import { saveSession, isSessionValid, type Cookie } from '../scraper/session';
 import {
@@ -18,17 +19,24 @@ import { clearAllAuthSessions } from '../security/auth-session-wipe';
 dotenv.config({ quiet: true });
 
 const AUTH_PORT = parseInt(process.env.AUTH_PORT || '3000', 10);
+export const AUTH_HOST = '127.0.0.1';
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const MAX_LOGOUT_BODY_BYTES = 4096;
 export const DEFAULT_AUTH_WAIT_MS = 2 * 60 * 1000;
 export const DEFAULT_AUTH_POLL_INTERVAL_MS = 1000;
 
 let authServerInstance: http.Server | null = null;
 let authServerPort: number | null = null;
+let authCsrfNonce: string | null = null;
 const activeAuthBrowsers = new Set<Browser>();
 
 function getAuthServerPort(): number {
   return authServerPort ?? AUTH_PORT;
+}
+
+function getAuthOrigin(): string {
+  return `http://${AUTH_HOST}:${getAuthServerPort()}`;
 }
 
 type AuthPlatform = 'eclass' | 'cengage';
@@ -39,7 +47,7 @@ const AUTH_PATHS: Record<AuthPlatform, string> = {
 };
 
 export function getAuthUrl(platform: AuthPlatform = 'eclass'): string {
-  return `http://localhost:${getAuthServerPort()}${AUTH_PATHS[platform]}`;
+  return `${getAuthOrigin()}${AUTH_PATHS[platform]}`;
 }
 
 export function resolveAuthWaitMs(
@@ -126,7 +134,7 @@ function listenOnPort(server: http.Server, port: number): Promise<number> {
     };
 
     server.once('error', onError);
-    server.listen(port, () => {
+    server.listen({ host: AUTH_HOST, port }, () => {
       server.off('error', onError);
 
       const address = server.address();
@@ -138,6 +146,97 @@ function listenOnPort(server: http.Server, port: number): Promise<number> {
       reject(new Error('Auth server failed to report a listening port.'));
     });
   });
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(
+    /[&<>"']/g,
+    (character) =>
+      ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;',
+      })[character] ?? character
+  );
+}
+
+function constantTimeEquals(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left, 'utf8');
+  const rightBuffer = Buffer.from(right, 'utf8');
+  if (leftBuffer.length !== rightBuffer.length) return false;
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getHeaderValue(
+  headers: http.IncomingHttpHeaders,
+  name: string
+): string | undefined {
+  const value = headers[name];
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+function isSameOriginRequest(req: http.IncomingMessage): boolean {
+  const expectedOrigin = getAuthOrigin();
+  const origin = getHeaderValue(req.headers, 'origin');
+  const referer = getHeaderValue(req.headers, 'referer');
+
+  for (const candidate of [origin, referer]) {
+    if (!candidate?.trim()) continue;
+    try {
+      if (new URL(candidate).origin !== expectedOrigin) return false;
+    } catch {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function readRequestBody(
+  req: http.IncomingMessage,
+  maxBytes: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    let receivedBytes = 0;
+
+    req.setEncoding('utf8');
+    req.on('data', (chunk: string) => {
+      receivedBytes += Buffer.byteLength(chunk, 'utf8');
+      if (receivedBytes > maxBytes) return;
+      body += chunk;
+    });
+    req.on('end', () => {
+      if (receivedBytes > maxBytes) {
+        reject(new Error('Request body exceeds the allowed size.'));
+        return;
+      }
+      resolve(body);
+    });
+    req.on('error', reject);
+  });
+}
+
+function writeInvalidCsrfResponse(res: http.ServerResponse): void {
+  res.writeHead(403, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end(
+    JSON.stringify({
+      code: 'CSRF_INVALID',
+      message: 'Invalid logout request.',
+    })
+  );
+}
+
+function isValidLogoutRequest(req: http.IncomingMessage, body: string): boolean {
+  if (!authCsrfNonce || !isSameOriginRequest(req)) return false;
+  const submittedNonce = new URLSearchParams(body).get('_csrf') ?? '';
+  return constantTimeEquals(submittedNonce, authCsrfNonce);
 }
 
 function trackAuthBrowser(browser: Browser): Browser {
@@ -195,6 +294,7 @@ export async function stopAuthServer(): Promise<void> {
   const server = authServerInstance;
   authServerInstance = null;
   authServerPort = null;
+  authCsrfNonce = null;
 
   await Promise.all([
     server ? closeHttpServer(server).catch(() => undefined) : Promise.resolve(),
@@ -212,7 +312,7 @@ function secureSessionConfigHtml(error: unknown): string {
     <html>
       <body style="font-family: sans-serif; max-width: 720px; margin: 48px auto; line-height: 1.5;">
         <h2>Secure session storage is not configured</h2>
-        <p>${message}</p>
+        <p>${escapeHtml(message)}</p>
         <p>Set <code>ECLASS_MCP_SESSION_SECRET</code> in <code>.env</code> to a long local secret, restart the MCP server, then authenticate again.</p>
         <p>If old plaintext sessions exist, visit <code>/logout</code> after setting the secret or delete the old auth files under <code>.eclass-mcp/</code>.</p>
       </body>
@@ -223,10 +323,11 @@ function secureSessionConfigHtml(error: unknown): string {
 export async function startAuthServer() {
   if (authServerInstance) return authServerInstance;
 
+  authCsrfNonce = randomBytes(32).toString('hex');
   const server = http.createServer(async (req, res) => {
     const requestUrl = new URL(
       req.url || '/',
-      `http://localhost:${getAuthServerPort()}`
+      getAuthOrigin()
     );
     const pathname = requestUrl.pathname;
 
@@ -319,7 +420,9 @@ export async function startAuthServer() {
             ? error.message
             : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
-        res.end(`<h2>Authentication failed: ${message}</h2>`);
+        res.end(
+          `<h2>Authentication failed: ${escapeHtml(message)}</h2>`
+        );
       } finally {
         if (browser) {
           await closeTrackedAuthBrowser(browser);
@@ -378,7 +481,9 @@ export async function startAuthServer() {
             ? error.message
             : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
-        res.end(`<h2>Cengage Authentication failed: ${message}</h2>`);
+        res.end(
+          `<h2>Cengage Authentication failed: ${escapeHtml(message)}</h2>`
+        );
       } finally {
         if (browser) {
           await closeTrackedAuthBrowser(browser);
@@ -397,9 +502,23 @@ export async function startAuthServer() {
       res.end(JSON.stringify({ authenticated, secureSessionConfigured }));
     } else if (pathname === '/logout') {
       if (req.method === 'POST') {
+        let body: string;
+        try {
+          body = await readRequestBody(req, MAX_LOGOUT_BODY_BYTES);
+        } catch {
+          writeInvalidCsrfResponse(res);
+          return;
+        }
+        if (!isValidLogoutRequest(req, body)) {
+          writeInvalidCsrfResponse(res);
+          return;
+        }
         const result = clearAllAuthSessions();
         const status = result.errors.length > 0 ? 500 : 200;
-        res.writeHead(status, { 'Content-Type': 'application/json' });
+        res.writeHead(status, {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
         res.end(JSON.stringify(result));
       } else {
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -410,6 +529,7 @@ export async function startAuthServer() {
               <h2>Clear local auth sessions?</h2>
               <p>This removes encrypted eClass/SIS and Cengage/WebAssign auth session files from <code>.eclass-mcp/</code>. It does not delete cache, pins, debug output, or course-platform mappings.</p>
               <form method="POST" action="/logout">
+                <input type="hidden" name="_csrf" value="${escapeHtml(authCsrfNonce ?? '')}">
                 <button type="submit" style="padding: 8px 14px;">Clear auth sessions</button>
               </form>
             </body>
@@ -432,7 +552,7 @@ export async function startAuthServer() {
     authServerPort = await listenOnPort(server, 0);
   }
 
-  console.error(`Auth server running at http://localhost:${authServerPort}`);
+  console.error(`Auth server running at ${getAuthOrigin()}`);
 
   authServerInstance = server;
   return server;
