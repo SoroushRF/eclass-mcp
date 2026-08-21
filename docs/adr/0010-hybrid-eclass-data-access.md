@@ -38,7 +38,7 @@ Tool routing (initial):
 | `get_course_content` | AJAX `core_courseformat_get_state` |
 | `get_deadlines` / `get_upcoming_deadlines` | AJAX calendar functions |
 | `get_section_text`, `get_file_text` | Hybrid: JSON outline + existing download/HTML where needed |
-| `get_grades`, `get_announcements`, eClass assignment details | HTML until REST handshake lands |
+| `get_grades`, `get_announcements`, eClass assignment details | HTML until each REST function passes account-owned validation |
 | `prepare_assignment_submission`, `get_item_details` | Playwright |
 | SIS, Cengage | Unchanged |
 | Login / `SESSION_EXPIRED` | Unchanged visible auth |
@@ -49,6 +49,11 @@ courses, visible course modules, and deadlines, keeps Playwright authoritative
 in shadow mode, and falls back once for bounded read-only failures. See the
 [canary acceptance record](../validation/eclass-hybrid-canary.md). Re-check
 public `tool_mobile_get_public_config` if York changes mobile settings.
+
+The capability-gated REST client is an internal read-only building block, but
+no REST-backed MCP tool is promoted by this ADR. Missing capabilities, unproven
+payloads, and invalid mobile credentials continue through the existing
+Playwright paths.
 
 ## Consequences
 

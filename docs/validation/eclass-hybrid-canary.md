@@ -56,3 +56,10 @@ ECLASS_API_SOURCE_MODE=playwright
 The API session context is closed during logout and shutdown. Account-scoped
 cache entries remain isolated; clear only affected unpinned entries if a
 promotion changes the normalized model.
+
+## REST status
+
+The mobile launch and capability-gated REST client are intentionally not
+promoted to user-facing tools yet. Grades, forums, assignment details,
+submission preflight, and plugin-file reads remain Playwright-backed until each
+function has a separate account-owner validation record and output comparison.
