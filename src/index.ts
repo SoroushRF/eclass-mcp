@@ -65,6 +65,7 @@ import {
 } from './security/secure-session-store';
 import {
   createDefaultToolDependencies,
+  closeDefaultEclassHybridProvider,
   type ToolDependencies,
 } from './tools/dependencies';
 import { createShutdownController } from './runtime/shutdown';
@@ -653,6 +654,7 @@ export function createMcpServer(
 async function cleanupStartupFailure(): Promise<void> {
   await Promise.allSettled([
     stopAuthServer(),
+    closeDefaultEclassHybridProvider(),
     eclassScraper.close(),
     closeActiveCengageScrapers(),
     closeActiveSisBrowsers(),
@@ -702,6 +704,10 @@ async function main() {
         { name: 'mcp_server', close: () => server.close() },
         { name: 'stdio_transport', close: () => transport.close() },
         { name: 'auth_server', close: () => stopAuthServer() },
+        {
+          name: 'eclass_hybrid_provider',
+          close: () => closeDefaultEclassHybridProvider(),
+        },
         { name: 'eclass_scraper', close: () => eclassScraper.close() },
         {
           name: 'cengage_scrapers',

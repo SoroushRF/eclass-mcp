@@ -61,6 +61,7 @@ export interface EclassHybridProviderOptions {
   playwright: EclassScraperDependency;
   apiClient?: ApiReader;
   apiSessionContext?: Pick<EclassApiSessionContext, 'close'>;
+  closeOwnedResources?: () => Promise<void>;
   mode?: EclassSourceMode;
   origin?: string;
   shadowTimeoutMs?: number;
@@ -196,6 +197,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   private readonly playwright: EclassScraperDependency;
   private readonly apiClient?: ApiReader;
   private readonly apiSessionContext?: Pick<EclassApiSessionContext, 'close'>;
+  private readonly closeOwnedResources?: () => Promise<void>;
   private readonly mode: EclassSourceMode;
   private readonly origin: string;
   private readonly shadowTimeoutMs: number;
@@ -205,6 +207,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
     this.playwright = options.playwright;
     this.apiClient = options.apiClient;
     this.apiSessionContext = options.apiSessionContext;
+    this.closeOwnedResources = options.closeOwnedResources;
     this.mode = options.mode ?? config.sourceMode;
     this.origin = options.origin ?? config.origin;
     this.shadowTimeoutMs =
@@ -273,6 +276,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
 
   async close(): Promise<void> {
     await this.apiSessionContext?.close();
+    await this.closeOwnedResources?.();
   }
 
   private async apiCourses(): Promise<Course[]> {
