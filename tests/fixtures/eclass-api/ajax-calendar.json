@@ -1,0 +1,26 @@
+[
+  {
+    "error": false,
+    "data": {
+      "events": [
+        {
+          "id": 7001,
+          "name": "Sample assignment",
+          "timesort": 1780000000,
+          "timestart": 1780000000,
+          "timeduration": 0,
+          "modulename": "assign",
+          "course": {
+            "id": 101,
+            "fullname": "Sample Course A",
+            "shortname": "SAMPLE 1010"
+          },
+          "action": {
+            "url": "https://eclass.yorku.ca/mod/assign/view.php?id=11",
+            "name": "View assignment"
+          }
+        }
+      ]
+    }
+  }
+]

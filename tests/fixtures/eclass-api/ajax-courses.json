@@ -1,0 +1,22 @@
+[
+  {
+    "error": false,
+    "data": {
+      "courses": [
+        {
+          "id": 101,
+          "fullname": "Sample Course A",
+          "shortname": "SAMPLE 1010",
+          "visible": 1
+        },
+        {
+          "id": "202",
+          "fullname": "Sample Course B",
+          "shortname": "SAMPLE 2020",
+          "visible": true
+        }
+      ],
+      "nextoffset": 0
+    }
+  }
+]

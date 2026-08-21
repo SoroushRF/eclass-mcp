@@ -1,0 +1,6 @@
+[
+  {
+    "error": false,
+    "data": "{\"course\":{\"id\":101,\"numsections\":2,\"sectionlist\":[1,2]},\"section\":[{\"id\":1,\"section\":0,\"number\":0,\"title\":\"General\",\"visible\":1,\"cmlist\":[11]}],\"cm\":[{\"id\":11,\"name\":\"Sample resource\",\"visible\":1,\"uservisible\":1,\"sectionid\":1,\"sectionnumber\":0,\"modname\":\"resource\",\"plugin\":\"mod_resource\",\"url\":\"https://eclass.yorku.ca/mod/resource/view.php?id=11\"}]}"
+  }
+]

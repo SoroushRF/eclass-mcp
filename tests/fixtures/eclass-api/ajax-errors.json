@@ -1,0 +1,8 @@
+[
+  {
+    "error": true,
+    "exception": "moodle_exception",
+    "errorcode": "servicenotavailable",
+    "message": "Web service is not available."
+  }
+]
