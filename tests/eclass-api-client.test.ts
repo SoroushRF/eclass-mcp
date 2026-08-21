@@ -214,4 +214,177 @@ describe('MoodleAjaxClient', () => {
       category: 'malformed_response',
     });
   });
+
+  it('validates course IDs and includes optional calendar arguments', async () => {
+    const transport: MoodleTransport = {
+      postAjax: vi
+        .fn()
+        .mockResolvedValueOnce([{ error: false, data: { events: [] } }])
+        .mockResolvedValueOnce([{ error: false, data: { events: [] } }]),
+      postRest: vi.fn(),
+    };
+    const client = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => transport,
+    });
+
+    await expect(client.getCalendarUpcoming(0)).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+    await expect(
+      client.getCalendarActionEventsByTimesort({
+        timesortfrom: 1780000000.9,
+        timesortto: 1780003600.9,
+        limitnum: 10.9,
+        courseid: '101',
+      })
+    ).resolves.toEqual({ events: [] });
+    expect(transport.postAjax).toHaveBeenLastCalledWith(
+      [
+        expect.objectContaining({
+          args: {
+            timesortfrom: 1780000000,
+            timesortto: 1780003600,
+            limitnum: 10,
+            courseid: 101,
+          },
+        }),
+      ],
+      'sesskey'
+    );
+
+    await expect(
+      client.getCalendarActionEventsByTimesort({
+        timesortfrom: 1,
+        courseid: 0,
+      })
+    ).rejects.toMatchObject({ category: 'malformed_response' });
+  });
+
+  it('parses object course state, rejects invalid JSON, and uses the default transport', async () => {
+    const objectStateTransport: MoodleTransport = {
+      postAjax: vi.fn(async () => [
+        {
+          error: false,
+          data: {
+            course: { id: 101 },
+            section: [],
+            cm: [],
+          },
+        },
+      ]),
+      postRest: vi.fn(),
+    };
+    const objectStateClient = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => objectStateTransport,
+    });
+
+    await expect(
+      objectStateClient.getCourseFormatState(101)
+    ).resolves.toMatchObject({
+      course: { id: 101 },
+    });
+
+    const invalidJsonClient = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => ({
+        postAjax: vi.fn(async () => [{ error: false, data: '{invalid-json' }]),
+        postRest: vi.fn(),
+      }),
+    });
+    await expect(
+      invalidJsonClient.getCourseFormatState(101)
+    ).rejects.toMatchObject({ category: 'malformed_response' });
+
+    const defaultRequest = {
+      post: vi.fn(async () => ({
+        status: () => 200,
+        body: async () => Buffer.from(JSON.stringify(coursesFixture)),
+      })),
+    };
+    const defaultSession = session('default-sesskey');
+    defaultSession.request =
+      defaultRequest as unknown as EclassApiSession['request'];
+    const defaultClient = new MoodleAjaxClient({
+      sessionContext: provider(defaultSession),
+    });
+
+    await expect(defaultClient.getEnrolledCourses()).resolves.toMatchObject({
+      courses: expect.any(Array),
+    });
+    expect(defaultRequest.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies non-session AJAX error envelopes without leaking messages', async () => {
+    const cases = [
+      ['invalidtoken', 'mobile_token_invalid'],
+      ['unexpected_error', 'upstream'],
+    ] as const;
+
+    for (const [errorcode, category] of cases) {
+      const client = new MoodleAjaxClient({
+        sessionContext: provider(session('sesskey')),
+        transportFactory: () => ({
+          postAjax: vi.fn(async () => [
+            {
+              error: true,
+              errorcode,
+              message: 'sensitive upstream message',
+            },
+          ]),
+          postRest: vi.fn(),
+        }),
+      });
+
+      await expect(client.getEnrolledCourses()).rejects.toMatchObject({
+        category,
+        upstreamCode: errorcode,
+      });
+    }
+
+    const missingErrorCodeClient = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => ({
+        postAjax: vi.fn(async () => [{ error: true }]),
+        postRest: vi.fn(),
+      }),
+    });
+    await expect(
+      missingErrorCodeClient.getEnrolledCourses()
+    ).rejects.toMatchObject({ category: 'upstream' });
+
+    const missingDataClient = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => ({
+        postAjax: vi.fn(async () => [{ error: false }]),
+        postRest: vi.fn(),
+      }),
+    });
+    await expect(missingDataClient.getEnrolledCourses()).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+
+    const emptyEnvelopeClient = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => ({
+        postAjax: vi.fn(async () => []),
+        postRest: vi.fn(),
+      }),
+    });
+    await expect(
+      emptyEnvelopeClient.getEnrolledCourses()
+    ).rejects.toMatchObject({ category: 'malformed_response' });
+
+    const invalidEnvelopeClient = new MoodleAjaxClient({
+      sessionContext: provider(session('sesskey')),
+      transportFactory: () => ({
+        postAjax: vi.fn(async () => 'not-an-array'),
+        postRest: vi.fn(),
+      }),
+    });
+    await expect(
+      invalidEnvelopeClient.getEnrolledCourses()
+    ).rejects.toMatchObject({ category: 'malformed_response' });
+  });
 });

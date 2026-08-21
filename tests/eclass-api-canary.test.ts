@@ -76,6 +76,12 @@ describe('eClass hybrid canary gates', () => {
         ],
       }).mismatchCategories
     ).toContain('visible_module_set');
+    expect(
+      compareCourseContentCanary(api, {
+        ...html,
+        sections: [...html.sections, { title: 'Week 2', items: [] }],
+      }).mismatchCategories
+    ).toContain('section_count');
   });
 
   it('requires stable deadline IDs and exact normalized timestamps', () => {

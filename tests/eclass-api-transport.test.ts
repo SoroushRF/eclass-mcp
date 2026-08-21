@@ -84,6 +84,36 @@ describe('Playwright Moodle transport', () => {
     expect(form.get('options[include]')).toBe('1');
   });
 
+  it('encodes nullable, boolean, nested-array, and nested-object REST values', async () => {
+    const request = vi.fn(async () =>
+      response(200, { sitename: 'eClass', functions: [] })
+    );
+    const transport = createTransport(request);
+
+    await transport.postRest(
+      'core_webservice_get_site_info',
+      {
+        empty: null,
+        omitted: undefined,
+        enabled: false,
+        values: [null, { nested: true }],
+        callback: () => undefined,
+      },
+      'mobile-token-secret'
+    );
+
+    const [, options] = request.mock.calls[0] as unknown as [
+      string,
+      { data: string },
+    ];
+    const form = new URLSearchParams(options.data);
+    expect(form.get('empty')).toBe('');
+    expect(form.get('omitted')).toBe('');
+    expect(form.get('enabled')).toBe('0');
+    expect(form.get('values[0]')).toBe('');
+    expect(form.get('values[1][nested]')).toBe('1');
+  });
+
   it('rejects empty credentials before making a request', async () => {
     const request = vi.fn();
     const transport = createTransport(request);
@@ -101,6 +131,27 @@ describe('Playwright Moodle transport', () => {
   });
 
   it('classifies status, timeout, malformed, and oversized responses safely', async () => {
+    const unauthorized = createTransport(
+      vi.fn(async () => response(401, { message: 'not logged' }))
+    );
+    await expect(unauthorized.postAjax([], 'sesskey')).rejects.toMatchObject({
+      category: 'session_invalid',
+    });
+
+    const upstream = createTransport(
+      vi.fn(async () => response(500, { message: 'upstream' }))
+    );
+    await expect(upstream.postAjax([], 'sesskey')).rejects.toMatchObject({
+      category: 'upstream',
+    });
+
+    const gatewayTimeout = createTransport(
+      vi.fn(async () => response(504, { message: 'timeout' }))
+    );
+    await expect(gatewayTimeout.postAjax([], 'sesskey')).rejects.toMatchObject({
+      category: 'timeout',
+    });
+
     const rateLimited = createTransport(
       vi.fn(async () => response(429, { token: 'not logged' }))
     );
@@ -119,6 +170,26 @@ describe('Playwright Moodle transport', () => {
     await expect(timeout.postAjax([], 'sesskey')).rejects.toMatchObject({
       category: 'timeout',
       publicCode: 'TIMEOUT',
+    });
+
+    const networkFailure = createTransport(
+      vi.fn(async () => {
+        throw 'network failure';
+      })
+    );
+    await expect(networkFailure.postAjax([], 'sesskey')).rejects.toMatchObject({
+      category: 'upstream',
+    });
+
+    const otherFailure = createTransport(
+      vi.fn(async () => {
+        const error = new Error('other failure');
+        error.name = 'OtherError';
+        throw error;
+      })
+    );
+    await expect(otherFailure.postAjax([], 'sesskey')).rejects.toMatchObject({
+      category: 'upstream',
     });
 
     const malformed = createTransport(
@@ -147,6 +218,14 @@ describe('Playwright Moodle transport', () => {
         new PlaywrightMoodleTransport({
           request: {} as APIRequestContext,
           origin: 'http://eclass.yorku.ca',
+          timeoutMs: 1000,
+        })
+    ).toThrow(MoodleApiError);
+    expect(
+      () =>
+        new PlaywrightMoodleTransport({
+          request: {} as APIRequestContext,
+          origin: 'not-an-origin',
           timeoutMs: 1000,
         })
     ).toThrow(MoodleApiError);

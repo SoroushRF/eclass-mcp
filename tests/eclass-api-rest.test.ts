@@ -144,4 +144,140 @@ describe('capability-gated Moodle REST client', () => {
     });
     expect(() => new MoodleApiError({ category: 'upstream' })).not.toThrow();
   });
+
+  it('exposes cached capability helpers and validates each supported read shape', async () => {
+    const postRest = vi
+      .fn()
+      .mockResolvedValueOnce(siteInfoFixture)
+      .mockResolvedValueOnce(siteInfoFixture)
+      .mockResolvedValueOnce({ courses: [] })
+      .mockResolvedValueOnce({ forums: [] })
+      .mockResolvedValueOnce({ usergrades: [] })
+      .mockResolvedValueOnce({ usergrades: [] });
+    const client = new MoodleRestClient({
+      transport: { postRest },
+      credentialReader: {
+        load: () => credential('token-one'),
+        clear: vi.fn(),
+      },
+    });
+
+    await client.discoverCapabilities();
+
+    await expect(
+      client.hasCapability(MOODLE_REST_CAPABILITIES.gradeItems)
+    ).resolves.toBe(true);
+    await expect(client.hasCapability('missing_function')).resolves.toBe(false);
+    expect(client.getCapabilityNames()).toEqual([
+      MOODLE_REST_CAPABILITIES.courseContents,
+      MOODLE_REST_CAPABILITIES.siteInfo,
+      MOODLE_REST_CAPABILITIES.gradeItems,
+      MOODLE_REST_CAPABILITIES.assignments,
+      MOODLE_REST_CAPABILITIES.forums,
+    ]);
+
+    await expect(
+      client.callCapability(MOODLE_REST_CAPABILITIES.siteInfo)
+    ).resolves.toEqual(siteInfoFixture);
+    await expect(client.getAssignments(['101', '202'])).resolves.toEqual({
+      courses: [],
+    });
+    await expect(client.getForums(['101'])).resolves.toEqual({ forums: [] });
+    await expect(client.getGradeItems('101')).resolves.toEqual({
+      usergrades: [],
+    });
+    await expect(client.getGradeItems()).resolves.toEqual({ usergrades: [] });
+
+    expect(postRest).toHaveBeenNthCalledWith(
+      3,
+      MOODLE_REST_CAPABILITIES.assignments,
+      { courseids: [101, 202] },
+      'token-one'
+    );
+    expect(postRest).toHaveBeenNthCalledWith(
+      4,
+      MOODLE_REST_CAPABILITIES.forums,
+      { courseids: [101] },
+      'token-one'
+    );
+    expect(postRest).toHaveBeenNthCalledWith(
+      5,
+      MOODLE_REST_CAPABILITIES.gradeItems,
+      { courseid: 101 },
+      'token-one'
+    );
+    expect(postRest).toHaveBeenNthCalledWith(
+      6,
+      MOODLE_REST_CAPABILITIES.gradeItems,
+      {},
+      'token-one'
+    );
+  });
+
+  it('maps REST authentication and service errors to stable categories', async () => {
+    const cases = [
+      ['requireloginerror', 'session_invalid'],
+      ['invalidsesskey', 'session_invalid'],
+      ['accessdenied', 'session_invalid'],
+      ['servicenotavailable', 'capability_unavailable'],
+      ['unexpected_error', 'upstream'],
+    ] as const;
+
+    for (const [errorcode, category] of cases) {
+      const client = new MoodleRestClient({
+        transport: {
+          postRest: vi.fn(async () => ({ errorcode, message: 'redacted' })),
+        },
+        credentialReader: {
+          load: () => credential('token-one'),
+          clear: vi.fn(),
+        },
+      });
+
+      await expect(client.discoverCapabilities()).rejects.toMatchObject({
+        category,
+        upstreamCode: errorcode,
+      });
+    }
+  });
+
+  it('rejects malformed typed REST payloads after capability discovery', async () => {
+    const postRest = vi
+      .fn()
+      .mockResolvedValueOnce(siteInfoFixture)
+      .mockResolvedValueOnce({ courses: 'not-an-array' })
+      .mockResolvedValueOnce({ forums: 'not-an-array' })
+      .mockResolvedValueOnce({ usergrades: 'not-an-array' })
+      .mockResolvedValueOnce([{ id: 1, modules: 'not-an-array' }]);
+    const client = new MoodleRestClient({
+      transport: { postRest },
+      credentialReader: {
+        load: () => credential('token-one'),
+        clear: vi.fn(),
+      },
+    });
+
+    await expect(client.getAssignments(['101'])).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+    await expect(client.getForums(['101'])).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+    await expect(client.getGradeItems()).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+    await expect(client.getCourseContents(101)).rejects.toMatchObject({
+      category: 'malformed_response',
+    });
+  });
+
+  it('fails closed when the default encrypted mobile credential is absent', async () => {
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+    });
+
+    await expect(client.discoverCapabilities()).rejects.toMatchObject({
+      category: 'mobile_token_invalid',
+    });
+  });
 });

@@ -47,6 +47,14 @@ describe('Moodle mobile launch handshake', () => {
     expect(() => parseMobileLaunchLocation('moodlemobile://launch')).toThrow(
       MoodleApiError
     );
+    expect(() => parseMobileLaunchLocation('not a URL')).toThrow(
+      MoodleApiError
+    );
+    expect(() =>
+      parseMobileLaunchLocation(
+        `moodlemobile://user:password@launch?token=${TOKEN}`
+      )
+    ).toThrow(MoodleApiError);
   });
 
   it('does not follow redirects and stores only the parsed token', async () => {
@@ -125,5 +133,32 @@ describe('Moodle mobile launch handshake', () => {
     await expect(
       makeLauncher(0, undefined, timeout).launch()
     ).rejects.toMatchObject({ category: 'timeout' });
+  });
+
+  it('rejects unsafe launcher origins before making an authenticated request', () => {
+    expect(
+      () =>
+        new MoodleMobileLauncher({
+          sessionContext: sessionContext({ get: vi.fn() }),
+          origin: 'not an origin',
+          credentialStore: { save: vi.fn() },
+        })
+    ).toThrow(MoodleApiError);
+    expect(
+      () =>
+        new MoodleMobileLauncher({
+          sessionContext: sessionContext({ get: vi.fn() }),
+          origin: 'http://eclass.yorku.ca',
+          credentialStore: { save: vi.fn() },
+        })
+    ).toThrow(MoodleApiError);
+    expect(
+      () =>
+        new MoodleMobileLauncher({
+          sessionContext: sessionContext({ get: vi.fn() }),
+          origin: 'https://user:password@eclass.yorku.ca',
+          credentialStore: { save: vi.fn() },
+        })
+    ).toThrow(MoodleApiError);
   });
 });

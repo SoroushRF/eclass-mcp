@@ -2,7 +2,10 @@ import type { APIRequestContext, BrowserContext, Page } from 'playwright';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearActiveEclassAccountScope } from '../src/cache/account-scope';
 import { SessionExpiredError } from '../src/scraper/session';
-import { EclassApiSessionContext } from '../src/scraper/eclass/api/session-context';
+import {
+  closeAllEclassApiSessionContexts,
+  EclassApiSessionContext,
+} from '../src/scraper/eclass/api/session-context';
 
 const originalSessionSecret = process.env.ECLASS_MCP_SESSION_SECRET;
 
@@ -82,6 +85,7 @@ describe('EclassApiSessionContext', () => {
     ]);
 
     expect(first).toBe(second);
+    expect(await sessionContext.getSession()).toBe(first);
     expect(first).toMatchObject({
       request: fixture.context.request,
       sesskey: 'ephemeral-sesskey',
@@ -148,6 +152,97 @@ describe('EclassApiSessionContext', () => {
     expect(fixture.context.close).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects a runtime configuration with a non-string, non-number sesskey', async () => {
+    const fixture = createBootstrapFixture({
+      runtime: {
+        sesskey: undefined,
+        userId: 42,
+        wwwroot: 'https://eclass.yorku.ca',
+      },
+    });
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: fixture.browserSession,
+    });
+
+    await expect(sessionContext.getSession()).rejects.toThrow(/sesskey/);
+    expect(fixture.context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the canonical origin when Moodle omits wwwroot', async () => {
+    const fixture = createBootstrapFixture({
+      runtime: {
+        sesskey: 'sesskey',
+        userId: 42,
+      },
+    });
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: fixture.browserSession,
+    });
+
+    await expect(sessionContext.getSession()).resolves.toMatchObject({
+      sesskey: 'sesskey',
+      userId: '42',
+    });
+    await sessionContext.close();
+  });
+
+  it('reads runtime configuration through the page-evaluation callback', async () => {
+    const fixture = createBootstrapFixture();
+    const runtimeGlobal = globalThis as typeof globalThis & {
+      M?: { cfg?: Record<string, unknown> };
+    };
+    const previousM = runtimeGlobal.M;
+    runtimeGlobal.M = {
+      cfg: {
+        sesskey: 'callback-sesskey',
+        userId: 43,
+        wwwroot: 'https://eclass.yorku.ca',
+      },
+    };
+    fixture.page.evaluate
+      .mockReset()
+      .mockImplementationOnce(async () => ({
+        title: 'My courses',
+        hasPasswordInput: false,
+        hasLoginForm: false,
+        hasPassportYorkMarker: false,
+        bodyTextSnippet: 'My courses',
+      }))
+      .mockImplementationOnce(async (callback: unknown) =>
+        (callback as () => unknown)()
+      );
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: fixture.browserSession,
+    });
+
+    try {
+      await expect(sessionContext.getSession()).resolves.toMatchObject({
+        sesskey: 'callback-sesskey',
+        userId: '43',
+      });
+    } finally {
+      runtimeGlobal.M = previousM;
+      await sessionContext.close();
+    }
+  });
+
+  it('rejects an explicitly empty Moodle wwwroot and still cleans up', async () => {
+    const fixture = createBootstrapFixture({
+      runtime: {
+        sesskey: 'sesskey',
+        userId: 42,
+        wwwroot: '',
+      },
+    });
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: fixture.browserSession,
+    });
+
+    await expect(sessionContext.getSession()).rejects.toThrow(/wwwroot/);
+    expect(fixture.page.close).toHaveBeenCalledTimes(1);
+    expect(fixture.context.close).toHaveBeenCalledTimes(1);
+  });
+
   it('refreshes the in-memory session and closes the old context once', async () => {
     const first = createBootstrapFixture();
     const second = createBootstrapFixture({
@@ -175,5 +270,81 @@ describe('EclassApiSessionContext', () => {
 
     await sessionContext.close();
     expect(second.context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('refreshes around a pending bootstrap and closes the superseded context', async () => {
+    const first = createBootstrapFixture();
+    const second = createBootstrapFixture({
+      runtime: {
+        sesskey: 'second-sesskey',
+        userId: 42,
+        wwwroot: 'https://eclass.yorku.ca',
+      },
+    });
+    let releaseFirst!: (context: BrowserContext) => void;
+    const getAuthenticatedContext = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<BrowserContext>((resolve) => {
+            releaseFirst = resolve;
+          })
+      )
+      .mockResolvedValueOnce(second.context as unknown as BrowserContext);
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: { getAuthenticatedContext },
+    });
+
+    const pending = sessionContext.getSession();
+    const refreshing = sessionContext.refresh();
+    releaseFirst(first.context as unknown as BrowserContext);
+
+    await expect(pending).resolves.toMatchObject({
+      sesskey: 'ephemeral-sesskey',
+    });
+    await expect(refreshing).resolves.toMatchObject({
+      sesskey: 'second-sesskey',
+    });
+    expect(first.context.close).toHaveBeenCalledTimes(1);
+    await sessionContext.close();
+  });
+
+  it('waits for a pending bootstrap during close', async () => {
+    const fixture = createBootstrapFixture();
+    let release!: (context: BrowserContext) => void;
+    const getAuthenticatedContext = vi.fn(
+      () =>
+        new Promise<BrowserContext>((resolve) => {
+          release = resolve;
+        })
+    );
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: { getAuthenticatedContext },
+    });
+
+    const pending = sessionContext.getSession();
+    const closing = sessionContext.close();
+    release(fixture.context as unknown as BrowserContext);
+
+    await expect(pending).resolves.toMatchObject({
+      sesskey: 'ephemeral-sesskey',
+    });
+    await closing;
+    expect(fixture.context.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes all registered API contexts and tolerates page cleanup errors', async () => {
+    const fixture = createBootstrapFixture();
+    fixture.page.close.mockRejectedValueOnce(new Error('page already closed'));
+    const sessionContext = new EclassApiSessionContext({
+      browserSession: fixture.browserSession,
+    });
+
+    await expect(sessionContext.getSession()).resolves.toMatchObject({
+      sesskey: 'ephemeral-sesskey',
+    });
+    await closeAllEclassApiSessionContexts();
+
+    expect(fixture.context.close).toHaveBeenCalledTimes(1);
   });
 });

@@ -186,20 +186,14 @@ export class EclassHybridProvider implements EclassScraperDependency {
   }
 
   private async apiCourses(): Promise<Course[]> {
-    if (!this.apiClient) {
-      throw new MoodleApiError({ category: 'capability_unavailable' });
-    }
     const data: MoodleEnrolledCoursesData =
-      await this.apiClient.getEnrolledCourses();
+      await this.apiClient!.getEnrolledCourses();
     return mapMoodleCourses(data, this.origin);
   }
 
   private async apiCourseContent(courseId: string): Promise<CourseContent> {
-    if (!this.apiClient) {
-      throw new MoodleApiError({ category: 'capability_unavailable' });
-    }
     const state: MoodleCourseFormatState =
-      await this.apiClient.getCourseFormatState(courseId);
+      await this.apiClient!.getCourseFormatState(courseId);
     if (!isMoodleCourseContentComplete(state)) {
       throw new MoodleApiError({
         category: 'malformed_response',
@@ -210,12 +204,9 @@ export class EclassHybridProvider implements EclassScraperDependency {
   }
 
   private async apiDeadlines(courseId?: string): Promise<Assignment[]> {
-    if (!this.apiClient) {
-      throw new MoodleApiError({ category: 'capability_unavailable' });
-    }
     const calendar: MoodleCalendarData = courseId
-      ? await this.apiClient.getCalendarUpcoming(courseId)
-      : await this.apiClient.getCalendarActionEventsByTimesort({
+      ? await this.apiClient!.getCalendarUpcoming(courseId)
+      : await this.apiClient!.getCalendarActionEventsByTimesort({
           timesortfrom: Math.floor(Date.now() / 1000),
           limitnum: 50,
         });
