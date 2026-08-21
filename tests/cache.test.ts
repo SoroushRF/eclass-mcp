@@ -248,6 +248,39 @@ describe('cache key + expiry helpers', () => {
     expect(fs.existsSync(txtFile)).toBe(true);
   });
 
+  it('isolates scoped eClass account clearing', () => {
+    const accountAKey = getCacheKey(
+      'eclass',
+      'acct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'courses',
+      'all'
+    );
+    const accountBKey = getCacheKey(
+      'eclass',
+      'acct_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      'courses',
+      'all'
+    );
+    const accountAFile = writeEntryFile(accountAKey, {
+      expires_at: '2030-01-01T00:00:00.000Z',
+      fetched_at: '2026-01-01T00:00:00.000Z',
+      data: {},
+      version: CACHE_SCHEMA_VERSION,
+    });
+    const accountBFile = writeEntryFile(accountBKey, {
+      expires_at: '2030-01-01T00:00:00.000Z',
+      fetched_at: '2026-01-01T00:00:00.000Z',
+      data: {},
+      version: CACHE_SCHEMA_VERSION,
+    });
+
+    expect(
+      cache.clearEclassAccountScope('acct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    ).toBe(1);
+    expect(fs.existsSync(accountAFile)).toBe(false);
+    expect(fs.existsSync(accountBFile)).toBe(true);
+  });
+
   it('clearVolatile clears versioned and legacy volatile prefixes', () => {
     const clearSpy = vi
       .spyOn(cache, 'clearByPrefix')

@@ -205,6 +205,72 @@ class CacheStore {
     return count;
   }
 
+  /** Clears unpinned scoped eClass entries for one logical data prefix. */
+  clearEclassByPrefix(prefix: string): number {
+    if (!fs.existsSync(CACHE_DIR)) return 0;
+    const marker = `v${CACHE_SCHEMA_VERSION}_eclass_`;
+    const segment = `_${sanitizeCacheKeyForFilename(prefix)}_`;
+    const terminal = `_${sanitizeCacheKeyForFilename(prefix)}.json`;
+    const pinnedFilenames = getPinnedCacheFilenames();
+    let count = 0;
+
+    try {
+      for (const file of fs.readdirSync(CACHE_DIR)) {
+        if (
+          !file.startsWith(marker) ||
+          (!file.includes(segment) && !file.endsWith(terminal)) ||
+          !file.endsWith('.json')
+        ) {
+          continue;
+        }
+        if (pinnedFilenames.has(file)) {
+          recordCacheMetric('clear_pinned_skipped');
+          continue;
+        }
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+        recordCacheMetric('clear_deleted');
+        count++;
+      }
+    } catch (error) {
+      recordCacheMetric('clear_error');
+      getLogger().error(
+        { err: error, prefix },
+        'Error clearing scoped eClass cache by prefix'
+      );
+    }
+
+    return count;
+  }
+
+  /** Clears unpinned eClass entries belonging to one derived account scope. */
+  clearEclassAccountScope(accountScope: string): number {
+    if (!fs.existsSync(CACHE_DIR)) return 0;
+    const marker = `v${CACHE_SCHEMA_VERSION}_eclass_${sanitizeCacheKeyForFilename(accountScope)}_`;
+    const pinnedFilenames = getPinnedCacheFilenames();
+    let count = 0;
+
+    try {
+      for (const file of fs.readdirSync(CACHE_DIR)) {
+        if (!file.startsWith(marker) || !file.endsWith('.json')) continue;
+        if (pinnedFilenames.has(file)) {
+          recordCacheMetric('clear_pinned_skipped');
+          continue;
+        }
+        fs.unlinkSync(path.join(CACHE_DIR, file));
+        recordCacheMetric('clear_deleted');
+        count++;
+      }
+    } catch (error) {
+      recordCacheMetric('clear_error');
+      getLogger().error(
+        { err: error },
+        'Error clearing scoped eClass account cache'
+      );
+    }
+
+    return count;
+  }
+
   /** Clears high-volatility cache (deadlines, announcements, grades). */
   clearVolatile(): number {
     const volatilePrefixes = ['deadlines', 'announcements', 'grades'];
@@ -213,6 +279,7 @@ class CacheStore {
       // Clear both versioned and legacy keys for these prefixes
       total += this.clearByPrefix(`v${CACHE_SCHEMA_VERSION}:${p}`);
       total += this.clearByPrefix(p);
+      total += this.clearEclassByPrefix(p);
     }
     return total;
   }

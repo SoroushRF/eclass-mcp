@@ -1,5 +1,6 @@
 import type { Announcement } from '../scraper/eclass';
-import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { cache, TTL, attachCacheMeta } from '../cache/store';
+import { tryGetEclassCacheKey } from '../cache/account-scope';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
@@ -14,13 +15,15 @@ export async function getAnnouncements(
   deps: ToolDependencies = createDefaultToolDependencies()
 ) {
   const run = async () => {
-    const cacheKey = getCacheKey(
+    const cacheKey = tryGetEclassCacheKey(
       'announcements',
       'v2',
       courseId || 'all',
       limit.toString()
     );
-    const cached = cache.getWithMeta<Announcement[]>(cacheKey);
+    const cached = cacheKey
+      ? cache.getWithMeta<Announcement[]>(cacheKey)
+      : null;
 
     if (cached) {
       const resp = attachCacheMeta(cached.data, {
@@ -39,7 +42,7 @@ export async function getAnnouncements(
       courseId,
       limit
     );
-    cache.set(cacheKey, announcements, TTL.ANNOUNCEMENTS);
+    if (cacheKey) cache.set(cacheKey, announcements, TTL.ANNOUNCEMENTS);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.ANNOUNCEMENTS * 60000);

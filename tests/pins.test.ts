@@ -209,6 +209,55 @@ describe('pin storage and quota behavior', () => {
     expect(getAllPins()).toHaveLength(0);
   });
 
+  it('filters scoped pins so accounts cannot read each other or legacy pins', () => {
+    const keyA = getCacheKey(
+      'eclass',
+      'acct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      'content',
+      'course-a'
+    );
+    const keyB = getCacheKey(
+      'eclass',
+      'acct_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      'content',
+      'course-b'
+    );
+
+    upsertPin({
+      pinId: TEST_PIN_IDS.alpha,
+      resource_type: 'content',
+      resource_key: 'course-a',
+      cacheKey: keyA,
+      accountScope: 'acct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+      pinned_at: '2026-01-01T00:00:00.000Z',
+    });
+    upsertPin({
+      pinId: TEST_PIN_IDS.beta,
+      resource_type: 'content',
+      resource_key: 'course-b',
+      cacheKey: keyB,
+      accountScope: 'acct_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+      pinned_at: '2026-01-01T00:00:00.000Z',
+    });
+    upsertPin({
+      pinId: TEST_PIN_IDS.gamma,
+      resource_type: 'content',
+      resource_key: 'legacy',
+      cacheKey: getCacheKey('content', 'legacy'),
+      pinned_at: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(
+      getAllPins('acct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa').map(
+        (pin) => pin.resource_key
+      )
+    ).toEqual(['course-a']);
+    expect(
+      getPinById(TEST_PIN_IDS.beta, 'acct_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+    ).toBeUndefined();
+    expect(getPinById(TEST_PIN_IDS.gamma)).toBeDefined();
+  });
+
   it('removes by predicate and leaves non-matching pins', () => {
     const keyA = getCacheKey(
       'file',

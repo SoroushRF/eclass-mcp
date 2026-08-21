@@ -5,6 +5,8 @@ import {
   CENGAGE_SESSION_META_PATH,
   CENGAGE_STATE_PATH,
 } from '../scraper/cengage-session';
+import { clearActiveEclassAccountScope, getActiveEclassAccountScope } from '../cache/account-scope';
+import { cache } from '../cache/store';
 import { secureDeleteFile } from './secure-session-store';
 
 export interface ClearAuthSessionsResult {
@@ -40,6 +42,7 @@ function knownAuthSessionPaths(): string[] {
 }
 
 export function clearAllAuthSessions(): ClearAuthSessionsResult {
+  const activeAccountScope = getActiveEclassAccountScope();
   const result: ClearAuthSessionsResult = {
     removed: [],
     missing: [],
@@ -66,6 +69,11 @@ export function clearAllAuthSessions(): ClearAuthSessionsResult {
       });
     }
   }
+
+  if (activeAccountScope) {
+    cache.clearEclassAccountScope(activeAccountScope);
+  }
+  clearActiveEclassAccountScope();
 
   return result;
 }

@@ -15,6 +15,10 @@ import {
   isSecureSessionConfigured,
 } from '../security/secure-session-store';
 import { clearAllAuthSessions } from '../security/auth-session-wipe';
+import {
+  clearActiveEclassAccountScope,
+  getActiveEclassAccountScope,
+} from '../cache/account-scope';
 
 dotenv.config({ quiet: true });
 
@@ -389,7 +393,16 @@ export async function startAuthServer() {
 
         const cookies: Cookie[] = await context.cookies();
         saveSession(cookies);
+        const previousAccountScope = getActiveEclassAccountScope();
+        const { closeAllEclassApiSessionContexts } = await import(
+          '../scraper/eclass/api/session-context'
+        );
+        await closeAllEclassApiSessionContexts();
+        clearActiveEclassAccountScope();
         const { cache } = await import('../cache/store');
+        if (previousAccountScope) {
+          cache.clearEclassAccountScope(previousAccountScope);
+        }
         cache.clearVolatile();
 
         res.writeHead(200, { 'Content-Type': 'text/html' });
@@ -513,6 +526,10 @@ export async function startAuthServer() {
           writeInvalidCsrfResponse(res);
           return;
         }
+        const { closeAllEclassApiSessionContexts } = await import(
+          '../scraper/eclass/api/session-context'
+        );
+        await closeAllEclassApiSessionContexts();
         const result = clearAllAuthSessions();
         const status = result.errors.length > 0 ? 500 : 200;
         res.writeHead(status, {

@@ -17,6 +17,10 @@ import {
   type PinResourceType,
 } from '../cache/pins';
 import { getCacheFilePathForKey } from '../cache/store';
+import {
+  EclassAccountScopeUnavailableError,
+  requireActiveEclassAccountScope,
+} from '../cache/account-scope';
 import { SessionExpiredError } from '../scraper/eclass';
 import { getAuthUrl } from '../auth/server';
 import { ValidationError } from '../errors/validation-error';
@@ -83,6 +87,7 @@ export async function cachePin(args: {
     const normalizedArgs = { ...args };
 
     let cacheKey: string;
+    let accountScope: string | undefined;
     if (resource_type === 'file') {
       if (!args.fileUrl) {
         return pinToolJson('cache_pin', {
@@ -95,10 +100,12 @@ export async function cachePin(args: {
         args.fileUrl,
         'eclass_file'
       );
+      accountScope = requireActiveEclassAccountScope();
       cacheKey = buildFileCacheKey(
         normalizedArgs.fileUrl,
         args.startPage,
-        args.endPage
+        args.endPage,
+        accountScope
       );
     } else if (resource_type === 'sectiontext') {
       if (!args.url) {
@@ -109,7 +116,8 @@ export async function cachePin(args: {
         });
       }
       normalizedArgs.url = validateUrlForPolicy(args.url, 'eclass_section');
-      cacheKey = buildSectionTextCacheKey(normalizedArgs.url);
+      accountScope = requireActiveEclassAccountScope();
+      cacheKey = buildSectionTextCacheKey(normalizedArgs.url, accountScope);
     } else {
       if (!args.courseId) {
         return pinToolJson('cache_pin', {
@@ -118,11 +126,12 @@ export async function cachePin(args: {
           message: 'courseId is required for resource_type=content',
         });
       }
-      cacheKey = buildContentCacheKey(args.courseId);
+      accountScope = requireActiveEclassAccountScope();
+      cacheKey = buildContentCacheKey(args.courseId, accountScope);
     }
 
     const resource_key = canonicalResourceKey(resource_type, normalizedArgs);
-    const pinId = computePinId(resource_type, resource_key);
+    const pinId = computePinId(resource_type, resource_key, accountScope);
     const fp = getCacheFilePathForKey(cacheKey);
     if (!fs.existsSync(fp)) {
       return pinToolJson('cache_pin', {
@@ -149,6 +158,7 @@ export async function cachePin(args: {
       resource_type,
       resource_key,
       cacheKey,
+      accountScope,
       pinned_at: new Date().toISOString(),
       ...(note ? { note } : {}),
     };
@@ -166,6 +176,13 @@ export async function cachePin(args: {
       },
     });
   } catch (e: unknown) {
+    if (e instanceof EclassAccountScopeUnavailableError) {
+      return pinToolJson('cache_pin', {
+        ok: false,
+        reason: 'account_scope_unavailable',
+        message: e.message,
+      });
+    }
     if (e instanceof ValidationError) {
       return pinToolJson('cache_pin', {
         ok: false,
@@ -204,7 +221,8 @@ export async function cacheUnpin(args: { pinId: string }) {
 
 export async function cacheListPins(args: { resource_type?: PinResourceType }) {
   try {
-    let pins = getAllPins();
+    const accountScope = requireActiveEclassAccountScope();
+    let pins = getAllPins(accountScope);
     if (args.resource_type) {
       pins = pins.filter((p) => p.resource_type === args.resource_type);
     }
@@ -234,6 +252,13 @@ export async function cacheListPins(args: { resource_type?: PinResourceType }) {
       quota: { used_bytes: used, limit_bytes: limit },
     });
   } catch (e: unknown) {
+    if (e instanceof EclassAccountScopeUnavailableError) {
+      return pinToolJson('cache_list_pins', {
+        ok: false,
+        reason: 'account_scope_unavailable',
+        message: e.message,
+      });
+    }
     const message = e instanceof Error ? e.message : String(e);
     return pinToolJson('cache_list_pins', {
       ok: false,
@@ -248,7 +273,8 @@ export async function cacheRefreshPin(
   authRetryAttempted: boolean = false
 ): Promise<PinToolResult> {
   try {
-    const pin = getPinById(args.pinId);
+    const accountScope = requireActiveEclassAccountScope();
+    const pin = getPinById(args.pinId, accountScope);
     if (!pin) {
       return pinToolJson('cache_refresh_pin', {
         ok: false,
@@ -296,6 +322,13 @@ export async function cacheRefreshPin(
       },
     });
   } catch (e: unknown) {
+    if (e instanceof EclassAccountScopeUnavailableError) {
+      return pinToolJson('cache_refresh_pin', {
+        ok: false,
+        reason: 'account_scope_unavailable',
+        message: e.message,
+      });
+    }
     if (e instanceof SessionExpiredError) {
       const fallback = (error: SessionExpiredError) =>
         pinToolJson('cache_refresh_pin', {

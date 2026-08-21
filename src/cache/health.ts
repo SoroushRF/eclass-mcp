@@ -105,6 +105,14 @@ function cacheFilenameForKey(cacheKey: string): string {
 }
 
 function scopeFromFilename(fileName: string, schemaVersion: number): string {
+  const scopedMatch = fileName.match(
+    new RegExp(
+      `^v${schemaVersion}_eclass_acct_[a-f0-9]{32}_(courses|content|sectiontext|deadlines|details|announcements|grades|file)(?:_|\\.json)`,
+      'i'
+    )
+  );
+  if (scopedMatch?.[1]) return scopedMatch[1];
+
   const candidates = [
     {
       scope: 'deadlines',

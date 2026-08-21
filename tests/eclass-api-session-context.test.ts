@@ -1,7 +1,23 @@
 import type { APIRequestContext, BrowserContext, Page } from 'playwright';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { clearActiveEclassAccountScope } from '../src/cache/account-scope';
 import { SessionExpiredError } from '../src/scraper/session';
 import { EclassApiSessionContext } from '../src/scraper/eclass/api/session-context';
+
+const originalSessionSecret = process.env.ECLASS_MCP_SESSION_SECRET;
+
+beforeEach(() => {
+  process.env.ECLASS_MCP_SESSION_SECRET = 'x'.repeat(32);
+});
+
+afterEach(() => {
+  clearActiveEclassAccountScope();
+  if (originalSessionSecret === undefined) {
+    delete process.env.ECLASS_MCP_SESSION_SECRET;
+  } else {
+    process.env.ECLASS_MCP_SESSION_SECRET = originalSessionSecret;
+  }
+});
 
 interface FakeContext {
   newPage: ReturnType<typeof vi.fn>;

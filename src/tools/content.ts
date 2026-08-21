@@ -1,7 +1,8 @@
 import type { CourseContent, SectionTextData } from '../scraper/eclass';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
-import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { cache, TTL, attachCacheMeta } from '../cache/store';
+import { tryGetEclassCacheKey } from '../cache/account-scope';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
 import { redactUrlForLog, validateUrlForPolicy } from '../security/url-policy';
 import {
@@ -14,8 +15,10 @@ export async function getCourseContent(
   deps: ToolDependencies = createDefaultToolDependencies()
 ) {
   const run = async () => {
-    const cacheKey = getCacheKey('content', courseId);
-    const cached = cache.getWithMeta<CourseContent>(cacheKey);
+    const cacheKey = tryGetEclassCacheKey('content', courseId);
+    const cached = cacheKey
+      ? cache.getWithMeta<CourseContent>(cacheKey)
+      : null;
 
     if (cached) {
       const stale = 'stale' in cached && cached.stale === true;
@@ -33,7 +36,7 @@ export async function getCourseContent(
     }
 
     const content = await deps.eclassScraper.getCourseContent(courseId);
-    cache.set(cacheKey, content, TTL.CONTENT);
+    if (cacheKey) cache.set(cacheKey, content, TTL.CONTENT);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.CONTENT * 60000);
@@ -74,8 +77,10 @@ export async function getSectionText(
     console.error(
       `[MCP Server] Claude requested section text for: ${redactUrlForLog(targetUrl)}`
     );
-    const cacheKey = getCacheKey('sectiontext', targetUrl);
-    const cached = cache.getWithMeta<SectionTextData>(cacheKey);
+    const cacheKey = tryGetEclassCacheKey('sectiontext', targetUrl);
+    const cached = cacheKey
+      ? cache.getWithMeta<SectionTextData>(cacheKey)
+      : null;
 
     if (cached) {
       const stale = 'stale' in cached && cached.stale === true;
@@ -93,7 +98,7 @@ export async function getSectionText(
     }
 
     const content = await deps.eclassScraper.getSectionText(targetUrl);
-    cache.set(cacheKey, content, TTL.CONTENT); // Re-use content TTL
+    if (cacheKey) cache.set(cacheKey, content, TTL.CONTENT); // Re-use content TTL
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.CONTENT * 60000);

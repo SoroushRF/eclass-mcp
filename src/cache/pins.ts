@@ -17,7 +17,7 @@ function getCacheFilePathForKeyLocal(cacheKey: string): string {
 
 dotenv.config({ quiet: true });
 
-const PINS_FILE_VERSION = 1 as const;
+const PINS_FILE_VERSION = 2 as const;
 
 export type PinResourceType = 'file' | 'sectiontext' | 'content';
 
@@ -27,6 +27,8 @@ export interface PinRecord {
   /** Stable string for identity (e.g. fileUrl|p1-end, sanitized URL, courseId) */
   resource_key: string;
   cacheKey: string;
+  /** HMAC-derived eClass account scope; absent records are legacy/unavailable. */
+  accountScope?: string;
   pinned_at: string;
   note?: string;
 }
@@ -64,10 +66,13 @@ export function getQuotaLimitBytes(): number {
 
 export function computePinId(
   resource_type: PinResourceType,
-  resource_key: string
+  resource_key: string,
+  accountScope?: string
 ): string {
   const h = crypto.createHash('sha256');
-  h.update(`${resource_type}:${resource_key}`);
+  h.update(
+    `${accountScope ? `${accountScope}:` : ''}${resource_type}:${resource_key}`
+  );
   return h.digest('hex').slice(0, 16);
 }
 
@@ -75,12 +80,16 @@ export function computePinId(
 export function buildFileCacheKey(
   fileUrl: string,
   startPage?: number,
-  endPage?: number
+  endPage?: number,
+  accountScope?: string
 ): string {
-  let cacheKey = getCacheKey('file', fileUrl);
+  const createKey = (...segments: string[]) =>
+    accountScope
+      ? getCacheKey('eclass', accountScope, 'file', ...segments)
+      : getCacheKey('file', ...segments);
+  let cacheKey = createKey(fileUrl);
   if (startPage !== undefined || endPage !== undefined) {
-    cacheKey = getCacheKey(
-      'file',
+    cacheKey = createKey(
       fileUrl,
       `p${startPage ?? 1}-${endPage ?? 'end'}`
     );
@@ -88,13 +97,23 @@ export function buildFileCacheKey(
   return cacheKey;
 }
 
-export function buildSectionTextCacheKey(url: string): string {
+export function buildSectionTextCacheKey(
+  url: string,
+  accountScope?: string
+): string {
   const targetUrl = sanitizeHttpUrlQueryParams(url);
-  return getCacheKey('sectiontext', targetUrl);
+  return accountScope
+    ? getCacheKey('eclass', accountScope, 'sectiontext', targetUrl)
+    : getCacheKey('sectiontext', targetUrl);
 }
 
-export function buildContentCacheKey(courseId: string): string {
-  return getCacheKey('content', courseId);
+export function buildContentCacheKey(
+  courseId: string,
+  accountScope?: string
+): string {
+  return accountScope
+    ? getCacheKey('eclass', accountScope, 'content', courseId)
+    : getCacheKey('content', courseId);
 }
 
 export function canonicalResourceKey(
@@ -129,14 +148,16 @@ export function loadPins(): PinsFile {
   }
   try {
     const raw = fs.readFileSync(PINS_PATH, 'utf-8');
-    const parsed = JSON.parse(raw) as PinsFile;
+    const parsed = JSON.parse(raw) as Partial<PinsFile> & {
+      version?: number;
+    };
     if (!parsed.pins || typeof parsed.pins !== 'object') {
       pinsMemoryCache = { version: PINS_FILE_VERSION, pins: {} };
       return pinsMemoryCache;
     }
     pinsMemoryCache = {
       version: PINS_FILE_VERSION,
-      pins: parsed.pins,
+      pins: parsed.pins as Record<string, PinRecord>,
     };
     return pinsMemoryCache;
   } catch {
@@ -175,12 +196,23 @@ export function isCacheKeyPinned(cacheKey: string): boolean {
   return false;
 }
 
-export function getPinById(pinId: string): PinRecord | undefined {
-  return loadPins().pins[pinId];
+export function getPinById(
+  pinId: string,
+  accountScope?: string
+): PinRecord | undefined {
+  const pin = loadPins().pins[pinId];
+  if (!pin) return undefined;
+  if (accountScope !== undefined && pin.accountScope !== accountScope) {
+    return undefined;
+  }
+  return pin;
 }
 
-export function getAllPins(): PinRecord[] {
-  return Object.values(loadPins().pins);
+export function getAllPins(accountScope?: string): PinRecord[] {
+  const pins = Object.values(loadPins().pins);
+  return accountScope
+    ? pins.filter((pin) => pin.accountScope === accountScope)
+    : pins;
 }
 
 export function getPinnedBytes(): number {

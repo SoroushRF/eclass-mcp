@@ -1,5 +1,12 @@
 import fs from 'fs';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   canonicalResourceKey: vi.fn(),
@@ -61,6 +68,10 @@ vi.mock('../src/tools/auth-retry', () => ({
 
 import { SessionExpiredError } from '../src/scraper/eclass';
 import {
+  clearActiveEclassAccountScope,
+  setActiveEclassAccountScope,
+} from '../src/cache/account-scope';
+import {
   cacheDeletePinned,
   cacheListPins,
   cachePin,
@@ -81,8 +92,15 @@ const PIN = {
   note: 'keep',
 };
 
+const originalSessionSecret = process.env.ECLASS_MCP_SESSION_SECRET;
+
 describe('pin tool layer', () => {
   beforeEach(() => {
+    process.env.ECLASS_MCP_SESSION_SECRET = 'pins-test-secret-'.padEnd(
+      32,
+      'x'
+    );
+    setActiveEclassAccountScope('https://eclass.yorku.ca', '123456');
     vi.restoreAllMocks();
     vi.clearAllMocks();
     mocks.canonicalResourceKey.mockImplementation((type, args) => {
@@ -104,6 +122,15 @@ describe('pin tool layer', () => {
     vi.spyOn(fs, 'existsSync').mockReturnValue(true);
     vi.spyOn(fs, 'statSync').mockReturnValue({ size: 99 } as any);
     vi.spyOn(fs, 'unlinkSync').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    clearActiveEclassAccountScope();
+    if (originalSessionSecret === undefined) {
+      delete process.env.ECLASS_MCP_SESSION_SECRET;
+    } else {
+      process.env.ECLASS_MCP_SESSION_SECRET = originalSessionSecret;
+    }
   });
 
   it('validates pin arguments for every resource type', async () => {

@@ -25,6 +25,7 @@ function clearVersionedAndLegacyPrefixes(...prefixes: string[]): number {
   for (const prefix of prefixes) {
     total += cache.clearByPrefix(`v${CACHE_SCHEMA_VERSION}:${prefix}`);
     total += cache.clearByPrefix(prefix);
+    total += cache.clearEclassByPrefix(prefix);
   }
   return total;
 }

@@ -1,5 +1,6 @@
 import type { Grade } from '../scraper/eclass';
-import { cache, TTL, getCacheKey, attachCacheMeta } from '../cache/store';
+import { cache, TTL, attachCacheMeta } from '../cache/store';
+import { tryGetEclassCacheKey } from '../cache/account-scope';
 import { EclassToolJsonPayloadSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { runEclassToolBoundary, sessionExpiredResponse } from './tool-boundary';
@@ -13,8 +14,8 @@ export async function getGrades(
   deps: ToolDependencies = createDefaultToolDependencies()
 ) {
   const run = async () => {
-    const cacheKey = getCacheKey('grades', courseId || 'all');
-    const cached = cache.getWithMeta<Grade[]>(cacheKey);
+    const cacheKey = tryGetEclassCacheKey('grades', courseId || 'all');
+    const cached = cacheKey ? cache.getWithMeta<Grade[]>(cacheKey) : null;
 
     if (cached) {
       const resp = attachCacheMeta(cached.data, {
@@ -30,7 +31,7 @@ export async function getGrades(
     }
 
     const grades = await deps.eclassScraper.getGrades(courseId);
-    cache.set(cacheKey, grades, TTL.GRADES);
+    if (cacheKey) cache.set(cacheKey, grades, TTL.GRADES);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.GRADES * 60000);

@@ -3,6 +3,10 @@ import type {
   BrowserContext,
   Page,
 } from 'playwright';
+import {
+  clearActiveEclassAccountScope,
+  setActiveEclassAccountScope,
+} from '../../../cache/account-scope';
 import { checkSession } from '../helpers';
 import {
   ECLASS_DEFAULT_ORIGIN,
@@ -18,6 +22,7 @@ export interface EclassApiSession {
   request: APIRequestContext;
   sesskey: string;
   userId: string;
+  accountScope: string;
   createdAt: string;
 }
 
@@ -33,6 +38,8 @@ interface MoodleRuntimeConfig {
   userId?: unknown;
   wwwroot?: unknown;
 }
+
+const activeSessionContexts = new Set<EclassApiSessionContext>();
 
 function assertNonEmptyString(value: unknown, field: string): string {
   if (typeof value !== 'string' && typeof value !== 'number') {
@@ -73,6 +80,7 @@ export class EclassApiSessionContext {
     this.origin = options.origin ?? getEclassApiConfig().origin;
     this.bootstrapPath = options.bootstrapPath ?? '/my/';
     this.timeoutMs = options.timeoutMs ?? getEclassApiConfig().timeoutMs;
+    activeSessionContexts.add(this);
   }
 
   async getSession(): Promise<EclassApiSession> {
@@ -133,6 +141,7 @@ export class EclassApiSessionContext {
     if (current) {
       await this.closeSession(current);
     }
+    activeSessionContexts.delete(this);
   }
 
   private async bootstrap(): Promise<EclassApiSession> {
@@ -162,11 +171,13 @@ export class EclassApiSessionContext {
         );
       }
 
+      const accountScope = setActiveEclassAccountScope(this.origin, userId);
       session = {
         context,
         request: context.request,
         sesskey,
         userId,
+        accountScope,
         createdAt: new Date().toISOString(),
       };
       this.session = session;
@@ -182,6 +193,15 @@ export class EclassApiSessionContext {
   }
 
   private async closeSession(session: EclassApiSession): Promise<void> {
+    clearActiveEclassAccountScope(session.accountScope);
     await session.context.close().catch(() => undefined);
   }
+}
+
+export async function closeAllEclassApiSessionContexts(): Promise<void> {
+  await Promise.all(
+    Array.from(activeSessionContexts, (sessionContext) =>
+      sessionContext.close()
+    )
+  );
 }

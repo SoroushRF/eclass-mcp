@@ -1,4 +1,5 @@
-import { cache, TTL, getCacheKey } from '../cache/store';
+import { cache, TTL } from '../cache/store';
+import { tryGetEclassCacheKey } from '../cache/account-scope';
 import {
   EclassAuthRequiredSchema,
   GetFileTextMcpResultSchema,
@@ -25,16 +26,18 @@ export async function getFileText(
   const run = async () => {
     const safeFileUrl = validateUrlForPolicy(fileUrl, 'eclass_file');
     // Build a cache key
-    let cacheKey = getCacheKey('file', safeFileUrl);
+    let cacheKey = tryGetEclassCacheKey('file', safeFileUrl);
     if (startPage || endPage) {
-      cacheKey = getCacheKey(
+      cacheKey = tryGetEclassCacheKey(
         'file',
         safeFileUrl,
         `p${startPage ?? 1}-${endPage ?? 'end'}`
       );
     }
 
-    const cached = cache.getWithMeta<string | ContentBlock[]>(cacheKey);
+    const cached = cacheKey
+      ? cache.getWithMeta<string | ContentBlock[]>(cacheKey)
+      : null;
     if (cached) {
       const { data } = cached;
       const stale = 'stale' in cached && cached.stale === true;
@@ -101,7 +104,7 @@ export async function getFileText(
 
     // Cache the full block array (including base64 images)
     if (blocks.length > 0) {
-      cache.set(cacheKey, blocks, TTL.FILES);
+      if (cacheKey) cache.set(cacheKey, blocks, TTL.FILES);
     }
 
     return asValidatedMcpResult('get_file_text', GetFileTextMcpResultSchema, {

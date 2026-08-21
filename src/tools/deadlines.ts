@@ -3,10 +3,10 @@ import { ValidationError } from '../errors/validation-error';
 import {
   cache,
   TTL,
-  getCacheKey,
   attachCacheMeta,
   type CacheMetadata,
 } from '../cache/store';
+import { tryGetEclassCacheKey } from '../cache/account-scope';
 import { ItemDetails } from '../types/deadlines';
 import type { Attachment } from '../types/deadlines';
 import {
@@ -69,8 +69,14 @@ export async function getUpcomingDeadlines(
   deps: ToolDependencies = createDefaultToolDependencies()
 ): Promise<McpTextResponse> {
   const run = async (): Promise<McpTextResponse> => {
-    const cacheKey = getCacheKey('deadlines', 'upcoming', courseId || 'all');
-    const cached = cache.getWithMeta<Assignment[]>(cacheKey);
+    const cacheKey = tryGetEclassCacheKey(
+      'deadlines',
+      'upcoming',
+      courseId || 'all'
+    );
+    const cached = cacheKey
+      ? cache.getWithMeta<Assignment[]>(cacheKey)
+      : null;
 
     if (cached) {
       const cacheMeta = {
@@ -90,7 +96,7 @@ export async function getUpcomingDeadlines(
     }
 
     const deadlines = await deps.eclassScraper.getDeadlines(courseId);
-    cache.set(cacheKey, deadlines, TTL.DEADLINES);
+    if (cacheKey) cache.set(cacheKey, deadlines, TTL.DEADLINES);
 
     const now = new Date();
     const expiresAt = new Date(now.getTime() + TTL.DEADLINES * 60000);
@@ -127,10 +133,10 @@ export async function getUpcomingDeadlines(
   });
 }
 
-function detailsCacheKey(url: string) {
+function detailsCacheKey(url: string): string | null {
   // Use a hash or shortened URL for the key segment
   const shortened = url.length > 150 ? url.slice(-150) : url;
-  return getCacheKey('details', 'v2', shortened);
+  return tryGetEclassCacheKey('details', 'v2', shortened);
 }
 
 async function getDetailsWithMeta(
@@ -139,7 +145,7 @@ async function getDetailsWithMeta(
 ): Promise<{ data: ItemDetails; meta: CacheMetadata }> {
   const safeUrl = validateUrlForPolicy(url, 'eclass_item');
   const key = detailsCacheKey(safeUrl);
-  const cached = cache.getWithMeta<ItemDetails>(key);
+  const cached = key ? cache.getWithMeta<ItemDetails>(key) : null;
 
   if (cached) {
     return {
@@ -153,7 +159,7 @@ async function getDetailsWithMeta(
   }
 
   const details = await deps.eclassScraper.getItemDetails(safeUrl);
-  cache.set(key, details, TTL.DETAILS);
+  if (key) cache.set(key, details, TTL.DETAILS);
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + TTL.DETAILS * 60000);
