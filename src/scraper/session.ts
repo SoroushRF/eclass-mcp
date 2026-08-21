@@ -56,7 +56,10 @@ export interface Cookie {
   sameSite: 'Strict' | 'Lax' | 'None';
 }
 
-interface SessionData {
+export const SESSION_DATA_SCHEMA_VERSION = 1 as const;
+
+export interface SessionData {
+  schema_version: typeof SESSION_DATA_SCHEMA_VERSION;
   saved_at: string;
   cookies: Cookie[];
 }
@@ -70,6 +73,7 @@ export function saveSession(
   }
 
   const data: SessionData = {
+    schema_version: SESSION_DATA_SCHEMA_VERSION,
     saved_at: new Date().toISOString(),
     cookies: cookies,
   };
@@ -84,8 +88,14 @@ export function saveSession(
   }
 }
 
-function isSessionData(value: unknown): value is SessionData {
-  const data = value as Partial<SessionData>;
+interface LegacySessionData {
+  schema_version?: unknown;
+  saved_at: string;
+  cookies: unknown;
+}
+
+function isSessionData(value: unknown): value is LegacySessionData {
+  const data = value as Partial<LegacySessionData>;
   return (
     !!data &&
     typeof data === 'object' &&
@@ -95,7 +105,7 @@ function isSessionData(value: unknown): value is SessionData {
 }
 
 function loadSessionData(file: string): SessionData {
-  const data = readSecureJsonFile<SessionData>(file);
+  const data = readSecureJsonFile<LegacySessionData>(file);
   if (!isSessionData(data)) {
     throw new SecureSessionStorageError(
       'malformed_envelope',
@@ -103,7 +113,21 @@ function loadSessionData(file: string): SessionData {
       { filePath: file }
     );
   }
-  return data;
+  if (
+    data.schema_version !== undefined &&
+    data.schema_version !== SESSION_DATA_SCHEMA_VERSION
+  ) {
+    throw new SecureSessionStorageError(
+      'unsupported_envelope',
+      'Secure session payload uses an unsupported schema version.',
+      { filePath: file }
+    );
+  }
+  return {
+    schema_version: SESSION_DATA_SCHEMA_VERSION,
+    saved_at: data.saved_at,
+    cookies: data.cookies as Cookie[],
+  };
 }
 
 export function loadSessionDataForTests(

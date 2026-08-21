@@ -5,8 +5,10 @@ import {
   getSessionFilePath,
   isSavedSessionFresh,
   isSessionValid,
+  loadSessionDataForTests,
   loadSession,
   saveSession,
+  SESSION_DATA_SCHEMA_VERSION,
   SESSION_STALE_HOURS,
 } from '../src/scraper/session';
 import {
@@ -95,6 +97,10 @@ describe('session file behavior', () => {
     saveSession(cookies, 'vitest-session-fresh.json');
     expect(loadSession('vitest-session-fresh.json')).toEqual(cookies);
     expect(isSessionValid('vitest-session-fresh.json')).toBe(true);
+    expect(loadSessionDataForTests('vitest-session-fresh.json')).toMatchObject({
+      schema_version: SESSION_DATA_SCHEMA_VERSION,
+      cookies,
+    });
     const raw = fs.readFileSync(
       getSessionFilePath('vitest-session-fresh.json'),
       'utf-8'
