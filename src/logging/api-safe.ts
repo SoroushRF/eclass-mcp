@@ -8,6 +8,7 @@ export interface SafeApiLogFields {
   durationMs: number;
   responseBytes?: number;
   errorCode?: string;
+  tokenPresent?: boolean;
   fallback?: boolean;
   fallbackReason?: string;
 }
@@ -56,6 +57,9 @@ export function createSafeApiLogFields(
       : {}),
     ...(fields.errorCode
       ? { errorCode: safeErrorCode(fields.errorCode) }
+      : {}),
+    ...(fields.tokenPresent !== undefined
+      ? { tokenPresent: fields.tokenPresent }
       : {}),
     ...(fields.fallback !== undefined ? { fallback: fields.fallback } : {}),
     ...(fields.fallbackReason
