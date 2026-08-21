@@ -53,6 +53,10 @@ function cleanText(value: string | undefined, fallback: string): string {
   return cleaned || fallback;
 }
 
+function isVisible(value: boolean | number | undefined): boolean {
+  return value !== false && value !== 0;
+}
+
 export function mapMoodleCourses(
   data: MoodleEnrolledCoursesData,
   origin: string
@@ -109,11 +113,18 @@ function moduleBelongsToSection(
 ): boolean {
   const sectionId = String(section.id ?? '');
   const number = sectionNumber(section);
+  const listedModuleIds = (section.cmlist ?? []).map((entry) => {
+    if (typeof entry === 'object' && entry !== null && 'id' in entry) {
+      return String((entry as { id?: unknown }).id ?? '');
+    }
+    return String(entry);
+  });
   return (
     (module.sectionid !== undefined &&
       String(module.sectionid) === sectionId) ||
     (module.sectionnumber !== undefined &&
-      String(module.sectionnumber) === number)
+      String(module.sectionnumber) === number) ||
+    listedModuleIds.includes(String(module.id))
   );
 }
 
@@ -147,8 +158,12 @@ export function mapMoodleCourseContent(
 ): CourseContent {
   const normalizedOrigin = normalizeOrigin(origin);
   const normalizedCourseId = String(courseId);
-  const modules = data.cm;
-  const sections = data.section.map((section) => {
+  const modules = data.cm.filter((module) =>
+    isVisible(module.visible) && isVisible(module.uservisible)
+  );
+  const sections = data.section
+    .filter((section) => isVisible(section.visible) && isVisible(section.uservisible))
+    .map((section) => {
     const number = sectionNumber(section);
     const sectionModules = modules.filter((module) =>
       moduleBelongsToSection(module, section)
@@ -174,7 +189,7 @@ export function mapMoodleCourseContent(
       ),
       items,
     };
-  });
+    });
 
   const withUnassignedModules = modules.filter(
     (module) => !sections.some((section) =>
@@ -208,6 +223,14 @@ export function mapMoodleCourseContent(
     sections: nonEmptySections,
     ...(platforms.length > 0 ? { external_platforms: platforms } : {}),
   };
+}
+
+export function isMoodleCourseContentComplete(
+  data: MoodleCourseFormatState
+): boolean {
+  const expectedSections = data.course.numsections;
+  if (expectedSections === undefined) return true;
+  return data.section.length >= expectedSections;
 }
 
 function eventUrl(

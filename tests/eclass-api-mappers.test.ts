@@ -3,6 +3,7 @@ import courseStateFixture from './fixtures/eclass-api/ajax-course-state.json';
 import calendarFixture from './fixtures/eclass-api/ajax-calendar.json';
 import { describe, expect, it } from 'vitest';
 import {
+  isMoodleCourseContentComplete,
   mapMoodleCalendarToAssignments,
   mapMoodleCalendarToDeadlineItems,
   mapMoodleCourseContent,
@@ -58,6 +59,37 @@ describe('Moodle anti-corruption mappers', () => {
         ],
       },
     ]);
+  });
+
+  it('filters hidden sections/modules and reports incomplete lazy state', () => {
+    const response = MoodleAjaxResponseSchema.parse(courseStateFixture)[0];
+    const state = MoodleCourseFormatStateSchema.parse(
+      JSON.parse(response?.data as string)
+    );
+    state.cm.push({
+      id: 12,
+      name: 'Hidden resource',
+      visible: 0,
+      sectionid: 1,
+      modname: 'resource',
+    });
+    state.section.push({
+      id: 2,
+      section: 1,
+      title: 'Hidden section',
+      visible: false,
+    });
+
+    expect(mapMoodleCourseContent(state, 101, ORIGIN).sections).toHaveLength(
+      1
+    );
+    expect(isMoodleCourseContentComplete(state)).toBe(true);
+    expect(
+      isMoodleCourseContentComplete({
+        ...state,
+        course: { ...state.course, numsections: 3 },
+      })
+    ).toBe(false);
   });
 
   it('maps calendar events to assignment/deadline models with stable dates', () => {
