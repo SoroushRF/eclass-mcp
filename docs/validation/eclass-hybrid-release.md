@@ -78,3 +78,20 @@ API requests. Configuration rollback is:
 REST token invalidation, logout cleanup, and session-context closure are
 covered by deterministic unit tests. REST-backed MCP tools were not enabled,
 so no live token invalidation rehearsal was appropriate.
+
+## Final gate status
+
+The release checklist was rerun sequentially after the documentation commits:
+
+- `doctor`: 17 passes, 4 expected local-environment warnings, 0 failures.
+- `test`: 91 files and 694 tests passed.
+- `test:coverage`: passed at 75.00% global branch coverage.
+- `typecheck`, `typecheck:tests`, `lint`, `format:check`, `build`, and
+  `git diff --check`: passed.
+- `npm.cmd pack --dry-run`: passed without packaging `.env`, session, cache,
+  or mobile credential files.
+- `git status --short --branch`: clean on `feat/eclass-hybrid-api`.
+
+The branch is not tagged, pushed, merged, or used to modify `master`. The
+account-owner live comparison and desktop prompt matrix remain explicit
+pre-promotion gates rather than being represented as completed evidence.
