@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Logger } from 'pino';
 import { createChildForTool, rootLogger } from './logger';
+import { serializeErrorForLog } from './api-safe';
+import { redactStructuredLogFields } from './redact';
 
 export interface ToolLogContext {
   requestId: string;
@@ -76,7 +78,7 @@ export async function runWithToolContext<T>(
       return result;
     } catch (err) {
       log.error({
-        err,
+        err: serializeErrorForLog(err),
         event: 'tool_error',
         durationMs: Date.now() - t0,
       });
@@ -119,22 +121,25 @@ export async function runWithSpan<T>(
   };
 
   return toolContext.run(store, async () => {
-    log.info({ event: 'span_start', ...options.fields });
+    log.info({
+      event: 'span_start',
+      ...redactStructuredLogFields(options.fields ?? {}),
+    });
     const t0 = Date.now();
     try {
       const result = await fn();
       log.info({
         event: 'span_end',
         durationMs: Date.now() - t0,
-        ...options.fields,
+        ...redactStructuredLogFields(options.fields ?? {}),
       });
       return result;
     } catch (err) {
       log.error({
-        err,
+        err: serializeErrorForLog(err),
         event: 'span_error',
         durationMs: Date.now() - t0,
-        ...options.fields,
+        ...redactStructuredLogFields(options.fields ?? {}),
       });
       throw err;
     }
@@ -148,7 +153,10 @@ export function logTraceEvent(
   message: string = event
 ): void {
   const log = getLogger();
-  const payload = { event, ...fields };
+  const payload = {
+    event,
+    ...redactStructuredLogFields(fields),
+  };
   switch (level) {
     case 'trace':
       log.trace(payload, message);

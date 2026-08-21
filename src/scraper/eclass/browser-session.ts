@@ -9,11 +9,13 @@ import fs from 'fs';
 import path from 'path';
 import { loadSession } from '../session';
 import { SessionExpiredError } from './types';
+import { safeString } from '../../logging/redact';
 
 dotenv.config({ quiet: true });
 
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 const DATA_ROOT = path.resolve(__dirname, '../../../.eclass-mcp');
+const AUTH_DEBUG_DUMPS_ENV = 'ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS';
 
 export class EClassBrowserSession {
   private browser: Browser | null = null;
@@ -59,6 +61,10 @@ export class EClassBrowserSession {
   }
 
   async dumpPage(page: Page, name: string) {
+    if (process.env[AUTH_DEBUG_DUMPS_ENV] !== 'true') {
+      return;
+    }
+
     try {
       const debugDir = path.join(DATA_ROOT, 'debug');
       if (!fs.existsSync(debugDir)) fs.mkdirSync(debugDir, { recursive: true });
@@ -67,7 +73,9 @@ export class EClassBrowserSession {
       console.error(`Dumped page to ${name}.html for debugging.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error(`Failed to dump debug page ${name}: ${message}`);
+      console.error(
+        `Failed to dump debug page ${name}: ${safeString(message)}`
+      );
     }
   }
 

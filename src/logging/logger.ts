@@ -1,4 +1,5 @@
 import pino from 'pino';
+import { serializeErrorForLog } from './api-safe';
 
 const ALLOWED_LEVELS = [
   'trace',
@@ -24,8 +25,40 @@ function parseLogLevel(v: string | undefined): (typeof ALLOWED_LEVELS)[number] {
 export const rootLogger: pino.Logger = pino(
   {
     level: parseLogLevel(process.env.ECLASS_MCP_LOG_LEVEL),
+    serializers: {
+      err: serializeErrorForLog,
+    },
     redact: {
-      paths: ['cookie', 'cookies', 'setCookie', 'headers.cookie'],
+      paths: [
+        'cookie',
+        'cookies',
+        'setCookie',
+        'set-cookie',
+        'headers.cookie',
+        'headers.Cookie',
+        'headers.authorization',
+        'headers.Authorization',
+        'headers.location',
+        'headers.Location',
+        'headers.set-cookie',
+        'headers["set-cookie"]',
+        'authorization',
+        'Authorization',
+        'location',
+        'Location',
+        'sesskey',
+        'wstoken',
+        'token',
+        'passport',
+        'request.body',
+        'requestBody',
+        'response.body',
+        'responseBody',
+        'body.sesskey',
+        'body.wstoken',
+        'body.token',
+        'body.passport',
+      ],
       censor: '[Redacted]',
     },
   },

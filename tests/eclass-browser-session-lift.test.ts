@@ -24,6 +24,8 @@ vi.mock('../src/scraper/session', async () => {
   };
 });
 
+const originalDebugDumpSetting = process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS;
+
 describe('eclass browser session', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -31,6 +33,12 @@ describe('eclass browser session', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    if (originalDebugDumpSetting === undefined) {
+      delete process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS;
+    } else {
+      process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS =
+        originalDebugDumpSetting;
+    }
   });
 
   it('reuses a launched browser instance across calls', async () => {
@@ -110,6 +118,7 @@ describe('eclass browser session', () => {
   });
 
   it('dumps page HTML to debug directory and handles dump failures', async () => {
+    process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS = 'true';
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const existsSpy = vi.spyOn(fs, 'existsSync').mockReturnValue(false);
     const mkdirSpy = vi
@@ -144,6 +153,16 @@ describe('eclass browser session', () => {
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining('Failed to dump debug page bad-page:')
     );
+  });
+
+  it('does not dump authenticated page HTML without explicit opt-in', async () => {
+    delete process.env.ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS;
+    const content = vi.fn(async () => '<html>private course data</html>');
+    const session = new EClassBrowserSession();
+
+    await session.dumpPage({ content } as any, 'disabled');
+
+    expect(content).not.toHaveBeenCalled();
   });
 
   it('closes browser once and resets internal state', async () => {

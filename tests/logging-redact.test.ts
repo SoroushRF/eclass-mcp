@@ -2,8 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   redactCookieSubstrings,
   redactUrlForLog,
+  redactStructuredLogFields,
   safeString,
 } from '../src/logging/redact';
+import {
+  createSafeApiLogFields,
+  serializeApiErrorForLog,
+} from '../src/logging/api-safe';
 import {
   getLogger,
   getTraceContext,
@@ -60,6 +65,83 @@ describe('redactCookieSubstrings', () => {
     expect(safeString('sesskey=abc')).toBe(
       redactCookieSubstrings('sesskey=abc')
     );
+  });
+
+  it('redacts authorization and launch redirect headers', () => {
+    const value = redactCookieSubstrings(
+      'Authorization: Bearer secret-token\nLocation: moodlemobile://launch?token=mobile-secret'
+    );
+    expect(value).not.toContain('secret-token');
+    expect(value).not.toContain('mobile-secret');
+    expect(value).toContain('Authorization: [Redacted]');
+    expect(value).toContain('Location: [Redacted]');
+  });
+
+  it('redacts nested structured API fields and error bodies', () => {
+    const value = redactStructuredLogFields({
+      operation: 'ajax',
+      headers: {
+        authorization: 'Bearer secret',
+        location: 'moodlemobile://?token=secret',
+      },
+      body: { sesskey: 'session-secret', safe: 'not-sensitive' },
+      err: new Error('upstream body contains token=secret'),
+    });
+
+    expect(value).toMatchObject({
+      operation: 'ajax',
+      headers: {
+        authorization: '[Redacted]',
+        location: '[Redacted]',
+      },
+      body: '[Redacted]',
+      err: { name: 'Error' },
+    });
+    expect(JSON.stringify(value)).not.toContain('secret');
+    expect(JSON.stringify(value)).not.toContain('upstream body');
+  });
+});
+
+describe('safe API telemetry', () => {
+  it('keeps only path-level, bounded API diagnostics', () => {
+    const fields = createSafeApiLogFields({
+      operation: 'core_course_get_state',
+      source: 'shadow',
+      endpointPath:
+        'https://eclass.yorku.ca/lib/ajax/service.php?sesskey=secret',
+      status: 200,
+      durationMs: 12.7,
+      responseBytes: 99.4,
+      errorCode: 'servicenotavailable',
+      fallback: true,
+      fallbackReason: 'malformed response',
+    });
+
+    expect(fields).toEqual({
+      operation: 'core_course_get_state',
+      source: 'shadow',
+      endpointPath: '/lib/ajax/service.php',
+      status: 200,
+      durationMs: 13,
+      responseBytes: 99,
+      errorCode: 'servicenotavailable',
+      fallback: true,
+      fallbackReason: 'malformed_response',
+    });
+    expect(JSON.stringify(fields)).not.toContain('secret');
+  });
+
+  it('serializes API errors without upstream messages or bodies', () => {
+    const serialized = serializeApiErrorForLog({
+      name: 'MoodleApiError',
+      category: 'capability_unavailable',
+      message: '{"token":"secret"}',
+    });
+    expect(serialized).toEqual({
+      errorType: 'MoodleApiError',
+      errorCode: 'capability_unavailable',
+    });
+    expect(JSON.stringify(serialized)).not.toContain('secret');
   });
 });
 

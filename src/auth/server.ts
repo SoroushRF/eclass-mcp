@@ -19,6 +19,7 @@ import {
   clearActiveEclassAccountScope,
   getActiveEclassAccountScope,
 } from '../cache/account-scope';
+import { safeString } from '../logging/redact';
 
 dotenv.config({ quiet: true });
 
@@ -316,7 +317,7 @@ function secureSessionConfigHtml(error: unknown): string {
     <html>
       <body style="font-family: sans-serif; max-width: 720px; margin: 48px auto; line-height: 1.5;">
         <h2>Secure session storage is not configured</h2>
-        <p>${escapeHtml(message)}</p>
+        <p>${escapeHtml(safeString(message))}</p>
         <p>Set <code>ECLASS_MCP_SESSION_SECRET</code> in <code>.env</code> to a long local secret, restart the MCP server, then authenticate again.</p>
         <p>If old plaintext sessions exist, visit <code>/logout</code> after setting the secret or delete the old auth files under <code>.eclass-mcp/</code>.</p>
       </body>
@@ -434,7 +435,7 @@ export async function startAuthServer() {
             : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(
-          `<h2>Authentication failed: ${escapeHtml(message)}</h2>`
+          `<h2>Authentication failed: ${escapeHtml(safeString(message))}</h2>`
         );
       } finally {
         if (browser) {
@@ -495,7 +496,7 @@ export async function startAuthServer() {
             : 'Unknown authentication error';
         res.writeHead(500, { 'Content-Type': 'text/html' });
         res.end(
-          `<h2>Cengage Authentication failed: ${escapeHtml(message)}</h2>`
+          `<h2>Cengage Authentication failed: ${escapeHtml(safeString(message))}</h2>`
         );
       } finally {
         if (browser) {
