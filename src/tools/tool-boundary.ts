@@ -13,6 +13,10 @@ import { asValidatedMcpText } from './mcp-validated-response';
 import { sessionStorageUnavailableResponse } from './auth-retry';
 import type { z } from 'zod';
 import { logTraceEvent, runWithSpan } from '../logging/context';
+import {
+  MoodleApiError,
+  type MoodleApiErrorCategory,
+} from '../scraper/eclass/api/errors';
 
 type AuthPlatform = 'eclass' | 'cengage';
 
@@ -36,6 +40,7 @@ export type ToolBoundaryOptions<T extends McpToolResult> = {
   onValidationError?: (error: ValidationError) => T | Promise<T>;
   onScrapeLayoutError?: (error: ScrapeLayoutError) => T | Promise<T>;
   onUpstreamError?: (error: UpstreamError) => T | Promise<T>;
+  onMoodleApiError?: (error: MoodleApiError) => T | Promise<T>;
   onUnknownError?: (error: unknown) => T | Promise<T>;
 };
 
@@ -83,6 +88,26 @@ export function upstreamErrorResponse(
         ? { details: { httpStatus: error.httpStatus } }
         : {}),
     })
+  );
+}
+
+export function moodleApiErrorResponse(
+  toolName: string,
+  error: MoodleApiError
+): McpTextResponse {
+  const code =
+    error.category === 'session_invalid'
+      ? 'SESSION_EXPIRED'
+      : error.publicCode;
+  const details: Record<string, unknown> = {
+    category: error.category satisfies MoodleApiErrorCategory,
+  };
+  if (error.status !== undefined) details.httpStatus = error.status;
+
+  return asValidatedMcpText(
+    toolName,
+    EclassToolErrorResponseSchema,
+    toErrorPayload(code, error.message, { details })
   );
 }
 
@@ -167,6 +192,32 @@ async function runEclassToolBoundaryInner<T extends McpToolResult>(
         return fallback(error);
       }
       return handleEclassSessionExpired(error, retry, fallback);
+    }
+
+    if (error instanceof MoodleApiError) {
+      logTraceEvent(
+        'warn',
+        'tool_boundary_moodle_api_error_mapped',
+        { toolName: options.toolName, category: error.category },
+        'Tool boundary mapped Moodle API error'
+      );
+
+      if (
+        error.category === 'session_invalid' &&
+        options.onSessionExpired
+      ) {
+        const sessionError = new SessionExpiredError();
+        const { attempted, retry, fallback } = options.onSessionExpired;
+        if (attempted) return fallback(sessionError);
+        return handleEclassSessionExpired(sessionError, retry, fallback);
+      }
+
+      if (options.onMoodleApiError) {
+        return options.onMoodleApiError(error);
+      }
+      return toBoundaryResult<T>(
+        moodleApiErrorResponse(options.toolName, error)
+      );
     }
 
     if (error instanceof ValidationError) {

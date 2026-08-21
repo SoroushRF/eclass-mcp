@@ -7,6 +7,7 @@ import {
   UpstreamError,
 } from '../src/scraper/eclass';
 import { SecureSessionStorageError } from '../src/security/secure-session-store';
+import { MoodleApiError } from '../src/scraper/eclass/api/errors';
 import { EclassToolJsonPayloadSchema } from '../src/tools/eclass-contracts';
 import {
   runEclassToolBoundary,
@@ -165,6 +166,58 @@ describe('runEclassToolBoundary', () => {
     payload = parsePayload(result);
     expect(payload.code).toBe('TIMEOUT');
     expect(payload.details.httpStatus).toBe(504);
+  });
+
+  it('maps Moodle capability, rate-limit, and session errors without upstream bodies', async () => {
+    let result = await runEclassToolBoundary<ReturnType<typeof textResult>>({
+      toolName: 'get_course_content',
+      run: async () => {
+        throw new MoodleApiError({
+          category: 'capability_unavailable',
+          upstreamCode: 'servicenotavailable',
+        });
+      },
+    });
+    let payload = parsePayload(result);
+    expect(payload).toMatchObject({
+      status: 'error',
+      code: 'UPSTREAM_ERROR',
+      details: { category: 'capability_unavailable' },
+    });
+    expect(payload.message).not.toContain('servicenotavailable');
+
+    result = await runEclassToolBoundary({
+      toolName: 'get_deadlines',
+      run: async () => {
+        throw new MoodleApiError({ category: 'rate_limited', status: 429 });
+      },
+    });
+    payload = parsePayload(result);
+    expect(payload).toMatchObject({
+      status: 'error',
+      code: 'RATE_LIMITED',
+      details: { httpStatus: 429, category: 'rate_limited' },
+    });
+
+    vi.spyOn(authServer, 'openAuthWindow').mockImplementation(() => undefined);
+    vi.spyOn(authServer, 'waitForAuthSession').mockResolvedValue(true);
+    const retry = vi.fn(async () => textResult({ retried: true }));
+    const fallback = vi.fn<
+      (error: SessionExpiredError) => ReturnType<typeof textResult>
+    >((error) => textResult({ fallback: error.message }));
+    result = await runEclassToolBoundary({
+      toolName: 'list_courses',
+      run: async (): Promise<ReturnType<typeof textResult>> => {
+        throw new MoodleApiError({ category: 'session_invalid' });
+      },
+      onSessionExpired: {
+        retry,
+        fallback,
+      },
+    });
+    expect(parsePayload(result)).toEqual({ retried: true });
+    expect(retry).toHaveBeenCalledTimes(1);
+    expect(fallback).not.toHaveBeenCalled();
   });
 
   it('maps unknown eClass errors to a redacted internal error by default', async () => {
