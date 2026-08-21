@@ -1,0 +1,19 @@
+[
+  {
+    "id": 1,
+    "name": "General",
+    "section": 0,
+    "visible": 1,
+    "uservisible": 1,
+    "modules": [
+      {
+        "id": 11,
+        "name": "Sample resource",
+        "modname": "resource",
+        "url": "https://eclass.yorku.ca/mod/resource/view.php?id=11",
+        "visible": 1,
+        "uservisible": 1
+      }
+    ]
+  }
+]

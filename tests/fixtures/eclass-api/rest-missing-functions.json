@@ -1,0 +1,6 @@
+{
+  "sitename": "eClass",
+  "functions": [
+    { "name": "core_webservice_get_site_info" }
+  ]
+}

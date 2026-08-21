@@ -164,4 +164,65 @@ export const MoodleRestSiteInfoSchema = z
 
 export type MoodleRestSiteInfo = z.infer<typeof MoodleRestSiteInfoSchema>;
 
+export const MoodleRestErrorEnvelopeSchema = z
+  .object({
+    exception: z.string().optional(),
+    errorcode: z.string().optional(),
+    message: z.string().optional(),
+  })
+  .passthrough();
+
+export type MoodleRestErrorEnvelope = z.infer<
+  typeof MoodleRestErrorEnvelopeSchema
+>;
+
+export const MoodleRestCourseModuleSchema = z
+  .object({
+    id: z.union([z.number(), z.string()]),
+    name: z.string().optional(),
+    modname: z.string().optional(),
+    url: z.string().optional(),
+    visible: z.union([z.boolean(), z.number()]).optional(),
+    uservisible: z.union([z.boolean(), z.number()]).optional(),
+  })
+  .passthrough();
+
+export const MoodleRestCourseSectionSchema = z
+  .object({
+    id: z.union([z.number(), z.string()]),
+    name: z.string().optional(),
+    section: z.number().optional(),
+    hidden: z.union([z.boolean(), z.number()]).optional(),
+    visible: z.union([z.boolean(), z.number()]).optional(),
+    uservisible: z.union([z.boolean(), z.number()]).optional(),
+    modules: z.array(MoodleRestCourseModuleSchema).default([]),
+  })
+  .passthrough();
+
+export const MoodleRestCourseContentsSchema = z.array(
+  MoodleRestCourseSectionSchema
+);
+
+export type MoodleRestCourseContents = z.infer<
+  typeof MoodleRestCourseContentsSchema
+>;
+
+export const MoodleRestAssignmentsDataSchema = z
+  .object({
+    courses: z.array(z.unknown()).default([]),
+  })
+  .passthrough();
+
+export const MoodleRestForumsDataSchema = z
+  .object({
+    forums: z.array(z.unknown()).default([]),
+  })
+  .passthrough();
+
+export const MoodleRestGradeItemsDataSchema = z
+  .object({
+    usergrades: z.array(z.unknown()).default([]),
+  })
+  .passthrough();
+
 export type MoodleWireValue = unknown;

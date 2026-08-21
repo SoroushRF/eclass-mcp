@@ -1,0 +1,12 @@
+{
+  "sitename": "eClass",
+  "username": "sample-user",
+  "userid": 42,
+  "functions": [
+    { "name": "core_webservice_get_site_info" },
+    { "name": "core_course_get_contents" },
+    { "name": "mod_assign_get_assignments" },
+    { "name": "mod_forum_get_forums_by_courses" },
+    { "name": "gradereport_user_get_grade_items" }
+  ]
+}
