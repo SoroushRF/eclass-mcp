@@ -1,10 +1,39 @@
 # eClass official API feasibility investigation
 
-**Status:** Investigation complete enough to choose an architecture. Implementation is not started.  
+**Status:** Investigation complete; the hybrid implementation is available on
+the isolated `feat/eclass-hybrid-api` branch with Playwright still the safe
+default.  
 **Dates:** 13 August 2026  
 **Site:** York University eClass (`https://eclass.yorku.ca`)  
 **Product under study:** this repository’s local MCP server (`eclass-mcp`)  
 **Related ADR:** [ADR 0010 — Hybrid eClass data access (session JSON + optional mobile handshake)](../adr/0010-hybrid-eclass-data-access.md)
+
+## Implementation result
+
+The feasibility decision has now been implemented behind the existing
+Playwright facade:
+
+- An authenticated `BrowserContext.request` transport and typed Zod boundary
+  cover the proven AJAX course, course-format, and calendar calls.
+- A session context bootstraps an ephemeral `sesskey` and account-scoped cache
+  identity without persisting the raw runtime values.
+- `playwright`, `shadow`, and `api` source modes are supported; Playwright
+  remains the default, shadow remains Playwright-authoritative, and API-primary
+  uses a single bounded read-only fallback.
+- The optional official mobile launch handshake and capability-gated REST
+  client are implemented as internal building blocks. Grades, forums,
+  assignments, plugin files, and other unproven REST functions remain
+  Playwright-backed because account-owner live output proof has not been
+  recorded for this branch.
+- Automated fixtures cover malformed responses, session expiry, rate limits,
+  redaction, fallback, and cleanup. No account credentials, cookies,
+  `sesskey`, mobile token, or launch `Location` header is part of the
+  implementation evidence.
+
+The current canary and release evidence are recorded in
+[`docs/validation/eclass-hybrid-canary.md`](../validation/eclass-hybrid-canary.md)
+and
+[`docs/validation/eclass-hybrid-release.md`](../validation/eclass-hybrid-release.md).
 
 This document records the full investigation that asked whether York eClass can be consumed through official machine-readable interfaces instead of Playwright HTML scraping, in the same spirit as a friend’s UTSC MCP that talks to Quercus through documented APIs and an account-settings token.
 

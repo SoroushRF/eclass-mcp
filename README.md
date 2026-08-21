@@ -86,10 +86,13 @@ flowchart LR
     C --> D[Deadlines Tool\nsrc/tools/deadlines.ts]
     C --> E[Files Tool\nsrc/tools/files.ts]
     C --> F[Courses / Grades /\nAnnouncements]
-    D --> G[EClassScraper\nPlaywright headless]
+    D --> G{Hybrid eClass provider}
     E --> G
     F --> G
-    G -- cookies --> H[eclass.yorku.ca]
+    G --> H1[Playwright HTML\nsafe default / fallback]
+    G --> H2[Moodle AJAX\nsession JSON]
+    H1 -- cookies --> H[eclass.yorku.ca]
+    H2 -- BrowserContext.request + sesskey --> H
     G -- cookies --> S[sis.yorku.ca]
     E --> I[PDF Analyzer\npdfjs-dist + @napi-rs/canvas]
     E --> J[DOCX / PPTX Parsers]
@@ -97,6 +100,42 @@ flowchart LR
     B --> L[Auth Server\nlocalhost:3000/auth]
     L -- headless:false --> H
 ```
+
+### Hybrid eClass data access
+
+The eClass provider keeps the visible browser for Passport York / Shibboleth
+authentication and HTML-only reads, while proven read-only Moodle AJAX calls
+use the authenticated `BrowserContext.request` transport:
+
+- `list_courses` uses the enrolled-course AJAX function.
+- Course outlines use Moodle course-format state.
+- Deadline reads use the proven calendar functions.
+- `shadow` runs both paths but returns Playwright data and records only
+  shape-level mismatch categories.
+- `api` uses one bounded Playwright fallback for eligible read failures.
+- Grades, forums, assignment details, submission preflight, and plugin-file
+  reads remain Playwright-backed. The mobile launch and capability-gated REST
+  client are not exposed as REST-backed MCP tools until each function has
+  account-owner live proof.
+
+The safe default is Playwright mode. Configure the optional rollout locally:
+
+```powershell
+# Safe default; also the rollback setting.
+ECLASS_API_SOURCE_MODE=playwright
+
+# Optional shadow comparison or API-primary canary.
+ECLASS_API_TIMEOUT_MS=15000
+```
+
+Authenticated debug page dumps stay disabled unless
+`ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS=1` is explicitly set for local diagnosis.
+
+API-primary can be disabled without rebuilding by setting
+`ECLASS_API_SOURCE_MODE=playwright` and restarting the MCP host. Do not put
+tokens, `sesskey` values, cookies, or launch redirect locations in `.env`,
+cache files, logs, or tool output. Mobile credentials, when minted by a
+future account-owner flow, remain in the encrypted session envelope only.
 
 ---
 

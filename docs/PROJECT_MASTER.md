@@ -175,6 +175,8 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - Historical core-only release: `0.9.0-core`
 - Current engine stage: `1.0.0-beta.3`
 - Current beta includes Cengage/WebAssign, secure session storage, selector drift diagnostics, doctor/setup productization, release discipline, and the completed Professional Engineering Maturity initiative; WeBWorK remains pending.
+- The isolated `feat/eclass-hybrid-api` migration adds account-scoped session handling, proven Moodle AJAX reads, shadow/API source modes, bounded Playwright fallback, and an optional mobile REST foundation. Playwright remains the release-safe default until account-owner live canary evidence is recorded.
+- REST-backed grades, forums, assignment details, plugin-file reads, and write flows remain intentionally unpromoted; SIS, Cengage/WebAssign, and all write tools retain their existing routes.
 - Next major public engine milestone: `1.0.0`
 - Future planning should assume the engine and product will eventually diverge into separate release lines.
 

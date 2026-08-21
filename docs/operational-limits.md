@@ -20,6 +20,8 @@ Timeouts should be treated as platform health signals, auth state signals, or se
 | eClass grades                 |                              30s navigation | Uses shared grade `GOTO_OPTS`.                                                                                                                                       | [`src/scraper/eclass/grades.ts`](../src/scraper/eclass/grades.ts)               |
 | eClass file wrapper           | 20s wrapper navigation, 20s WAF reload wait | File wrapper pages wait for `domcontentloaded`; AWS WAF challenge reload is best-effort.                                                                             | [`src/scraper/eclass/files.ts`](../src/scraper/eclass/files.ts)                 |
 | eClass API reads              | 15s default, 60s maximum                    | Uses authenticated `BrowserContext.request` with bounded response bodies. `shadow` is Playwright-authoritative; API-primary permits one read-only Playwright fallback except for `SESSION_EXPIRED` and `RATE_LIMITED`. | [`src/scraper/eclass/api/transport.ts`](../src/scraper/eclass/api/transport.ts) |
+| eClass API response body      | 2 MiB default                                | AJAX and REST responses larger than the bounded transport limit fail as `UPSTREAM_ERROR`/malformed API data; request logs retain only path, status, duration, and size. | [`src/scraper/eclass/api/transport.ts`](../src/scraper/eclass/api/transport.ts) |
+| Mobile launch / REST capability discovery | Same API timeout, in-memory capability set | The official mobile launch handshake is optional and stores only the parsed credential in the encrypted session envelope. REST capabilities are discovered per session; no REST-backed MCP tool is promoted until account-owner live proof exists. | [`src/scraper/eclass/api/mobile.ts`](../src/scraper/eclass/api/mobile.ts), [`src/scraper/eclass/api/rest.ts`](../src/scraper/eclass/api/rest.ts) |
 | eClass item details           |                              60s navigation | Assignment and quiz detail pages get longer because Moodle item pages can be heavier than table/list pages.                                                          | [`src/scraper/eclass/item-details.ts`](../src/scraper/eclass/item-details.ts)   |
 | SIS exam/timetable            |                              30s navigation | Exam schedule and timetable list pages use 30s `page.goto` calls.                                                                                                    | [`src/scraper/sis.ts`](../src/scraper/sis.ts)                                   |
 | Cengage/WebAssign navigation  |                     Commonly 45s navigation | Dashboard, SSO, direct assignment, and canonical bootstrap paths use longer navigation budgets.                                                                      | [`src/scraper/cengage.ts`](../src/scraper/cengage.ts)                           |
@@ -69,6 +71,21 @@ malformed-response, timeout, and upstream failures. Valid empty API responses
 remain empty; invalid sessions use the normal auth retry; and HTTP 429 returns
 `RATE_LIMITED` without immediately adding browser traffic. See the
 [canary acceptance record](validation/eclass-hybrid-canary.md).
+
+### Hybrid rollback
+
+Rollback is configuration-only while the branch is being canaried:
+
+1. Set `ECLASS_API_SOURCE_MODE=playwright`.
+2. Restart the MCP host.
+3. Clear only affected unpinned eClass cache entries if normalized output
+   changed; preserve valid account-scoped pins.
+4. Confirm that eClass courses/content/deadlines use the existing Playwright
+   path and that SIS/Cengage remain unchanged.
+
+Do not delete selectors or remove the Playwright provider as part of an API
+promotion. A branch rollback is a separate operator decision and must not
+modify the original checkout implicitly.
 
 ## Rate Limits
 
