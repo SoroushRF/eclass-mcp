@@ -76,6 +76,10 @@ export const MoodleCourseFormatSectionSchema = z
   })
   .passthrough();
 
+export type MoodleCourseFormatSection = z.infer<
+  typeof MoodleCourseFormatSectionSchema
+>;
+
 export const MoodleCourseModuleSchema = z
   .object({
     id: z.union([z.number().int(), z.string().min(1)]),
@@ -91,6 +95,8 @@ export const MoodleCourseModuleSchema = z
     url: z.string().optional(),
   })
   .passthrough();
+
+export type MoodleCourseModule = z.infer<typeof MoodleCourseModuleSchema>;
 
 export const MoodleCourseFormatStateSchema = z
   .object({
