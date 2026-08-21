@@ -8,6 +8,12 @@ import {
   type EclassSourceMode,
 } from './constants';
 import {
+  compareCourseCanary,
+  compareCourseContentCanary,
+  compareDeadlineCanary,
+  type HybridCanaryComparison,
+} from './canary';
+import {
   isMoodleApiError,
   MoodleApiError,
 } from './errors';
@@ -51,11 +57,7 @@ type ApiReader = Pick<
 type ShadowComparator<T> = (
   apiValue: T,
   playwrightValue: T
-) => {
-  mismatchCategories: string[];
-  apiCount?: number;
-  playwrightCount?: number;
-};
+) => HybridCanaryComparison;
 
 export interface EclassHybridProviderOptions {
   playwright: EclassScraperDependency;
@@ -88,91 +90,6 @@ function apiFailureReason(error: unknown): string {
 function apiErrorCode(error: unknown): string {
   if (isMoodleApiError(error)) return error.publicCode;
   return 'UPSTREAM_ERROR';
-}
-
-function normalizedCourseKey(course: Course): string {
-  return `${course.id}|${course.name.trim()}|${course.courseCode || ''}`;
-}
-
-function compareCourses(
-  apiCourses: Course[],
-  playwrightCourses: Course[]
-): ReturnType<ShadowComparator<Course[]>> {
-  const apiSet = new Set(apiCourses.map(normalizedCourseKey));
-  const playwrightSet = new Set(playwrightCourses.map(normalizedCourseKey));
-  const mismatchCategories: string[] = [];
-  if (apiSet.size !== playwrightSet.size) mismatchCategories.push('count');
-  if (
-    [...apiSet].some((course) => !playwrightSet.has(course)) ||
-    [...playwrightSet].some((course) => !apiSet.has(course))
-  ) {
-    mismatchCategories.push('course_set');
-  }
-  return {
-    mismatchCategories,
-    apiCount: apiCourses.length,
-    playwrightCount: playwrightCourses.length,
-  };
-}
-
-function compareContent(
-  apiContent: CourseContent,
-  playwrightContent: CourseContent
-): ReturnType<ShadowComparator<CourseContent>> {
-  const apiItems = apiContent.sections.flatMap((section) => section.items);
-  const playwrightItems = playwrightContent.sections.flatMap(
-    (section) => section.items
-  );
-  const apiSet = new Set(
-    apiItems.map((item) => `${item.type}|${item.name.trim()}|${item.url}`)
-  );
-  const playwrightSet = new Set(
-    playwrightItems.map(
-      (item) => `${item.type}|${item.name.trim()}|${item.url}`
-    )
-  );
-  const mismatchCategories: string[] = [];
-  if (apiContent.sections.length !== playwrightContent.sections.length) {
-    mismatchCategories.push('section_count');
-  }
-  if (
-    [...apiSet].some((item) => !playwrightSet.has(item)) ||
-    [...playwrightSet].some((item) => !apiSet.has(item))
-  ) {
-    mismatchCategories.push('visible_module_set');
-  }
-  return {
-    mismatchCategories,
-    apiCount: apiItems.length,
-    playwrightCount: playwrightItems.length,
-  };
-}
-
-function compareAssignments(
-  apiAssignments: Assignment[],
-  playwrightAssignments: Assignment[]
-): ReturnType<ShadowComparator<Assignment[]>> {
-  const apiById = new Map(apiAssignments.map((item) => [item.id, item]));
-  const playwrightById = new Map(
-    playwrightAssignments.map((item) => [item.id, item])
-  );
-  const mismatchCategories: string[] = [];
-  if (apiById.size !== playwrightById.size) mismatchCategories.push('count');
-  for (const [id, apiItem] of apiById) {
-    const playwrightItem = playwrightById.get(id);
-    if (!playwrightItem) {
-      mismatchCategories.push('missing_deadline');
-      continue;
-    }
-    if (apiItem.dueDate !== playwrightItem.dueDate) {
-      mismatchCategories.push('timestamp_mismatch');
-    }
-  }
-  return {
-    mismatchCategories: [...new Set(mismatchCategories)],
-    apiCount: apiAssignments.length,
-    playwrightCount: playwrightAssignments.length,
-  };
 }
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
@@ -219,7 +136,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
       'courses',
       () => this.apiCourses(),
       () => this.playwright.getCourses(),
-      compareCourses
+      compareCourseCanary
     );
   }
 
@@ -228,7 +145,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
       'course_content',
       () => this.apiCourseContent(courseId),
       () => this.playwright.getCourseContent(courseId),
-      compareContent
+      compareCourseContentCanary
     );
   }
 
@@ -237,7 +154,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
       'deadlines',
       () => this.apiDeadlines(courseId),
       () => this.playwright.getDeadlines(courseId),
-      compareAssignments
+      compareDeadlineCanary
     );
   }
 
