@@ -37,8 +37,11 @@ session. Tool discovery returned exactly 26 tools, including
 traffic appeared during startup. The source-entrypoint stdio, protocol, and
 dependency tests also passed.
 
-This validates MCP framing, tool discovery, the built artifact, and
-configuration rollback behavior. It is not a credentialed eClass read.
+The same artifact also passed the MCP Inspector CLI `tools/list` check and a
+safe `cache_health` `tools/call`; see the
+[host validation record](eclass-hybrid-host.md). This validates MCP framing,
+tool discovery, the built artifact, and configuration rollback behavior. It
+is not a credentialed eClass read.
 
 ## Live-account gate
 
