@@ -268,6 +268,28 @@ export function classifySavedAt(savedAt, now = new Date()) {
   };
 }
 
+/**
+ * Classifies the stored Moodle mobile credential without exposing any value.
+ * Returns 'absent', 'present', 'expired', or 'malformed'.
+ */
+export function classifyMobileCredential(mobile, now = new Date()) {
+  if (mobile === undefined || mobile === null) return 'absent';
+  if (
+    typeof mobile !== 'object' ||
+    mobile.service !== 'moodle_mobile_app' ||
+    typeof mobile.token !== 'string' ||
+    mobile.token.trim().length === 0
+  ) {
+    return 'malformed';
+  }
+  if (typeof mobile.expiresAt === 'string') {
+    const expiresAt = Date.parse(mobile.expiresAt);
+    if (Number.isNaN(expiresAt)) return 'malformed';
+    if (expiresAt <= now.getTime()) return 'expired';
+  }
+  return 'present';
+}
+
 export function inspectSecureSessionFile(filePath, secret, now = new Date()) {
   if (!fileExists(filePath)) {
     return { state: 'missing' };
@@ -284,15 +306,17 @@ export function inspectSecureSessionFile(filePath, secret, now = new Date()) {
   }
 
   const freshness = classifySavedAt(decrypted.data?.saved_at, now);
+  const mobile = classifyMobileCredential(decrypted.data?.mobile, now);
   if (!freshness.fresh) {
     return {
       state: 'stale',
       reason: freshness.reason,
       ageHours: freshness.ageHours,
+      mobile,
     };
   }
 
-  return { state: 'ok', ageHours: freshness.ageHours };
+  return { state: 'ok', ageHours: freshness.ageHours, mobile };
 }
 
 export function inspectCengageSessionFiles(
@@ -647,6 +671,57 @@ function checkEclassSession(context) {
   );
 }
 
+function checkMobileCredential(context) {
+  const secretStatus = validateSessionSecret(
+    context.env.ECLASS_MCP_SESSION_SECRET
+  );
+  if (!secretStatus.ok) {
+    return skip(
+      'eClass mobile credential',
+      'not checked until ECLASS_MCP_SESSION_SECRET is configured'
+    );
+  }
+
+  const state = inspectSecureSessionFile(
+    SESSION_PATH,
+    context.env.ECLASS_MCP_SESSION_SECRET
+  );
+  if (state.state !== 'ok' && state.state !== 'stale') {
+    return skip(
+      'eClass mobile credential',
+      'not checked until an eClass session exists'
+    );
+  }
+
+  switch (state.mobile) {
+    case 'present':
+      return pass(
+        'eClass mobile credential',
+        'present (token-based REST reads available)'
+      );
+    case 'expired':
+      return warn(
+        'eClass mobile credential',
+        'expired',
+        undefined,
+        `Re-authenticate at http://localhost:${context.authPort}/auth to mint a new one`
+      );
+    case 'malformed':
+      return warn(
+        'eClass mobile credential',
+        'malformed',
+        undefined,
+        `Re-authenticate at http://localhost:${context.authPort}/auth to mint a new one`
+      );
+    default:
+      return info(
+        'eClass mobile credential',
+        'absent (eClass reads use the cookie session and Playwright)',
+        'Order: cookie session -> mobile token -> REST capabilities. Run npm run probe:mobile after login to mint and inspect.'
+      );
+  }
+}
+
 function checkCengageSession(context) {
   const secretStatus = validateSessionSecret(
     context.env.ECLASS_MCP_SESSION_SECRET
@@ -830,6 +905,7 @@ async function runDoctor() {
   results.push(await checkAuthPort(context));
   results.push(await checkPlaywrightChromium());
   results.push(checkEclassSession(context));
+  results.push(checkMobileCredential(context));
   results.push(checkCengageSession(context));
   results.push(...checkClaudeConfig());
   results.push(...checkPermissions());

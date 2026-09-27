@@ -24,6 +24,34 @@ export const MOODLE_REST_CAPABILITIES = {
   pluginFiles: 'core_files_get_files',
 } as const;
 
+/**
+ * Mobile REST functions the tool routing plan depends on. The owner probe
+ * reports presence for each; tools stay capability-gated at runtime.
+ */
+export const MOODLE_REST_ROUTING_FUNCTIONS = [
+  'core_course_get_contents',
+  'mod_page_get_pages_by_courses',
+  'mod_label_get_labels_by_courses',
+  'mod_resource_get_resources_by_courses',
+  'mod_folder_get_folders_by_courses',
+  'mod_url_get_urls_by_courses',
+  'mod_lti_get_ltis_by_courses',
+  'gradereport_overview_get_course_grades',
+  'gradereport_user_get_grade_items',
+  'mod_forum_get_forums_by_courses',
+  'mod_forum_get_forum_discussions',
+  'mod_forum_get_discussion_posts',
+  'mod_assign_get_assignments',
+  'mod_assign_get_submission_status',
+  'mod_quiz_get_quizzes_by_courses',
+  'mod_quiz_get_user_attempts',
+  'core_calendar_get_action_events_by_timesort',
+  'core_enrol_get_users_courses',
+  'core_course_get_updates_since',
+  'core_files_get_files',
+  'tool_mobile_get_autologin_key',
+] as const;
+
 export type MoodleRestCapability =
   (typeof MOODLE_REST_CAPABILITIES)[keyof typeof MOODLE_REST_CAPABILITIES];
 
