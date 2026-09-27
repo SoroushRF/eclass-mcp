@@ -58,20 +58,30 @@ a token would.
    REST (token) → session AJAX (cookies) → Playwright HTML. The existing
    `playwright` / `shadow` / `api` source modes govern promotion.
 5. **On `invalidtoken`, re-mint once** (which requires a valid cookie session),
-   then surface `SESSION_EXPIRED` and the visible `/auth` flow.
-6. **Read-only.** No REST write function and no `/webservice/upload.php` call
+   then surface `SESSION_EXPIRED` and the visible `/auth` flow. Concurrent
+   callers share one renewal, and a renewal saves only if no login or logout
+   happened since it started.
+6. **Bind identity to the credential.** The user id and function list are
+   held in memory against a hash of the token they were read with and are
+   re-read for any other token. In `api` mode the cache account scope comes
+   from this verified identity.
+7. **`playwright` is the kill switch.** It sends no token traffic: no REST
+   reads, no token downloads, no mint after login. `api` is the only
+   token-only mode; `shadow` needs cookies and the token.
+8. **Read-only.** No REST write function and no `/webservice/upload.php` call
    is added under this ADR.
 
 ## Consequences
 
 - **Login frequency** drops from every cookie-session expiry to once per token
-  lifetime (Moodle default 12 weeks; York's value to be recorded in the
-  findings log).
+  lifetime. York's lifetime is **unknown** until the owner probe records it;
+  Moodle's site default is 12 weeks, but York may configure another value,
+  so no claim is made from that default.
 - **Blast radius:** the token grants every function the mobile service allows
   for this student, for its whole lifetime, without a second factor. It is as
-  sensitive as the cookie session and longer-lived. Revocation: sign out via
-  `/logout`, reset keys under Preferences → Security keys when shown, and
-  rotate `ECLASS_MCP_SESSION_SECRET` if session files may have been copied.
+  sensitive as the cookie session and longer-lived. `/logout` and secret
+  rotation only remove or lock the local copy; server-side revocation needs
+  Preferences → Security keys (when shown) or York.
 - **Chromium remains required** for Passport York SSO, SIS, Cengage/WebAssign,
   and HTML-only eClass pages. This ADR removes the browser from REST-routed
   reads, not from the product.

@@ -19,6 +19,7 @@ import {
 } from '../scraper/eclass/api/token-files';
 import {
   getAuthGeneration,
+  isSessionValid,
   loadMobileCredential,
   saveMobileCredentialForGeneration,
 } from '../scraper/session';
@@ -127,6 +128,13 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
     hasMobileCredential: () => {
       try {
         return loadMobileCredential() !== null;
+      } catch {
+        return false;
+      }
+    },
+    hasCookieSession: () => {
+      try {
+        return isSessionValid();
       } catch {
         return false;
       }

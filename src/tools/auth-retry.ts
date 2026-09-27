@@ -7,15 +7,16 @@ import { EclassToolErrorResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 
 /**
- * True when REST-routed eClass reads can run without a cookie session: a
- * non-`playwright` source mode and a stored, unexpired mobile token
- * (ADR 0011). Cookie-only reads still raise SessionExpiredError, and
+ * True when REST-routed eClass reads can run without a cookie session:
+ * `api` mode and a stored, unexpired mobile token (ADR 0011). `shadow` runs
+ * the Playwright path on every read, so it always needs cookies too.
+ * Cookie-only reads still raise SessionExpiredError, and
  * `handleEclassSessionExpired` opens the login window on demand.
  */
 export function canServeEclassReadsWithToken(
   sourceMode = getEclassApiConfig().sourceMode
 ): boolean {
-  if (sourceMode === 'playwright') return false;
+  if (sourceMode !== 'api') return false;
   try {
     return hasMobileCredential();
   } catch {

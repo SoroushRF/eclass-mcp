@@ -487,6 +487,31 @@ describe('EclassHybridProvider REST routing', () => {
     expect(playwright.getCourses).not.toHaveBeenCalled();
   });
 
+  it('serves token-only api reads without touching the cookie session', async () => {
+    const apiClient = {
+      getEnrolledCourses: vi.fn(),
+      getCourseFormatState: vi.fn(),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid, rest, playwright } = provider({
+      apiClient,
+      hasCookieSession: () => false,
+    });
+
+    await expect(hybrid.getCourses()).resolves.toHaveLength(2);
+    await hybrid.getDeadlines();
+    await hybrid.getCourseContent('101');
+
+    expect(rest.getUserCourses).toHaveBeenCalledTimes(1);
+    expect(rest.getActionEventsByTimesort).toHaveBeenCalled();
+    expect(rest.getCourseContents).toHaveBeenCalledTimes(1);
+    for (const fn of Object.values(apiClient)) {
+      expect(fn).not.toHaveBeenCalled();
+    }
+    expect(playwright.getCourses).not.toHaveBeenCalled();
+  });
+
   it('reports the AJAX error when the REST fallback also fails', async () => {
     quietLogs();
     const rest = restReader();

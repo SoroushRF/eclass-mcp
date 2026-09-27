@@ -94,6 +94,11 @@ export interface EclassHybridProviderOptions {
   restClient?: RestReader;
   /** Cheap presence check so REST is skipped, not failed, without a token. */
   hasMobileCredential?: () => boolean;
+  /**
+   * Cheap presence check for a saved cookie session. Without one, session
+   * AJAX is skipped so token-only `api` reads never start Chromium.
+   */
+  hasCookieSession?: () => boolean;
   apiSessionContext?: Pick<EclassApiSessionContext, 'close'>;
   closeOwnedResources?: () => Promise<void>;
   mode?: EclassSourceMode;
@@ -212,6 +217,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   private readonly apiClient?: ApiReader;
   private readonly restClient?: RestReader;
   private readonly hasMobileCredential: () => boolean;
+  private readonly hasCookieSession: () => boolean;
   private readonly apiSessionContext?: Pick<EclassApiSessionContext, 'close'>;
   private readonly closeOwnedResources?: () => Promise<void>;
   private readonly mode: EclassSourceMode;
@@ -225,6 +231,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
     this.apiClient = options.apiClient;
     this.restClient = options.restClient;
     this.hasMobileCredential = options.hasMobileCredential ?? (() => true);
+    this.hasCookieSession = options.hasCookieSession ?? (() => true);
     this.apiSessionContext = options.apiSessionContext;
     this.closeOwnedResources = options.closeOwnedResources;
     this.mode = options.mode ?? config.sourceMode;
@@ -235,7 +242,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   async getCourses(): Promise<Course[]> {
     return this.runRead(
       'courses',
-      this.apiClient || this.restUsable() ? () => this.apiCourses() : null,
+      this.ajaxUsable() || this.restUsable() ? () => this.apiCourses() : null,
       () => this.playwright.getCourses(),
       compareCourseCanary
     );
@@ -244,7 +251,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   async getCourseContent(courseId: string): Promise<CourseContent> {
     return this.runRead(
       'course_content',
-      this.apiClient || this.restUsable()
+      this.ajaxUsable() || this.restUsable()
         ? () => this.apiCourseContent(courseId)
         : null,
       () => this.playwright.getCourseContent(courseId),
@@ -255,7 +262,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   async getDeadlines(courseId?: string): Promise<Assignment[]> {
     return this.runRead(
       'deadlines',
-      this.apiClient || this.restUsable()
+      this.ajaxUsable() || this.restUsable()
         ? () => this.apiDeadlines(courseId)
         : null,
       () => this.playwright.getDeadlines(courseId),
@@ -336,6 +343,10 @@ export class EclassHybridProvider implements EclassScraperDependency {
     await this.closeOwnedResources?.();
   }
 
+  private ajaxUsable(): boolean {
+    return this.apiClient !== undefined && this.hasCookieSession();
+  }
+
   private restUsable(): boolean {
     return this.restClient !== undefined && this.hasMobileCredential();
   }
@@ -387,7 +398,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   private async apiCourses(): Promise<Course[]> {
     return this.withRestFallback(
       'courses',
-      this.apiClient
+      this.ajaxUsable()
         ? async () => {
             const data: MoodleEnrolledCoursesData =
               await this.apiClient!.getEnrolledCourses();
@@ -416,7 +427,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
               this.origin
             )
         : null,
-      this.apiClient
+      this.ajaxUsable()
         ? async () => {
             const state: MoodleCourseFormatState =
               await this.apiClient!.getCourseFormatState(courseId);
@@ -439,7 +450,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
     };
     return this.withRestFallback(
       'deadlines',
-      this.apiClient
+      this.ajaxUsable()
         ? async () => {
             const calendar: MoodleCalendarData = courseId
               ? await this.apiClient!.getCalendarUpcoming(courseId)

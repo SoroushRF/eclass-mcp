@@ -101,12 +101,12 @@ describe('mobile token mint kill switch', () => {
 });
 
 describe('token-aware session check', () => {
-  it('serves REST reads without cookies only outside playwright mode with a token', () => {
+  it('serves REST reads without cookies only in api mode with a token', () => {
     const has = vi.spyOn(session, 'hasMobileCredential');
 
     has.mockReturnValue(true);
     expect(canServeEclassReadsWithToken('api')).toBe(true);
-    expect(canServeEclassReadsWithToken('shadow')).toBe(true);
+    expect(canServeEclassReadsWithToken('shadow')).toBe(false);
     expect(canServeEclassReadsWithToken('playwright')).toBe(false);
 
     has.mockReturnValue(false);

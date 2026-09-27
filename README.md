@@ -55,11 +55,12 @@ When an eClass or SIS-backed tool hits `SESSION_EXPIRED`, the server opens `/aut
 
 ### Mobile token lifecycle (ADR 0011)
 
-1. `/auth` saves the cookie session, then mints a Moodle mobile token through the official `launch.php` handshake (best effort; a failed mint never fails the login). A fresh login replaces any earlier token.
+1. Outside `playwright` mode, `/auth` saves the cookie session, then mints a Moodle mobile token through the official `launch.php` handshake (best effort; a failed mint never fails the login). A fresh login replaces any earlier token. `playwright` mode mints nothing and sends no token traffic.
 2. The token lives only inside the encrypted session envelope. `http://localhost:<AUTH_PORT>/status` reports `mobileToken: "present" | "absent"`, never the value.
-3. In `shadow` or `api` source mode, REST-routed reads keep working after the cookie session goes stale. At startup the login window is not opened in that case; it opens on demand when a cookie-only read (SIS, section text, item details, Cengage) needs it.
-4. A rejected token is re-minted once through the cookie session; if that also fails, the tool reports `SESSION_EXPIRED` and the normal login flow runs.
-5. `/logout` deletes the session envelope, so the cookies and the token are cleared together.
+3. Only `api` mode is token-only: REST-routed reads keep working after the cookie session goes stale, session AJAX is skipped without cookies, and the login window opens on demand when a cookie-only read (SIS, section text, item details, Cengage) needs it. `shadow` runs the Playwright path on every read, so it needs both the cookie session and the token.
+4. The user id and function list are tied to the token they were read with; a different token (new login, QR login, renewal) is checked again before use. In `api` mode the cache account scope comes from that check.
+5. A rejected token is renewed once through the cookie session; concurrent reads share that one renewal. If it fails, the tool reports `SESSION_EXPIRED` and the normal login flow runs.
+6. `/logout` deletes the session envelope, so the cookies and the token are removed from this machine together, and a renewal still in flight cannot save a token afterwards. This is local removal only: the token is not revoked on the Moodle side and stays valid there until it expires or is revoked from the eClass security keys page (see SECURITY.md).
 
 ### Secure session storage (E13)
 
@@ -126,12 +127,16 @@ token is stored, token REST (`/webservice/rest/server.php`, ADR 0011).
 | `get_grades`                          | REST grade reports → Playwright                                                 |
 | `get_announcements` (`courseId`)      | REST news forum discussions → Playwright                                        |
 | `get_assignments` (eClass index)      | REST assignments + read-only submission status → Playwright                     |
-| `get_file_text` downloads             | Token `/webservice/pluginfile.php` → Playwright (every mode)                    |
+| `get_file_text` downloads             | Token `/webservice/pluginfile.php` → Playwright                                 |
 | Section text, item details, preflight | Playwright                                                                      |
 
 - `shadow` runs both paths but returns Playwright data and records only
-  shape-level mismatch categories.
+  mismatch categories. It needs the cookie session and the token.
 - `api` uses one bounded Playwright fallback for eligible read failures.
+  Validation failures, rate limits and size caps are reported, not retried
+  on another transport.
+- Section text, item details, submission preflight and quizzes stay on
+  Playwright in this release; there is no REST route for them yet.
 - REST is skipped, not failed, when no mobile token is stored, and every REST
   function is capability-gated against the token's service function list.
 - No REST write function is used.
@@ -150,7 +155,9 @@ Authenticated debug page dumps stay disabled unless
 `ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS=1` is explicitly set for local diagnosis.
 
 API-primary can be disabled without rebuilding by setting
-`ECLASS_API_SOURCE_MODE=playwright` and restarting the MCP host. Do not put
+`ECLASS_API_SOURCE_MODE=playwright` and restarting the MCP host. That mode
+is a full kill switch: no REST reads, no token file downloads, and no mint
+after login. Do not put
 tokens, `sesskey` values, cookies, or launch redirect locations in `.env`,
 cache files, logs, or tool output. Mobile credentials, when minted by a
 future account-owner flow, remain in the encrypted session envelope only.
