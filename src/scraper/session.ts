@@ -62,6 +62,8 @@ export const SESSION_DATA_SCHEMA_VERSION = 2 as const;
 export interface MobileCredential {
   service: 'moodle_mobile_app';
   token: string;
+  /** Only issued on fresh logins over HTTPS; enables autologin keys. */
+  privateToken?: string;
   issuedAt: string;
   expiresAt?: string;
 }
@@ -113,6 +115,9 @@ function isMobileCredential(value: unknown): value is MobileCredential {
     candidate.service === 'moodle_mobile_app' &&
     typeof candidate.token === 'string' &&
     candidate.token.trim().length > 0 &&
+    (candidate.privateToken === undefined ||
+      (typeof candidate.privateToken === 'string' &&
+        candidate.privateToken.trim().length > 0)) &&
     typeof candidate.issuedAt === 'string' &&
     !Number.isNaN(Date.parse(candidate.issuedAt)) &&
     (candidate.expiresAt === undefined ||

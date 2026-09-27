@@ -142,6 +142,36 @@ describe('session file behavior', () => {
     expect(hasMobileCredential(fileName)).toBe(false);
   });
 
+  it('round-trips an optional private token and still loads credentials without one', () => {
+    const fileName = 'vitest-session-mobile.json';
+    const base = {
+      service: 'moodle_mobile_app' as const,
+      token: 'f'.repeat(32),
+      issuedAt: new Date().toISOString(),
+    };
+
+    // Envelope written before privateToken existed: no schema bump needed.
+    writeSecureJsonFile(getSessionFilePath(fileName), {
+      schema_version: SESSION_DATA_SCHEMA_VERSION,
+      saved_at: new Date().toISOString(),
+      cookies: [],
+      mobile: base,
+    });
+    expect(loadMobileCredential(fileName)).toEqual(base);
+
+    const withPrivate = { ...base, privateToken: 'e'.repeat(64) };
+    saveMobileCredential(withPrivate, fileName);
+    expect(loadMobileCredential(fileName)).toEqual(withPrivate);
+    expect(
+      fs.readFileSync(getSessionFilePath(fileName), 'utf-8')
+    ).not.toContain(withPrivate.privateToken);
+
+    expect(() =>
+      saveMobileCredential({ ...base, privateToken: '  ' }, fileName)
+    ).toThrow();
+    clearMobileCredential(fileName);
+  });
+
   it('loads schema-version-one cookie sessions without a mobile credential', () => {
     const fileName = 'vitest-session-mobile.json';
     writeSecureJsonFile(getSessionFilePath(fileName), {
