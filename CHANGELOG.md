@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `npm run probe:mobile`, an account-owner diagnostic that mints a Moodle mobile token and reports only shapes (mint result, token length, private token presence, release, function count, routing presence). `npm run doctor` now reports the mobile credential state without values.
 - Routed eClass reads to Moodle mobile REST in `api` and `shadow` modes when a mobile token is stored: course content, grades, course announcements, and the eClass assignment index (with read-only submission status). Course lists and deadlines stay on session AJAX and use REST only as a fallback. Every function is capability-gated, falls back to Playwright, and is not yet promoted; the default mode is unchanged.
 - `/auth` now mints a Moodle mobile token right after login (best effort). `/status` reports `mobileToken: present|absent`, and with a stored token in `shadow`/`api` mode the server no longer opens the login window at startup for a stale cookie session; cookie-only reads still open it on demand. `npm run doctor` explains the order of operations.
-- Added a token-only Moodle REST transport (`fetch`, no browser context) and token-authenticated file downloads through `/webservice/pluginfile.php`, with Playwright fallback on any failure.
+- Added a token-only Moodle REST transport (`fetch`, no browser context) and token-authenticated file downloads through `/webservice/pluginfile.php` outside `playwright` mode, with Playwright fallback except for rate limits and size caps.
 - Added T37 `prepare_assignment_submission`, a read-only assignment preflight tool that resolves eClass/Moodle and Cengage/WebAssign targets, signs exact `preflightRef` facts, blocks unsafe intended files or finalized/no-upload states, and marks external-platform writes unsupported for now.
 - Added Windows Codex Desktop setup support with `npm run setup:codex`, safe TOML merge/backup/restore handling, and doctor checks for the Codex `mcp_servers.eclass` registration.
 - Added follow-up ADR coverage for the MCP tool boundary, RMP circuit breaker, structured trace correlation, manual dependency injection, and read-only cache observability (`docs/adr/0005` through `0009`, plus the ADR index).
@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The REST client tied its user id and function list to the first token it saw; a new login, QR login or renewal kept using the old identity. Identity is now bound to the active token and re-read for any other one, and in `api` mode the cache account scope comes from it.
+- Concurrent reads with a rejected token each minted a new one, and a renewal still running at logout could save a token afterwards. Reads now share one renewal, and a renewal saves only if no login or logout happened since it started.
+- `playwright` mode still minted after login and sent token file downloads. It now sends no token traffic.
+- `shadow` mode was treated as token-only; only `api` is. Token-only `api` reads no longer start Chromium to look for cookies.
+- `npm run probe:mobile` read site info through the browser's cookie session and passed with an empty function list. It now uses the production cookie-free transport, requires a user id and functions, and has `--verify-only`.
+- An unreadable assignment status was reported as "No submission"; it is now "Unknown (status unavailable)". Personal extensions set the effective due date.
+- REST deadlines read only the first 50 global events, so a busy course hid others. Reads now use the course-scoped function or page with a bound, and fail instead of returning a truncated list.
+- A validation failure, rate limit or oversized response is no longer retried on another transport or hidden behind an earlier AJAX error.
 - Fixed the Moodle mobile launch parser: `launch.php` redirects to `moodlemobile://token=<base64(md5(wwwroot+passport):::token[:::privatetoken])>`, which the old query-string parser could never read. The md5 prefix is now verified against this process's passport.
 - Redacted Moodle app scheme payloads, private tokens, and QR login keys in logs.
 - Fixed the `mod_forum_get_forums_by_courses` REST schema, which expected an object although Moodle returns a bare array.
