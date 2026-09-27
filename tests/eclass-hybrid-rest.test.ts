@@ -157,7 +157,9 @@ describe('REST mapping helpers', () => {
   });
 
   it('uses Moodle assignment-index wording for submission status', () => {
-    expect(submissionStatusLabel(null)).toBe('No submission');
+    expect(submissionStatusLabel(null)).toBe('Unknown (status unavailable)');
+    expect(submissionStatusLabel({})).toBe('Unknown (status unavailable)');
+    expect(submissionStatusLabel({ lastattempt: {} })).toBe('No submission');
     expect(
       submissionStatusLabel({
         lastattempt: { submission: { status: 'draft' } },
@@ -166,6 +168,15 @@ describe('REST mapping helpers', () => {
     expect(
       submissionStatusLabel({
         lastattempt: { teamsubmission: { status: 'submitted' } },
+      })
+    ).toBe('Submitted for grading');
+    // Team assignments return both records; the team one is authoritative.
+    expect(
+      submissionStatusLabel({
+        lastattempt: {
+          submission: { status: 'new' },
+          teamsubmission: { status: 'submitted' },
+        },
       })
     ).toBe('Submitted for grading');
   });
@@ -374,9 +385,49 @@ describe('EclassHybridProvider REST routing', () => {
       expect.objectContaining({
         id: '15',
         dueDate: '',
-        status: 'No submission',
+        status: 'Unknown (status unavailable)',
         grade: '-',
       }),
+    ]);
+  });
+
+  it('uses the personal extension as the effective due date', async () => {
+    quietLogs();
+    const rest = restReader();
+    const extension = 1767225600 + 86_400;
+    rest.getSubmissionStatus.mockResolvedValue(
+      MoodleRestSubmissionStatusSchema.parse({
+        lastattempt: {
+          submission: { status: 'new' },
+          extensionduedate: extension,
+        },
+      })
+    );
+    const { hybrid } = provider({ restClient: rest });
+
+    const [first] = await hybrid.getAllAssignmentDeadlines('101');
+
+    expect(first).toMatchObject({
+      id: '12',
+      dueDate: new Date(extension * 1000).toISOString(),
+      status: 'No submission',
+      submission: 'No submission; extension granted',
+    });
+  });
+
+  it('reports an unreadable status as unknown, not as no submission', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getSubmissionStatus.mockRejectedValue(
+      new MoodleApiError({ category: 'timeout' })
+    );
+    const { hybrid } = provider({ restClient: rest });
+
+    const items = await hybrid.getAllAssignmentDeadlines('101');
+
+    expect(items.map((item) => item.status)).toEqual([
+      'Unknown (status unavailable)',
+      'Unknown (status unavailable)',
     ]);
   });
 

@@ -105,7 +105,7 @@ In that case the resolver returns `status="needs_course_activation"` with `code=
 
 The eClass half of this tool reads the assignment index through the provider's `getAllAssignmentDeadlines`:
 
-1. **Token REST** `mod_assign_get_assignments` for the enrolled courses (from `core_enrol_get_users_courses`), plus a read-only `mod_assign_get_submission_status` per assignment (at most four in flight). Status uses Moodle's own index wording (`Submitted for grading`, `No submission`, `Draft (not submitted)`). One unreadable status leaves that assignment at `No submission` rather than hiding it; a rate limit fails the read.
+1. **Token REST** `mod_assign_get_assignments` for the enrolled courses (from `core_enrol_get_users_courses`), plus a read-only `mod_assign_get_submission_status` per assignment (at most four in flight). Status uses Moodle's own index wording (`Submitted for grading`, `No submission`, `Draft (not submitted)`). An unreadable status is reported as `Unknown (status unavailable)`, never as `No submission`; a rate limit or expired session fails the read. For team assignments the team submission is authoritative. A personal extension (`lastattempt.extensionduedate`) replaces the due date and adds `; extension granted` to `submission`. Group or user date overrides are assumed to be applied by `mod_assign_get_assignments`; that is not yet confirmed against York.
 2. **Playwright** assignment index pages (fallback and default mode).
 
 No REST write function is used; submission stays behind `prepare_assignment_submission` preflight.

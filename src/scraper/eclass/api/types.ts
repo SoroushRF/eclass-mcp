@@ -249,6 +249,8 @@ export const MoodleRestSubmissionStatusSchema = z
           .passthrough()
           .optional(),
         gradingstatus: z.string().optional(),
+        /** Per-student extension (Unix seconds); 0 or absent means none. */
+        extensionduedate: z.number().nullable().optional(),
       })
       .passthrough()
       .optional(),

@@ -239,14 +239,33 @@ const SUBMISSION_STATUS_LABELS: Record<string, string> = {
   reopened: 'Reopened',
 };
 
+/** Status label when the submission status could not be read. */
+export const SUBMISSION_STATUS_UNKNOWN = 'Unknown (status unavailable)';
+
+/**
+ * `null` means the status request failed, so the state is unknown rather
+ * than "No submission". For team assignments Moodle returns both records and
+ * the team submission is authoritative.
+ */
 export function submissionStatusLabel(
   status: MoodleRestSubmissionStatus | null
 ): string {
-  const raw =
-    status?.lastattempt?.submission?.status ??
-    status?.lastattempt?.teamsubmission?.status;
+  const attempt = status?.lastattempt;
+  if (!attempt) return SUBMISSION_STATUS_UNKNOWN;
+  const raw = attempt.teamsubmission?.status ?? attempt.submission?.status;
   if (!raw) return 'No submission';
   return SUBMISSION_STATUS_LABELS[raw] ?? raw;
+}
+
+/** The student's effective due date: an extension replaces the assignment date. */
+export function effectiveDueSeconds(
+  assignmentDueDate: number | undefined,
+  status: MoodleRestSubmissionStatus | null
+): number | undefined {
+  const extension = status?.lastattempt?.extensionduedate;
+  return typeof extension === 'number' && extension > 0
+    ? extension
+    : assignmentDueDate;
 }
 
 export function mapRestAssignments(
@@ -262,10 +281,12 @@ export function mapRestAssignments(
       const status = statuses.get(String(assignment.id)) ?? null;
       const label = submissionStatusLabel(status);
       const grade = htmlToPlainText(status?.feedback?.gradefordisplay);
+      const dueSeconds = effectiveDueSeconds(assignment.duedate, status);
+      const extended = dueSeconds !== assignment.duedate;
       return {
         id: cmid,
         name: (assignment.name ?? '').trim() || `Assignment ${cmid}`,
-        dueDate: isoFromSeconds(assignment.duedate),
+        dueDate: isoFromSeconds(dueSeconds),
         status: label,
         url: moodleUrl(
           origin,
@@ -273,7 +294,7 @@ export function mapRestAssignments(
         ),
         type: 'assign' as const,
         section: '',
-        submission: label,
+        submission: extended ? `${label}; extension granted` : label,
         grade: grade || '-',
         ...buildCourseMetadata(courseId, courseName),
       };

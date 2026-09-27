@@ -192,7 +192,8 @@ describe('REST mapper edge cases', () => {
       id: '71',
       name: 'Assignment 71',
       dueDate: '',
-      status: 'No submission',
+      // No status was read for this assignment, so its state is unknown.
+      status: 'Unknown (status unavailable)',
       grade: '-',
       courseId: '7',
     });
