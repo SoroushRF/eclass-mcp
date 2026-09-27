@@ -523,6 +523,14 @@ Sequence actually observed:
    - A follow-up row in Network failed (browser cannot open the custom scheme without the Moodle app registered)
    - Cookies named `tool_mobile_launch` were set as part of the handshake (do not log)
 
+> **Correction (27 September 2026):** The `Location` value is not a URL with a
+> `token=` query parameter. `launch.php` redirects to
+> `moodlemobile://token=<base64(md5(wwwroot . passport) ":::" token [":::" privatetoken])>`,
+> so `token=` is the URL **host** segment and its value is base64-encoded. The
+> observation above (302, `moodlemobile://`, `token=` present) is unchanged; the
+> interpretation of its structure was wrong. See
+> [mobile token findings F1–F2](./eclass-mobile-token-findings.md#findings).
+
 **This is the official Moodle app token issuance flow, used after SSO, on a student account.** It is the York analogue of “I created a token in settings,” except the token is delivered to the app URL scheme instead of a settings text box.
 
 For a local MCP, the same handshake can be performed after the existing Playwright (or visible) SSO session: request `launch.php` with `service=moodle_mobile_app` and a random `passport`, read the `Location` header, and keep the credential in the already-encrypted session store. Implementation must never print that header.
@@ -781,6 +789,10 @@ https://eclass.yorku.ca/admin/tool/mobile/launch.php?service=moodle_mobile_app&p
 ```
 
 Record status and whether `Location` starts with `moodlemobile://`. If `token=` is present, do not save the value.
+
+> **Correction (27 September 2026):** `token=` directly follows `://` and its
+> value is base64 (see the §7.9 correction). Record only whether the value
+> after `://token=` is present and its length; never decode or save it.
 
 ---
 

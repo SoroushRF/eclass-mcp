@@ -58,6 +58,7 @@ documentation rule in [CONTRIBUTING.md](../../CONTRIBUTING.md#documentation-rule
 | F10 | 2026-09-27 | Read [`useragent.php`][useragent] | `core_useragent::is_moodle_app()` is a case-insensitive substring match for `MoodleMobile` in the user agent. | Source |
 | F11 | 2026-09-27 | Moodle docs | Web service file downloads use `/webservice/pluginfile.php/...` with a `token` query parameter. Uploads use `/webservice/upload.php` (out of scope for this read-only engine). | Source |
 | F12 | 2026-09-27 | Moodle docs | Token lifetime is admin-configurable (`tokenduration`, Moodle default 12 weeks). | Source |
+| F13 | 2026-09-27 | Unit tests (`tests/eclass-api-mobile.test.ts`) | The corrected parser accepts payloads built exactly as F1 describes (two and three parts, `moodlemobile`/`moodle` schemes, percent-encoded payload, trailing slash on the configured origin), rejects an md5 prefix for any other passport or origin, and rejects the legacy `moodlemobile://launch?token=` format. The launcher falls back to the `#launchapp` anchor on a 200 HTML response (F4). Remains **Source** until the owner probe observes a live redirect. | Source |
 
 ## Open questions
 
