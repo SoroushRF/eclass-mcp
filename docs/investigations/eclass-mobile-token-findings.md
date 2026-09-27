@@ -66,7 +66,9 @@ documentation rule in [CONTRIBUTING.md](../../CONTRIBUTING.md#documentation-rule
    `npm run probe:mobile` and commit the result to
    [`docs/validation/eclass-mobile-rest-capabilities.md`](../validation/eclass-mobile-rest-capabilities.md).
 2. What is York's token lifetime? Check `/user/managetoken.php` after a mint.
-3. Is `qrsameipcheck` enabled on York's site?
+3. Is `qrsameipcheck` enabled on York's site, and is `qrcodetype` set to
+   login? Both decide whether optional QR login
+   ([ADR 0012](../adr/0012-optional-qr-login.md)) works.
 4. Does `/user/managetoken.php` show a "Moodle mobile web service" row after
    a mint?
 5. Does the token shape on York match Moodle's default (32 lowercase hex

@@ -342,6 +342,13 @@ The first time Claude or Codex tries to use an eClass tool, you'll see:
 
 Open that URL. A visible browser window opens — log in with your York credentials (including MFA if required). Once you land on the eClass dashboard, the session is saved automatically and the browser closes.
 
+#### Login options
+
+| Option | How | What it stores | Notes |
+| --- | --- | --- | --- |
+| Passport York (default) | `http://localhost:3000/auth` | Cookie session + Moodle mobile token | Works for every tool. |
+| QR login (optional, ADR 0012) | Set `ECLASS_MCP_ENABLE_QR_LOGIN=1`, open `http://localhost:3000/auth-qr`, and paste the text of the QR code from your eClass profile within 10 minutes | Moodle mobile token only | Serves REST-routed reads in `shadow`/`api` mode. SIS, Cengage, section text, and item details still need `/auth`. Presents a Moodle app user agent to eClass; fails with a clear message if York does not allow QR login. |
+
 Cengage/WebAssign auth uses the same encrypted local session store. If a Cengage tool returns `auth_required`, open the returned `/auth-cengage` URL after `ECLASS_MCP_SESSION_SECRET` is configured.
 
 You're done. Ask Claude or Codex anything about your courses.
