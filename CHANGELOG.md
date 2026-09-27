@@ -23,8 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added safe MCP `callTool` coverage for injected eClass read paths (`get_course_content`, `get_upcoming_deadlines`, `get_deadlines`, `get_grades`, and `get_announcements`) without live credentials, browsers, or upstream network calls.
 - Added property-based coverage for eClass date parsing, URL-policy negative cases, and structured E12 error-envelope invariants.
 
+### Security
+
+- Upgraded `adm-zip` to 0.6.1 (crafted ZIP memory exhaustion and path traversal advisories; used by the PPTX parser) and applied non-breaking fixes for transitive advisories in `undici`, `hono`, `path-to-regexp`, `fast-uri`, `ip-address`, and `@xmldom/xmldom`. `npm audit` reports 0 vulnerabilities.
+
 ### Changed
 
+- Restructured CI: platform-independent checks run once, tests run on Windows and Ubuntu with Node 22/24 plus the Node 20 floor, a runtime `npm audit` gate was added, and dependency review now skips with a notice when the repository Dependency graph is off instead of failing every PR.
 - Clarified that the shared tool boundary is intentionally family-specific: eClass/SIS and RMP use shared boundary helpers, while Cengage, assignment resolver, cache, and pin tools preserve their specialized envelopes.
 - Extended tool-layer dependency injection documentation and tests to include Cengage scraper factories.
 - Added the default eClass boundary fallback for unexpected errors as a redacted `INTERNAL_ERROR` JSON response while keeping generic and specialized tool-family boundaries explicit.
