@@ -570,14 +570,12 @@ export async function startAuthServer() {
         writeInvalidCsrfResponse(res);
         return;
       }
-      const { QrLoginError, exchangeQrLogin, parseQrLoginPayload } =
+      const { QrLoginError, completeQrLogin, parseQrLoginPayload } =
         await import('./qr-login');
-      const { saveMobileCredential } = await import('../scraper/session');
       try {
         assertSecureSessionConfigured();
         const payload = parseQrLoginPayload(params.get('payload') ?? '');
-        const credential = await exchangeQrLogin(payload);
-        saveMobileCredential(credential);
+        await completeQrLogin(payload);
         res.writeHead(200, {
           'Content-Type': 'text/html',
           'Cache-Control': 'no-store',
@@ -585,7 +583,7 @@ export async function startAuthServer() {
         res.end(
           qrLoginPageHtml({
             ok: true,
-            text: 'Signed in. The mobile token is saved; REST-routed eClass reads can use it in shadow or api mode.',
+            text: 'Signed in. The mobile token is saved. With ECLASS_API_SOURCE_MODE=api, REST-routed eClass reads use it without a browser session; other reads still need /auth.',
           })
         );
       } catch (error) {

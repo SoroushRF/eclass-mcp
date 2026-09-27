@@ -31,19 +31,32 @@ signed-in account owner.
 2. **The owner pastes the payload.** The page is a form (same-origin check
    plus the per-server CSRF nonce used by `/logout`). The server does not scan
    cameras or screens.
-3. **Strict parsing.** `parseQrLoginPayload` strips the app scheme, requires
-   HTTPS, the configured eClass origin, an alphanumeric key of 8–128
-   characters, and a positive integer user id.
+3. **Strict parsing.** `parseQrLoginPayload` accepts exactly two forms: the
+   profile payload `moodlemobile://https://<site>?qrlogin=<key>&userid=<id>`,
+   and the same `https://` URL without the app scheme (what many QR readers
+   show). Any other outer scheme is rejected. It requires HTTPS, the
+   configured eClass origin (no other port, no user info), an alphanumeric
+   key of 8–128 characters, and a positive integer user id.
 4. **One exchange, no retries.** `exchangeQrLogin` posts one AJAX batch with
    user agent `MoodleMobile`, `redirect: 'error'`, the eClass API timeout, and
-   a 64 KiB response cap. The returned token (and private token, if issued)
-   goes only into the encrypted session envelope via `saveMobileCredential`.
-5. **Explicit error mapping.** `qrcodedisabled`, `apprequired`, `invalidkey`
-   (and IP mismatch), `autologinnotallowedtoadmins`, and disabled mobile
-   services each map to a fixed message that points back to `/auth`. Moodle's
-   own message text is never echoed.
-6. **Nothing sensitive is logged.** Only `{ event: 'qr_login_exchange',
-   outcome }` is logged; `qrlogin`/`qrloginkey` query values are also covered
+   a 64 KiB response cap. A response without a well-formed token fails; a
+   malformed private token is dropped, not stored.
+5. **Verify before storing.** The new token alone (held in memory) reads
+   `core_webservice_get_site_info` over the cookie-free REST transport, and
+   the user id must equal the one in the QR payload; otherwise nothing is
+   saved (`identity_mismatch`).
+6. **Replace account state atomically.** If the active account scope is
+   already this user, the token is added to the existing envelope and the
+   cookies are kept. Otherwise the envelope is replaced by a token-only one,
+   API browser contexts are closed, the previous account's caches are
+   cleared, and the account scope moves to the QR user. Both paths advance
+   the auth generation, so a token renewal in flight cannot overwrite it.
+7. **Explicit error mapping.** `qrcodedisabled`, `apprequired`, `invalidkey`,
+   `expiredkey`, IP mismatch, `autologinnotallowedtoadmins`, and disabled
+   mobile services each map to a fixed message that points back to `/auth`.
+   Moodle's own message text is never echoed.
+8. **Nothing sensitive is logged.** Only `{ event: 'qr_login_exchange',
+outcome }` and `{ event: 'qr_login_applied', transition }` are logged; `qrlogin`/`qrloginkey` query values are also covered
    by `src/logging/redact.ts`.
 
 ## Consequences
@@ -52,8 +65,10 @@ signed-in account owner.
   the documented contract of the function Moodle ships for this purpose, the
   owner authorizes each exchange with a key only they can see, and it does not
   bypass any authentication. Owners who prefer not to present it keep `/auth`.
-- **QR login creates no cookie session.** SIS, Cengage/WebAssign, section
-  text, item details, and assignment preflight still need `/auth`. A
+- **QR login creates no cookie session.** Only `ECLASS_API_SOURCE_MODE=api`
+  serves reads from the token alone; `shadow` needs cookies too. SIS,
+  Cengage/WebAssign, section text, item details, and assignment preflight
+  still need `/auth`. A
   token-only envelope stores its cookie timestamp as the epoch, so it never
   counts as a fresh cookie session.
 - **Re-mint on `invalidtoken` still needs cookies** (ADR 0011 §5); after a

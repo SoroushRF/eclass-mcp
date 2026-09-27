@@ -1,10 +1,26 @@
+import fs from 'fs';
+import {
+  deriveEclassAccountScope,
+  getActiveEclassAccountScope,
+  setActiveEclassAccountScope,
+} from '../cache/account-scope';
+import { cache } from '../cache/store';
 import { getLogger } from '../logging/context';
 import { getEclassApiConfig } from '../scraper/eclass/api/constants';
+import { MoodleRestClient } from '../scraper/eclass/api/rest';
+import { closeAllEclassApiSessionContexts } from '../scraper/eclass/api/session-context';
 import {
+  FetchMoodleRestTransport,
   readCappedBody,
   type FetchLike,
 } from '../scraper/eclass/api/transport';
-import type { MobileCredential } from '../scraper/session';
+import {
+  advanceAuthGeneration,
+  getSessionFilePath,
+  saveMobileCredential,
+  saveSession,
+  type MobileCredential,
+} from '../scraper/session';
 
 /**
  * Optional QR login (ADR 0012): the account owner pastes the payload of the
@@ -41,6 +57,7 @@ export type QrLoginErrorCode =
   | 'expired_or_used'
   | 'admin_not_allowed'
   | 'service_unavailable'
+  | 'identity_mismatch'
   | 'upstream';
 
 const QR_LOGIN_MESSAGES: Record<QrLoginErrorCode, string> = {
@@ -56,6 +73,8 @@ const QR_LOGIN_MESSAGES: Record<QrLoginErrorCode, string> = {
   admin_not_allowed: 'Moodle does not allow QR login for administrators.',
   service_unavailable:
     'The site administrator has disabled mobile services. Use /auth instead.',
+  identity_mismatch:
+    'eClass returned a token for a different account than the QR code named. Nothing was saved.',
   upstream: 'eClass did not complete the QR login. Try again or use /auth.',
 };
 
@@ -70,8 +89,11 @@ export class QrLoginError extends Error {
 }
 
 /**
- * Parses `moodlemobile://https://<site>?qrlogin=<key>&userid=<id>` (or the
- * same URL without the app scheme). The site must be the configured origin.
+ * Parses `moodlemobile://https://<site>?qrlogin=<key>&userid=<id>`, or the
+ * same `https://` URL without the app scheme (what a QR reader shows after
+ * stripping it). No other outer scheme is accepted. The site must be the
+ * configured origin over HTTPS, the key 8–128 letters or digits, and the
+ * user id a positive integer.
  */
 export function parseQrLoginPayload(
   raw: string,
@@ -79,7 +101,7 @@ export function parseQrLoginPayload(
 ): QrLoginPayload {
   const trimmed = raw.trim();
   const withoutScheme = trimmed.replace(
-    /^[a-z][a-z0-9+.-]*:\/\/(?=https?:\/\/)/i,
+    /^moodlemobile:\/\/(?=https:\/\/)/i,
     ''
   );
   let url: URL;
@@ -116,6 +138,7 @@ function mapQrErrorCode(errorCode: string | undefined): QrLoginErrorCode {
     case 'apprequired':
       return 'app_required';
     case 'invalidkey':
+    case 'expiredkey':
     case 'invalidkeyip':
     case 'ipmismatch':
       return 'expired_or_used';
@@ -234,4 +257,81 @@ export async function exchangeQrLogin(
       'eClass QR login exchange completed'
     );
   }
+}
+
+export interface VerifyQrCredentialOptions {
+  fetchImpl?: FetchLike;
+  timeoutMs?: number;
+}
+
+/**
+ * Reads site info with the new token alone (held in memory, nothing saved)
+ * and requires the account to be the one the QR code named.
+ */
+export async function verifyQrCredential(
+  credential: MobileCredential,
+  payload: QrLoginPayload,
+  options: VerifyQrCredentialOptions = {}
+): Promise<void> {
+  const client = new MoodleRestClient({
+    transport: new FetchMoodleRestTransport({
+      origin: payload.origin,
+      timeoutMs: options.timeoutMs ?? getEclassApiConfig().timeoutMs,
+      fetchImpl: options.fetchImpl,
+    }),
+    credentialReader: { load: () => credential, clear: () => undefined },
+  });
+  let userId: string;
+  try {
+    userId = await client.getVerifiedUserId();
+  } catch {
+    throw new QrLoginError('upstream');
+  }
+  if (userId !== String(payload.userId)) {
+    throw new QrLoginError('identity_mismatch');
+  }
+}
+
+export type QrAccountTransition = 'same_account' | 'replaced_account';
+
+/**
+ * Stores a verified QR credential. Cookies are kept only when the active
+ * account scope already belongs to the same user; otherwise the whole
+ * envelope is replaced, API contexts are closed, the previous account's
+ * caches are cleared, and the scope moves to the QR account. Either way
+ * the auth generation advances, so an in-flight renewal cannot overwrite it.
+ */
+export async function applyQrCredential(
+  credential: MobileCredential,
+  payload: QrLoginPayload
+): Promise<QrAccountTransition> {
+  const nextScope = deriveEclassAccountScope(payload.origin, payload.userId);
+  const previousScope = getActiveEclassAccountScope();
+  if (previousScope === nextScope && fs.existsSync(getSessionFilePath())) {
+    advanceAuthGeneration();
+    saveMobileCredential(credential);
+    return 'same_account';
+  }
+
+  await closeAllEclassApiSessionContexts();
+  saveSession([], 'session.json', credential);
+  if (previousScope) cache.clearEclassAccountScope(previousScope);
+  cache.clearVolatile();
+  setActiveEclassAccountScope(payload.origin, payload.userId);
+  return 'replaced_account';
+}
+
+/** Exchange, verify, then store: nothing is saved unless every step passes. */
+export async function completeQrLogin(
+  payload: QrLoginPayload,
+  options: ExchangeQrLoginOptions = {}
+): Promise<QrAccountTransition> {
+  const credential = await exchangeQrLogin(payload, options);
+  await verifyQrCredential(credential, payload, options);
+  const transition = await applyQrCredential(credential, payload);
+  getLogger().info(
+    { event: 'qr_login_applied', transition },
+    'eClass QR login credential stored'
+  );
+  return transition;
 }
