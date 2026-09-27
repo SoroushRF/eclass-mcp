@@ -164,8 +164,8 @@ API-primary can be disabled without rebuilding by setting
 is a full kill switch: no REST reads, no token file downloads, and no mint
 after login. Do not put
 tokens, `sesskey` values, cookies, or launch redirect locations in `.env`,
-cache files, logs, or tool output. Mobile credentials, when minted by a
-future account-owner flow, remain in the encrypted session envelope only.
+cache files, logs, or tool output. Mobile credentials minted by `/auth`
+or optional QR login remain in the encrypted session envelope only.
 
 ---
 

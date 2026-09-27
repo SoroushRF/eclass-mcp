@@ -38,6 +38,21 @@ Expected:
 - The release tag does not already exist.
 - Latest commit is the release-prep commit.
 
+## Mobile Token Gates (ADR 0011 / 0012)
+
+Before a release that includes the mobile-token work:
+
+1. Confirm the default is still `ECLASS_API_SOURCE_MODE=playwright` in code, README, and `.env.example`, unless the owner has recorded the default-mode decision.
+2. Confirm every row in the "Mobile REST routing promotion" table of `docs/validation/eclass-hybrid-release.md` is either backed by recorded `shadow` evidence or marked not promoted.
+3. Confirm `ECLASS_MCP_ENABLE_QR_LOGIN` is documented as off by default.
+4. Grep the release diff for secrets. Every hit must be an obviously fake test value (sequential hex such as `0123456789abcdef…`, `fake`-prefixed strings, or `secret`):
+
+```powershell
+git diff master...HEAD | Select-String -Pattern '\b[a-f0-9]{32}\b','sesskey=[A-Za-z0-9]{6,}','MoodleSession=','moodlemobile://token=[A-Za-z0-9+/=]{8,}','@(my\.)?yorku\.ca'
+```
+
+Findings and fixtures record lengths, field names, counts, status codes, and error codes only. Fixtures use obviously fake values.
+
 ## Optional Manual E2E Evidence
 
 Manual host validation is optional for routine internal hardening commits, but it is recommended before public release notes or recruiter-facing demos.
