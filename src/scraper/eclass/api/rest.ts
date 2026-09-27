@@ -1,10 +1,11 @@
 import crypto from 'crypto';
 import {
   clearMobileCredential,
+  getAuthGeneration,
   loadMobileCredential,
   type MobileCredential,
 } from '../../session';
-import { MoodleApiError } from './errors';
+import { CREDENTIAL_CHANGED, MoodleApiError } from './errors';
 import type { MoodleTransport } from './transport';
 import type { z } from 'zod';
 import {
@@ -87,10 +88,16 @@ export interface MoodleRestClientOptions {
   credentialReader?: MobileCredentialReader;
   reMint?: () => Promise<MobileCredential>;
   /**
-   * Called with the verified Moodle user id each time site info is
-   * discovered for a new credential (sets the account cache scope).
+   * Called with the verified Moodle user id whenever it is discovered or
+   * returned by `getVerifiedUserId` for the stored credential (sets the
+   * account cache scope), so a scope cleared elsewhere is restored.
    */
   onIdentity?: (userId: string) => void;
+  /**
+   * Auth generation (advanced by login, logout and session clears). Defaults
+   * to the session module's counter.
+   */
+  authGeneration?: () => number;
 }
 
 /**
@@ -109,6 +116,16 @@ class IdentityChangedError extends Error {}
 function credentialFingerprint(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
+
+function credentialChanged(): MoodleApiError {
+  return new MoodleApiError({
+    category: 'upstream',
+    upstreamCode: CREDENTIAL_CHANGED,
+  });
+}
+
+// Renewal lineage entries kept per client (one per renewal).
+const MAX_RENEWAL_LINEAGE = 16;
 
 function parseRestError(value: unknown): void {
   if (!value || typeof value !== 'object') return;
@@ -161,8 +178,15 @@ export class MoodleRestClient {
     fingerprint: string;
     promise: Promise<BoundIdentity>;
   } | null = null;
-  private renewal: { fingerprint: string; promise: Promise<void> } | null =
-    null;
+  private renewal: {
+    fingerprint: string;
+    generation: number;
+    promise: Promise<void>;
+  } | null = null;
+  // Failed fingerprint -> the fingerprint its renewal stored. A result from
+  // a renewed-away token is still the same account's result.
+  private readonly renewedTo = new Map<string, string>();
+  private readonly authGeneration: () => number;
 
   constructor(options: MoodleRestClientOptions) {
     this.transport = options.transport;
@@ -172,6 +196,18 @@ export class MoodleRestClient {
     };
     this.reMint = options.reMint;
     this.onIdentity = options.onIdentity;
+    this.authGeneration = options.authGeneration ?? getAuthGeneration;
+  }
+
+  /**
+   * True while a renewal for the current auth generation is in flight. The
+   * credential is absent during that window, but reads should still route
+   * to REST and join the renewal.
+   */
+  hasPendingRenewal(): boolean {
+    return (
+      this.renewal !== null && this.renewal.generation === this.authGeneration()
+    );
   }
 
   async discoverCapabilities(force = false): Promise<ReadonlySet<string>> {
@@ -185,12 +221,15 @@ export class MoodleRestClient {
 
   /** The verified Moodle user id for the active credential. */
   async getVerifiedUserId(): Promise<string> {
-    const { userId } = await this.boundIdentity();
+    const { userId, fingerprint } = await this.boundIdentity();
     if (userId === null) {
       throw new MoodleApiError({
         category: 'malformed_response',
         upstreamCode: 'missing_userid',
       });
+    }
+    if (this.storedFingerprint() === fingerprint) {
+      this.onIdentity?.(String(userId));
     }
     return String(userId);
   }
@@ -204,7 +243,7 @@ export class MoodleRestClient {
    * one discovery, and a replaced credential is always rediscovered.
    */
   private async boundIdentity(force = false): Promise<BoundIdentity> {
-    const fingerprint = this.activeFingerprint();
+    const fingerprint = await this.activeFingerprint();
     if (!force && this.bound?.fingerprint === fingerprint) return this.bound;
     if (force || this.discovery?.fingerprint !== fingerprint) {
       const promise: Promise<BoundIdentity> = this.discover().finally(() => {
@@ -246,12 +285,58 @@ export class MoodleRestClient {
     return credential ? credentialFingerprint(credential.token) : null;
   }
 
-  private activeFingerprint(): string {
-    const fingerprint = this.storedFingerprint();
+  /** The stored credential's fingerprint, waiting out a pending renewal. */
+  private async activeFingerprint(): Promise<string> {
+    let fingerprint = this.storedFingerprint();
+    if (!fingerprint && (await this.joinPendingRenewal())) {
+      fingerprint = this.storedFingerprint();
+    }
     if (!fingerprint) {
       throw new MoodleApiError({ category: 'mobile_token_invalid' });
     }
     return fingerprint;
+  }
+
+  /**
+   * Waits for a renewal started in the current auth generation. Returns
+   * false when there is none to join; a failed renewal rejects.
+   */
+  private async joinPendingRenewal(): Promise<boolean> {
+    const pending = this.renewal;
+    if (!pending || pending.generation !== this.authGeneration()) return false;
+    await pending.promise;
+    return true;
+  }
+
+  /**
+   * Whether a result obtained with `fingerprint` in `generation` still
+   * belongs to the active credential: no login, logout or clear since, and
+   * the stored token is the same one, its renewal, or being renewed now.
+   */
+  private isCurrent(fingerprint: string, generation: number): boolean {
+    if (this.authGeneration() !== generation) return false;
+    const stored = this.storedFingerprint();
+    const renewing =
+      this.renewal?.generation === generation ? this.renewal.fingerprint : null;
+    let candidate: string | undefined = fingerprint;
+    for (let hop = 0; candidate && hop <= MAX_RENEWAL_LINEAGE; hop++) {
+      if (candidate === stored || candidate === renewing) return true;
+      candidate = this.renewedTo.get(candidate);
+    }
+    return false;
+  }
+
+  /**
+   * A token failure may renew only while no other account's credential was
+   * stored in the meantime. A credential that is simply gone (an earlier
+   * failed renewal) can still be renewed in the same generation.
+   */
+  private mayRenew(fingerprint: string, generation: number): boolean {
+    if (this.authGeneration() !== generation) return false;
+    return (
+      this.storedFingerprint() === null ||
+      this.isCurrent(fingerprint, generation)
+    );
   }
 
   async callCapability(
@@ -443,31 +528,47 @@ export class MoodleRestClient {
 
   /**
    * Runs `fn` with the stored token. On an invalid token the credential is
-   * renewed once (shared with concurrent callers) and `fn` retried once.
-   * Token file downloads use the same lifecycle.
+   * renewed once (shared with concurrent callers, including ones that arrive
+   * while it is in flight) and `fn` retried once. Token file downloads use
+   * the same lifecycle.
+   *
+   * The whole operation is bound to the auth generation it started in: a
+   * result that arrives after a login, logout or account switch is rejected
+   * with `credential_changed` instead of being returned, and the request is
+   * never rerun under a different account's token.
    */
   async withCredential<T>(
     fn: (token: string) => Promise<T>
   ): Promise<{ value: T; fingerprint: string }> {
+    const generation = this.authGeneration();
     let renewed = false;
     while (true) {
+      if (this.authGeneration() !== generation) throw credentialChanged();
       const credential = this.credentialReader.load();
       if (!credential) {
+        if (!renewed && (await this.joinPendingRenewal())) {
+          renewed = true;
+          continue;
+        }
         throw new MoodleApiError({ category: 'mobile_token_invalid' });
       }
       const fingerprint = credentialFingerprint(credential.token);
+      let value: T;
       try {
-        return { value: await fn(credential.token), fingerprint };
+        value = await fn(credential.token);
       } catch (error) {
         if (!isMobileTokenError(error)) throw error;
+        if (!this.mayRenew(fingerprint, generation)) throw credentialChanged();
         if (!renewed && this.reMint) {
           renewed = true;
-          await this.renew(fingerprint);
+          await this.renew(fingerprint, generation);
           continue;
         }
         this.invalidate(fingerprint);
         throw error;
       }
+      if (!this.isCurrent(fingerprint, generation)) throw credentialChanged();
+      return { value, fingerprint };
     }
   }
 
@@ -476,8 +577,11 @@ export class MoodleRestClient {
    * replaced by a concurrent renewal skips minting and retries with the new
    * token. A failed renewal surfaces as `mobile_token_invalid`.
    */
-  private renew(failedFingerprint: string): Promise<void> {
-    if (this.renewal?.fingerprint === failedFingerprint) {
+  private renew(failedFingerprint: string, generation: number): Promise<void> {
+    if (
+      this.renewal?.fingerprint === failedFingerprint &&
+      this.renewal.generation === generation
+    ) {
       return this.renewal.promise;
     }
     const current = this.storedFingerprint();
@@ -494,10 +598,18 @@ export class MoodleRestClient {
           cause: error,
         });
       }
+      const renewedFingerprint = this.storedFingerprint();
+      if (renewedFingerprint && this.authGeneration() === generation) {
+        this.renewedTo.set(failedFingerprint, renewedFingerprint);
+        if (this.renewedTo.size > MAX_RENEWAL_LINEAGE) {
+          const oldest = this.renewedTo.keys().next().value;
+          if (oldest !== undefined) this.renewedTo.delete(oldest);
+        }
+      }
     })().finally(() => {
       if (this.renewal?.promise === promise) this.renewal = null;
     });
-    this.renewal = { fingerprint: failedFingerprint, promise };
+    this.renewal = { fingerprint: failedFingerprint, generation, promise };
     return promise;
   }
 

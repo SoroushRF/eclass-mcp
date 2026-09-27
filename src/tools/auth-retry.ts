@@ -1,14 +1,16 @@
 import * as authServer from '../auth/server';
 import { sessionStorageUnavailablePayload } from '../errors/tool-error';
 import { getEclassApiConfig } from '../scraper/eclass/api/constants';
-import { hasMobileCredential, SessionExpiredError } from '../scraper/session';
+import { SessionExpiredError } from '../scraper/session';
 import { SecureSessionStorageError } from '../security/secure-session-store';
+import { hasUsableMobileCredential } from './dependencies';
 import { EclassToolErrorResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 
 /**
  * True when REST-routed eClass reads can run without a cookie session:
- * `api` mode and a stored, unexpired mobile token (ADR 0011). `shadow` runs
+ * `api` mode and a stored, unexpired mobile token, or a renewal of it in
+ * flight (ADR 0011). `shadow` runs
  * the Playwright path on every read, so it always needs cookies too.
  * Cookie-only reads still raise SessionExpiredError, and
  * `handleEclassSessionExpired` opens the login window on demand.
@@ -17,11 +19,7 @@ export function canServeEclassReadsWithToken(
   sourceMode = getEclassApiConfig().sourceMode
 ): boolean {
   if (sourceMode !== 'api') return false;
-  try {
-    return hasMobileCredential();
-  } catch {
-    return false;
-  }
+  return hasUsableMobileCredential();
 }
 
 export async function handleEclassSessionExpired<T>(

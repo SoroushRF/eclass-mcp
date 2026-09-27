@@ -67,6 +67,24 @@ export interface ToolDependencies {
 let defaultHybridProvider: EclassHybridProvider | null = null;
 let defaultRestClient: MoodleRestClient | null = null;
 
+function storedMobileCredentialPresent(): boolean {
+  try {
+    return loadMobileCredential() !== null;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * A stored token, or a renewal in flight for the current login. During
+ * renewal the old token is already cleared, but reads should still route to
+ * REST and wait for the new token rather than skip it.
+ */
+export function hasUsableMobileCredential(): boolean {
+  if (storedMobileCredentialPresent()) return true;
+  return defaultRestClient?.hasPendingRenewal() ?? false;
+}
+
 export function getDefaultEclassHybridProvider(): EclassHybridProvider {
   if (defaultHybridProvider) return defaultHybridProvider;
 
@@ -97,14 +115,7 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
         },
       }).launch();
     },
-    onIdentity: (userId) => {
-      try {
-        setActiveEclassAccountScope(config.origin, userId);
-      } catch {
-        // No session secret: leave caching disabled rather than fail reads.
-        clearActiveEclassAccountScope();
-      }
-    },
+    onIdentity: (userId) => setScopeFromVerifiedUser(config.origin, userId),
   });
   defaultRestClient = restClient;
   const options: EclassHybridProviderOptions = {
@@ -112,7 +123,7 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
     tokenFiles: {
       download: async (fileUrl) => {
         if (!toWebservicePluginfileUrl(fileUrl)) return null;
-        if (!loadMobileCredential()) return null;
+        if (!hasUsableMobileCredential()) return null;
         const { value } = await restClient.withCredential((token) =>
           downloadFileWithToken(fileUrl, token)
         );
@@ -125,13 +136,7 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
       timeoutMs: config.timeoutMs,
     }),
     restClient,
-    hasMobileCredential: () => {
-      try {
-        return loadMobileCredential() !== null;
-      } catch {
-        return false;
-      }
-    },
+    hasMobileCredential: hasUsableMobileCredential,
     hasCookieSession: () => {
       try {
         return isSessionValid();
@@ -157,20 +162,38 @@ export async function closeDefaultEclassHybridProvider(): Promise<void> {
 
 /**
  * In `api` mode the browser bootstrap may never run, so the account cache
- * scope comes from the token's verified site info. Called before a tool
- * reads caches; rediscovers whenever the stored credential changed. If the
- * credential cannot be verified the scope is cleared, so no cache from an
- * earlier account is served. Other modes keep the browser-derived scope.
+ * scope comes from the token's verified site info. Called before every tool
+ * reads caches: the scope is set from the verified user id each time (not
+ * only when site info is first discovered), so a scope cleared or changed by
+ * another path is restored. If the credential cannot be verified the scope
+ * is cleared, so no cache from an earlier account is served. If a login or
+ * logout happens while verifying, that path owns the scope and it is left
+ * alone. Other modes keep the browser-derived scope.
  */
 export async function ensureEclassAccountScope(): Promise<void> {
-  if (getEclassApiConfig().sourceMode !== 'api') return;
+  const config = getEclassApiConfig();
+  if (config.sourceMode !== 'api') return;
   getDefaultEclassHybridProvider();
   const client = defaultRestClient;
   if (!client) return;
+  const generation = getAuthGeneration();
+  let userId: string;
   try {
-    if (!loadMobileCredential()) return;
-    await client.getVerifiedUserId();
+    if (!hasUsableMobileCredential()) return;
+    userId = await client.getVerifiedUserId();
   } catch {
+    if (getAuthGeneration() === generation) clearActiveEclassAccountScope();
+    return;
+  }
+  if (getAuthGeneration() !== generation) return;
+  setScopeFromVerifiedUser(config.origin, userId);
+}
+
+function setScopeFromVerifiedUser(origin: string, userId: string): void {
+  try {
+    setActiveEclassAccountScope(origin, userId);
+  } catch {
+    // No session secret: leave caching disabled rather than fail reads.
     clearActiveEclassAccountScope();
   }
 }

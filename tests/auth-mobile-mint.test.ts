@@ -102,14 +102,18 @@ describe('mobile token mint kill switch', () => {
 
 describe('token-aware session check', () => {
   it('serves REST reads without cookies only in api mode with a token', () => {
-    const has = vi.spyOn(session, 'hasMobileCredential');
+    const has = vi.spyOn(session, 'loadMobileCredential');
 
-    has.mockReturnValue(true);
+    has.mockReturnValue({
+      service: 'moodle_mobile_app',
+      token: 'fake-token',
+      issuedAt: '2026-09-27T00:00:00.000Z',
+    });
     expect(canServeEclassReadsWithToken('api')).toBe(true);
     expect(canServeEclassReadsWithToken('shadow')).toBe(false);
     expect(canServeEclassReadsWithToken('playwright')).toBe(false);
 
-    has.mockReturnValue(false);
+    has.mockReturnValue(null);
     expect(canServeEclassReadsWithToken('api')).toBe(false);
 
     has.mockImplementation(() => {

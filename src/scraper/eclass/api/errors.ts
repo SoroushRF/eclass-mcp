@@ -83,6 +83,14 @@ export class MoodleApiError extends Error {
   }
 }
 
+/**
+ * `upstreamCode` for a token read whose credential was replaced, cleared or
+ * reissued (login, logout, account switch) while the request was in flight.
+ * The result belongs to the previous credential, so it is discarded and the
+ * read is not retried on another transport.
+ */
+export const CREDENTIAL_CHANGED = 'credential_changed';
+
 export function isMoodleApiError(value: unknown): value is MoodleApiError {
   return value instanceof MoodleApiError;
 }
