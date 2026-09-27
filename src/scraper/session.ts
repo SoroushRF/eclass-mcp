@@ -111,7 +111,9 @@ export function saveSession(
 
   const data: SessionData = {
     schema_version: SESSION_DATA_SCHEMA_VERSION,
-    saved_at: new Date().toISOString(),
+    // A token-only envelope (QR login) has no cookie session to be fresh.
+    saved_at:
+      cookies.length > 0 ? new Date().toISOString() : new Date(0).toISOString(),
     cookies: cookies,
     ...(mobile ? { mobile } : {}),
   };
@@ -207,7 +209,18 @@ export function saveMobileCredential(
     );
   }
   const file = getSessionFilePath(fileName);
-  const data = loadSessionData(file);
+  // QR login can store a token before any cookie login. The new envelope's
+  // cookie timestamp is the epoch, so it never counts as a fresh session.
+  const data: SessionData = fs.existsSync(file)
+    ? loadSessionData(file)
+    : {
+        schema_version: SESSION_DATA_SCHEMA_VERSION,
+        saved_at: new Date(0).toISOString(),
+        cookies: [],
+      };
+  if (!fs.existsSync(SESSION_DIR)) {
+    fs.mkdirSync(SESSION_DIR, { recursive: true });
+  }
   writeSecureJsonFile(file, {
     ...data,
     schema_version: SESSION_DATA_SCHEMA_VERSION,
@@ -297,7 +310,7 @@ export function loadSession(
       return null;
     }
 
-    return data.cookies;
+    return data.cookies.length > 0 ? data.cookies : null;
   } catch (error) {
     if (error instanceof SecureSessionStorageError) {
       throw error;
@@ -308,10 +321,13 @@ export function loadSession(
 }
 
 /**
- * Internal check for session staleness
+ * A fresh cookie session: recently saved and actually holding cookies. A
+ * token-only envelope is never a cookie session.
  */
 function _isSessionFresh(data: SessionData): boolean {
-  return isSavedSessionFresh(data.saved_at, new Date());
+  return (
+    data.cookies.length > 0 && isSavedSessionFresh(data.saved_at, new Date())
+  );
 }
 
 /**

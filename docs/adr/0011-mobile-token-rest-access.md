@@ -97,9 +97,9 @@ a token would.
   security model (feasibility §15.5).
 - **Keep Playwright for everything not on AJAX.** Rejected as the long-term
   path: slow, selector-fragile, and tied to the short cookie lifetime.
-- **QR login as the primary mint.** Deferred to ADR 0012 (proposed on the
-  `feat/eclass-qr-login` branch) as an opt-in path, because the exchange
-  requires presenting a Moodle app user agent.
+- **QR login as the primary mint.** Deferred to
+  [ADR 0012](./0012-optional-qr-login.md) as an opt-in path, because the
+  exchange requires presenting a Moodle app user agent.
 
 ## References
 

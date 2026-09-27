@@ -25,6 +25,7 @@ import {
   getActiveEclassAccountScope,
 } from '../cache/account-scope';
 import { safeString } from '../logging/redact';
+import { isQrLoginEnabled } from './qr-login';
 
 dotenv.config({ quiet: true });
 
@@ -33,6 +34,7 @@ export const AUTH_HOST = '127.0.0.1';
 const ECLASS_URL = process.env.ECLASS_URL || 'https://eclass.yorku.ca';
 const AUTH_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_LOGOUT_BODY_BYTES = 4096;
+const MAX_QR_BODY_BYTES = 4096;
 export const DEFAULT_AUTH_WAIT_MS = 2 * 60 * 1000;
 export const DEFAULT_AUTH_POLL_INTERVAL_MS = 1000;
 
@@ -252,6 +254,39 @@ function isValidLogoutRequest(
   return constantTimeEquals(submittedNonce, authCsrfNonce);
 }
 
+function qrLoginPageHtml(message?: { text: string; ok: boolean }): string {
+  const notice = message
+    ? `<p style="color: ${message.ok ? '#27ae60' : '#c0392b'};">${escapeHtml(message.text)}</p>`
+    : '';
+  return `
+    <!DOCTYPE html>
+    <html>
+      <body style="font-family: sans-serif; max-width: 720px; margin: 48px auto; line-height: 1.5;">
+        <h2>Sign in to eClass with a QR code</h2>
+        ${notice}
+        <ol>
+          <li>In eClass, open your profile and show the Moodle app QR code.</li>
+          <li>Copy the text encoded in that QR code (it starts with <code>moodlemobile://</code>) and paste it below within 10 minutes.</li>
+        </ol>
+        <p>This stores a Moodle mobile token in the encrypted session file. It does not create a cookie session, so SIS, Cengage, and HTML-only eClass pages still need <a href="/auth">/auth</a>.</p>
+        <form method="POST" action="/auth-qr">
+          <input type="hidden" name="_csrf" value="${escapeHtml(authCsrfNonce ?? '')}">
+          <textarea name="payload" rows="3" cols="80" autocomplete="off" spellcheck="false" required></textarea>
+          <p><button type="submit" style="padding: 8px 14px;">Sign in</button></p>
+        </form>
+      </body>
+    </html>
+  `;
+}
+
+function isValidQrLoginRequest(
+  req: http.IncomingMessage,
+  params: URLSearchParams
+): boolean {
+  if (!authCsrfNonce || !isSameOriginRequest(req)) return false;
+  return constantTimeEquals(params.get('_csrf') ?? '', authCsrfNonce);
+}
+
 function trackAuthBrowser(browser: Browser): Browser {
   activeAuthBrowsers.add(browser);
   return browser;
@@ -352,6 +387,7 @@ export async function startAuthServer() {
               <ul style="list-style: none; padding: 0;">
                 <li style="margin: 10px;"><a href="/auth" style="color: #3498db; text-decoration: none; font-weight: bold;">Login to eClass</a></li>
                 <li style="margin: 10px;"><a href="/auth-cengage" style="color: #e74c3c; text-decoration: none; font-weight: bold;">Login to Cengage/WebAssign</a></li>
+                ${isQrLoginEnabled() ? '<li style="margin: 10px;"><a href="/auth-qr" style="color: #8e44ad; text-decoration: none; font-weight: bold;">Sign in to eClass with a QR code</a></li>' : ''}
               </ul>
             </body>
           </html>
@@ -511,6 +547,60 @@ export async function startAuthServer() {
         if (browser) {
           await closeTrackedAuthBrowser(browser);
         }
+      }
+    } else if (pathname === '/auth-qr' && isQrLoginEnabled()) {
+      if (req.method !== 'POST') {
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-store',
+        });
+        res.end(qrLoginPageHtml());
+        return;
+      }
+      let params: URLSearchParams;
+      try {
+        params = new URLSearchParams(
+          await readRequestBody(req, MAX_QR_BODY_BYTES)
+        );
+      } catch {
+        writeInvalidCsrfResponse(res);
+        return;
+      }
+      if (!isValidQrLoginRequest(req, params)) {
+        writeInvalidCsrfResponse(res);
+        return;
+      }
+      const { QrLoginError, completeQrLogin, parseQrLoginPayload } =
+        await import('./qr-login');
+      try {
+        assertSecureSessionConfigured();
+        const payload = parseQrLoginPayload(params.get('payload') ?? '');
+        await completeQrLogin(payload);
+        res.writeHead(200, {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-store',
+        });
+        res.end(
+          qrLoginPageHtml({
+            ok: true,
+            text: 'Signed in. The mobile token is saved. With ECLASS_API_SOURCE_MODE=api, REST-routed eClass reads use it without a browser session; other reads still need /auth.',
+          })
+        );
+      } catch (error) {
+        if (error instanceof SecureSessionStorageError) {
+          res.writeHead(503, { 'Content-Type': 'text/html' });
+          res.end(secureSessionConfigHtml(error));
+          return;
+        }
+        const text =
+          error instanceof QrLoginError
+            ? error.message
+            : 'QR login failed unexpectedly. Try again or use /auth.';
+        res.writeHead(error instanceof QrLoginError ? 400 : 500, {
+          'Content-Type': 'text/html',
+          'Cache-Control': 'no-store',
+        });
+        res.end(qrLoginPageHtml({ ok: false, text }));
       }
     } else if (pathname === '/status') {
       const secureSessionConfigured = isSecureSessionConfigured();

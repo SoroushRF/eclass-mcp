@@ -176,7 +176,9 @@ This repository now treats the MCP server as an **engine line** that can stay op
 - Current engine stage: `1.0.0-beta.3`
 - Current beta includes Cengage/WebAssign, secure session storage, selector drift diagnostics, doctor/setup productization, release discipline, and the completed Professional Engineering Maturity initiative; WeBWorK remains pending.
 - The isolated `feat/eclass-hybrid-api` migration adds account-scoped session handling, proven Moodle AJAX reads, shadow/API source modes, bounded Playwright fallback, and an optional mobile REST foundation. Playwright remains the release-safe default until account-owner live canary evidence is recorded.
-- REST-backed grades, forums, assignment details, plugin-file reads, and write flows remain intentionally unpromoted; SIS, Cengage/WebAssign, and all write tools retain their existing routes.
+- The stacked `feat/eclass-mobile-token` work (ADR 0011) fixes the `launch.php` parser, mints a Moodle mobile token after `/auth`, adds a token-only REST transport and token file downloads, and routes course content, grades, course announcements, and the eClass assignment index to capability-gated REST in `shadow`/`api` modes. Optional QR login (ADR 0012, `feat/eclass-qr-login`) is off unless `ECLASS_MCP_ENABLE_QR_LOGIN=1`.
+- No REST route is promoted yet: promotion needs the owner-run `npm run probe:mobile` capability matrix and live `shadow` evidence in [`eclass-hybrid-release.md`](./validation/eclass-hybrid-release.md). REST write functions and `/webservice/upload.php` are out of scope; SIS, Cengage/WebAssign, section text, item details, preflight, and all write tools keep their existing routes.
+- `ECLASS_API_SOURCE_MODE=playwright` stays the default. Changing it is an owner decision after manual E2E.
 - Next major public engine milestone: `1.0.0`
 - Future planning should assume the engine and product will eventually diverge into separate release lines.
 
