@@ -207,7 +207,18 @@ export function saveMobileCredential(
     );
   }
   const file = getSessionFilePath(fileName);
-  const data = loadSessionData(file);
+  // QR login can store a token before any cookie login. The new envelope's
+  // cookie timestamp is the epoch, so it never counts as a fresh session.
+  const data: SessionData = fs.existsSync(file)
+    ? loadSessionData(file)
+    : {
+        schema_version: SESSION_DATA_SCHEMA_VERSION,
+        saved_at: new Date(0).toISOString(),
+        cookies: [],
+      };
+  if (!fs.existsSync(SESSION_DIR)) {
+    fs.mkdirSync(SESSION_DIR, { recursive: true });
+  }
   writeSecureJsonFile(file, {
     ...data,
     schema_version: SESSION_DATA_SCHEMA_VERSION,

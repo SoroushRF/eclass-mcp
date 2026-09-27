@@ -208,6 +208,26 @@ describe('session file behavior', () => {
     clearMobileCredential(fileName);
   });
 
+  it('stores a token without a cookie session and never marks cookies fresh', () => {
+    const fileName = 'vitest-session-mobile.json';
+    cleanupSessionFile(fileName);
+    const credential = {
+      service: 'moodle_mobile_app' as const,
+      token: 'a'.repeat(32),
+      issuedAt: new Date().toISOString(),
+    };
+
+    saveMobileCredential(credential, fileName);
+
+    expect(loadMobileCredential(fileName)).toEqual(credential);
+    expect(isSessionValid(fileName)).toBe(false);
+    expect(loadSession(fileName)).toBeNull();
+    expect(loadSessionDataForTests(fileName)).toMatchObject({
+      cookies: [],
+      saved_at: new Date(0).toISOString(),
+    });
+  });
+
   it('loads schema-version-one cookie sessions without a mobile credential', () => {
     const fileName = 'vitest-session-mobile.json';
     writeSecureJsonFile(getSessionFilePath(fileName), {
