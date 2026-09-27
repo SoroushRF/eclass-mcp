@@ -167,6 +167,21 @@ export function extractMobileLaunchAnchorHref(html: string): string | null {
   return null;
 }
 
+/**
+ * Prefer Moodle's own `M.cfg.wwwroot` for the passport hash, but only when it
+ * resolves to the configured origin; otherwise fall back to the origin.
+ */
+function launchWwwroot(origin: string, wwwroot: string | undefined): string {
+  if (!wwwroot) return origin;
+  try {
+    return new URL(wwwroot).origin === origin
+      ? wwwroot.replace(/\/+$/, '')
+      : origin;
+  } catch {
+    return origin;
+  }
+}
+
 export class MoodleMobileLauncher {
   private readonly sessionContext: Pick<EclassApiSessionContext, 'getSession'>;
   private readonly origin: string;
@@ -231,7 +246,7 @@ export class MoodleMobileLauncher {
       }
 
       const parsed = parseMobileLaunchLocation(location, {
-        origin: this.origin,
+        origin: launchWwwroot(this.origin, session.wwwroot),
         passport,
       });
       tokenPresent = true;

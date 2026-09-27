@@ -15,6 +15,8 @@ export interface EclassApiSession {
   request: APIRequestContext;
   sesskey: string;
   userId: string;
+  /** Moodle `M.cfg.wwwroot`; the exact value `launch.php` hashes. */
+  wwwroot?: string;
   accountScope: string;
   createdAt: string;
 }
@@ -170,6 +172,7 @@ export class EclassApiSessionContext {
         request: context.request,
         sesskey,
         userId,
+        wwwroot,
         accountScope,
         createdAt: new Date().toISOString(),
       };

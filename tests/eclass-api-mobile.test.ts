@@ -289,6 +289,33 @@ describe('Moodle mobile launch handshake', () => {
     await expect(launcher.launch()).resolves.toMatchObject({ token: TOKEN });
   });
 
+  it('hashes with M.cfg.wwwroot only when it matches the configured origin', async () => {
+    const run = async (wwwroot: string, hashedOrigin: string) => {
+      const request = redirectingRequest((passport) => ({
+        status: 302,
+        location: launchLocation({ passport, origin: hashedOrigin }),
+      }));
+      const launcher = new MoodleMobileLauncher({
+        sessionContext: {
+          getSession: vi.fn(
+            async () => ({ request, wwwroot }) as unknown as EclassApiSession
+          ),
+        },
+        origin: ORIGIN,
+        credentialStore: { save: vi.fn() },
+      });
+      return launcher.launch();
+    };
+
+    await expect(run(`${ORIGIN}/`, ORIGIN)).resolves.toMatchObject({
+      token: TOKEN,
+    });
+    // A foreign wwwroot is ignored, so a redirect hashed with it is rejected.
+    await expect(
+      run('https://evil.example', 'https://evil.example')
+    ).rejects.toMatchObject({ category: 'malformed_response' });
+  });
+
   it('rejects a redirect minted for a different passport', async () => {
     const request = redirectingRequest(() => ({
       status: 302,
