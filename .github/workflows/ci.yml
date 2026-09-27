@@ -4,7 +4,8 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
+    # Include feature branches so stacked PRs get CI before retargeting to master.
+    branches: [master, 'feat/**']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
