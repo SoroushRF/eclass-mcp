@@ -13,4 +13,5 @@ This directory records durable engineering decisions for the local-first eClass 
 - [0007: Structured Trace Correlation](./0007-structured-trace-correlation.md)
 - [0008: Manual Tool Dependency Injection](./0008-manual-tool-dependency-injection.md)
 - [0009: Read-Only Cache Observability](./0009-cache-observability.md)
-- [0010: Hybrid eClass Data Access (session JSON + optional mobile handshake)](./0010-hybrid-eclass-data-access.md) — Proposed; investigation in [`docs/investigations/eclass-official-api-feasibility.md`](../investigations/eclass-official-api-feasibility.md)
+- [0010: Hybrid eClass Data Access (session JSON + optional mobile handshake)](./0010-hybrid-eclass-data-access.md) — Accepted (behind the `playwright` default); investigation in [`docs/investigations/eclass-official-api-feasibility.md`](../investigations/eclass-official-api-feasibility.md)
+- [0011: Moodle Mobile Token REST Access](./0011-mobile-token-rest-access.md) — Proposed; findings in [`docs/investigations/eclass-mobile-token-findings.md`](../investigations/eclass-mobile-token-findings.md)

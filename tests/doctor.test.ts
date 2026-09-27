@@ -20,6 +20,10 @@ interface DoctorModule {
     savedAt: string | undefined,
     now?: Date
   ): { fresh: boolean; reason: string };
+  classifyMobileCredential(
+    mobile: unknown,
+    now?: Date
+  ): 'absent' | 'present' | 'expired' | 'malformed';
   hasFail(results: DoctorResult[]): boolean;
   inspectCengageSessionFiles(
     statePath: string,
@@ -31,7 +35,7 @@ interface DoctorModule {
     filePath: string,
     secret: string,
     now?: Date
-  ): { state: string; reason?: string };
+  ): { state: string; reason?: string; mobile?: string };
   isNodeVersionAtLeast(
     version: string,
     minMajor?: number,
@@ -362,6 +366,52 @@ describe('doctor session checks', () => {
       state: 'stale',
       reason: 'stale',
     });
+  });
+
+  it('reports the mobile credential state without exposing its value', async () => {
+    const doctor = await loadDoctor();
+    const dir = makeTempDir();
+    const sessionPath = path.join(dir, 'session.json');
+    const secret = 'doctor-test-secret-that-is-long-enough';
+    const now = new Date('2026-05-15T12:00:00.000Z');
+    const token = 'doctor-fake-token-value';
+
+    writeSecureEnvelope(sessionPath, secret, {
+      saved_at: '2026-05-15T11:00:00.000Z',
+      cookies: [],
+    });
+    expect(
+      doctor.inspectSecureSessionFile(sessionPath, secret, now)
+    ).toMatchObject({ state: 'ok', mobile: 'absent' });
+
+    writeSecureEnvelope(sessionPath, secret, {
+      saved_at: '2026-05-10T11:00:00.000Z',
+      cookies: [],
+      mobile: {
+        service: 'moodle_mobile_app',
+        token,
+        issuedAt: '2026-05-10T11:00:00.000Z',
+      },
+    });
+    const stale = doctor.inspectSecureSessionFile(sessionPath, secret, now);
+    expect(stale).toMatchObject({ state: 'stale', mobile: 'present' });
+    expect(JSON.stringify(stale)).not.toContain(token);
+
+    expect(
+      doctor.classifyMobileCredential(
+        {
+          service: 'moodle_mobile_app',
+          token,
+          issuedAt: '2026-05-01T00:00:00.000Z',
+          expiresAt: '2026-05-14T00:00:00.000Z',
+        },
+        now
+      )
+    ).toBe('expired');
+    expect(doctor.classifyMobileCredential({ token: '' }, now)).toBe(
+      'malformed'
+    );
+    expect(doctor.classifyMobileCredential(undefined, now)).toBe('absent');
   });
 
   it('treats future saved_at timestamps as fresh rather than stale', async () => {

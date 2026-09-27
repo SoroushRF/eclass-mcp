@@ -58,7 +58,7 @@ This section is the **standing implementation plan**: one serial numbering schem
 | **T31**     | [x] Cengage Integration Phase 5 complete: verification coverage and E2E run logging — summary in [§2.13](#213-detailed-plan--t28-t36-cengage-webwork-and-auth-retry), detailed breakdown in [`docs/cengage-integration-implementation-plan.md`](./cengage-integration-implementation-plan.md)            |
 | **T32-T35** | WeBWorK multi-instance integration — discovery, per-host `/auth/webwork?host=` + registry, scraper + tools, E2E — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                                                |
 | **T36**     | [x] Auth blocking poll retrofit — eClass + SIS tools open `/auth`, wait briefly for login, and retry once before returning `auth_required` — see [§2.13](#2.13-detailed-plan---t28-t36-cengage--webwork--auth-retry)                                                                                     |
-| **T37-T40** | Future **write tools** (T37 assignment preflight done; submit, calendar, E2E pending) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                             |
+| **T37-T40** | Future **write tools** (T37 assignment preflight done; submit, calendar, E2E pending) — see [§2.14](#2.14-detailed-plan---future-write-tools---safety-t37-t40)                                                                                                                                           |
 | **T41**     | [x] Cross-platform assignment resolver - canonical `get_assignments` tool checks eClass plus Cengage/WebAssign, with durable course-platform index outside TTL cache - see [2.15](#215-detailed-plan--t41-cross-platform-assignment-resolver)                                                            |
 | **T42**     | [x] Cengage/WebAssign course activation hardening - verifies active WebAssign course context, restores direct-link-first assignment behavior, and returns `needs_course_activation` for wrong-course landings - see [2.16](#216-detailed-plan--t42-cengagewebassign-course-activation-hardening)         |
 | **T43**     | [x] Windows Codex Desktop setup helper - global `%USERPROFILE%\.codex\config.toml` registration with dry-run, backup/restore, doctor diagnostics, and docs.                                                                                                                                              |
@@ -368,55 +368,20 @@ Full verification of the 4 new tools (SIS x2, RMP x2) in Claude Desktop. **Compl
 
 **Steps**
 
-1. Create **`.github/workflows/ci.yml`**:
+The workflow lives in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml); do not copy it here. Jobs:
 
-```yaml
-name: CI
-on:
-  push:
-    branches: [master]
-  pull_request:
-    branches: [master]
-
-jobs:
-  build:
-    timeout-minutes: 15
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        node-version: [20.x, 22.x]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
-```
+| Job                     | Runs on                                            | Purpose                                                                                                                                                                                                                         |
+| ----------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lint, format, typecheck | ubuntu, Node 22                                    | `typecheck`, `typecheck:tests`, `lint`, `format:check`, `npm pack --dry-run`; platform-independent, so run once.                                                                                                                |
+| Test (os, Node)         | ubuntu + windows × Node 22/24, plus ubuntu Node 20 | `npm ci`, `build`, `test:coverage` (75% branch threshold). Windows is the primary desktop-host platform; Node 20 covers the `engines` floor. Coverage is uploaded once.                                                         |
+| Security audit          | ubuntu, Node 22                                    | `npm audit --omit=dev --audit-level=high`. The server handles session cookies and mobile tokens and parses downloaded course files.                                                                                             |
+| Dependency review       | PRs only                                           | `actions/dependency-review-action` (fail on high). Detects the repository Dependency graph setting and skips with a notice only when GitHub reports it off (404, or 403 naming the graph); any other API failure fails the job. |
 
 1. **Why `npm ci`:** reproducible installs from lockfile; fails if lock out of sync.
-2. **`npm run build`** runs `tsc` (typecheck + emit); a separate `tsc --noEmit` step is optional and was omitted to avoid duplicate compiler work.
-3. **Why Node matrix:** catches platform-specific path or optional dependency issues (Windows vs Linux).
-4. **Playwright in CI:** only add `npx playwright install chromium` to CI when **automated browser tests** exist (E10); otherwise skip to keep CI fast.
-5. **Branch protection (manual):** In GitHub ? Settings ? Branches, require **CI pass** before merge to `master`.
-6. **Badge (optional):** Add workflow status badge to README after first green run.
-7. **`timeout-minutes: 15`** on the job avoids hung installs (e.g. future Playwright in CI).
+2. **Least privilege:** the workflow defaults to `contents: read`.
+3. **Playwright in CI:** only add `npx playwright install chromium` when **automated browser tests** exist; unit tests mock Playwright.
+4. **Branch protection (manual):** in GitHub → Settings → Branches, require the Test, quality, and Security audit checks before merge to `master`.
+5. **Timeouts** on every job avoid hung installs.
 
 **E01 done when:** workflow is green on a test PR for all matrix cells or documented exclusions.
 
@@ -1050,18 +1015,18 @@ The historical internal self-assessment after the E01-E20 roadmap placed the pro
 
 ### 11.2 Scored rubric (0?10)
 
-| Category               | Python ref | This repo | Notes                                       |
-| ---------------------- | ---------- | --------- | ------------------------------------------- |
-| Architecture clarity   | 8.0        | 8.5       | Modularized scrapers, typed selectors       |
+| Category               | Python ref | This repo | Notes                                            |
+| ---------------------- | ---------- | --------- | ------------------------------------------------ |
+| Architecture clarity   | 8.0        | 8.5       | Modularized scrapers, typed selectors            |
 | Feature depth          | 4.0        | 9.0       | 26 tools, cross-platform resolver, T37 preflight |
-| Reliability/resilience | 5.5        | 8.5       | Selector registry, auth retry, drift codes  |
-| Security posture       | 5.5        | 8.5       | AES-256-GCM sessions, signed preflight refs |
-| Testing maturity       | 4.5        | 8.0       | 60 test suites, 75% branch gate             |
-| DevEx/onboarding       | 7.0        | 9.0       | Doctor, safe setup, dry-run, restore        |
-| Portability            | 6.5        | 7.5       | Windows/Linux CI, env-driven config         |
-| Documentation          | 8.0        | 8.5       | Operational limits, release docs, changelog |
-| Professional polish    | 7.0        | 8.5       | Release checklist, versioning policy        |
-| Production readiness   | 5.5        | 8.5       | Structured errors, logging, encrypted auth  |
+| Reliability/resilience | 5.5        | 8.5       | Selector registry, auth retry, drift codes       |
+| Security posture       | 5.5        | 8.5       | AES-256-GCM sessions, signed preflight refs      |
+| Testing maturity       | 4.5        | 8.0       | 60 test suites, 75% branch gate                  |
+| DevEx/onboarding       | 7.0        | 9.0       | Doctor, safe setup, dry-run, restore             |
+| Portability            | 6.5        | 7.5       | Windows/Linux CI, env-driven config              |
+| Documentation          | 8.0        | 8.5       | Operational limits, release docs, changelog      |
+| Professional polish    | 7.0        | 8.5       | Release checklist, versioning policy             |
+| Production readiness   | 5.5        | 8.5       | Structured errors, logging, encrypted auth       |
 
 ### 11.3 SWOR, definition of 9+, KPIs, risks, sprints
 

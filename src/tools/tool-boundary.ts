@@ -8,6 +8,7 @@ import {
 } from '../scraper/eclass';
 import { SecureSessionStorageError } from '../security/secure-session-store';
 import { handleEclassSessionExpired } from './auth-retry';
+import { ensureEclassAccountScope } from './dependencies';
 import { EclassToolErrorResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { sessionStorageUnavailableResponse } from './auth-retry';
@@ -96,7 +97,10 @@ export function moodleApiErrorResponse(
   error: MoodleApiError
 ): McpTextResponse {
   const code =
-    error.category === 'session_invalid' ? 'SESSION_EXPIRED' : error.publicCode;
+    error.category === 'session_invalid' ||
+    error.category === 'mobile_token_invalid'
+      ? 'SESSION_EXPIRED'
+      : error.publicCode;
   const details: Record<string, unknown> = {
     category: error.category satisfies MoodleApiErrorCategory,
   };
@@ -141,6 +145,10 @@ export async function runEclassToolBoundary<T extends McpToolResult>(
 ): Promise<T> {
   return runToolBoundary({
     ...options,
+    run: async () => {
+      await ensureEclassAccountScope();
+      return options.run();
+    },
     onUnknownError:
       options.onUnknownError ??
       (() => toBoundaryResult<T>(internalErrorResponse(options.toolName))),
@@ -200,7 +208,13 @@ async function runEclassToolBoundaryInner<T extends McpToolResult>(
         'Tool boundary mapped Moodle API error'
       );
 
-      if (error.category === 'session_invalid' && options.onSessionExpired) {
+      // mobile_token_invalid reaches the boundary only after the one re-mint
+      // attempt failed, so the visible login is the only remaining recovery.
+      if (
+        (error.category === 'session_invalid' ||
+          error.category === 'mobile_token_invalid') &&
+        options.onSessionExpired
+      ) {
         const sessionError = new SessionExpiredError();
         const { attempted, retry, fallback } = options.onSessionExpired;
         if (attempted) return fallback(sessionError);

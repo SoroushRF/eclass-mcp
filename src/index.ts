@@ -19,6 +19,7 @@ import path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../.env'), quiet: true });
 
 import { isSessionValid } from './scraper/session';
+import { canServeEclassReadsWithToken } from './tools/auth-retry';
 import { scraper as eclassScraper } from './scraper/eclass';
 import { startAuthServer, openAuthWindow, stopAuthServer } from './auth/server';
 import { listCourses } from './tools/courses';
@@ -676,10 +677,16 @@ async function main() {
     } else {
       try {
         if (!isSessionValid()) {
-          bootstrapLog.warn(
-            'eClass session not found or stale. Opening login window...'
-          );
-          openAuthWindow();
+          if (canServeEclassReadsWithToken()) {
+            bootstrapLog.info(
+              'eClass cookie session is stale, but a mobile token is stored. REST-routed reads stay available; the login window opens when a cookie-only read needs it.'
+            );
+          } else {
+            bootstrapLog.warn(
+              'eClass session not found or stale. Opening login window...'
+            );
+            openAuthWindow();
+          }
         } else {
           bootstrapLog.info('eClass session check: Local session file found.');
         }

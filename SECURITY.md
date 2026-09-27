@@ -24,6 +24,14 @@ This tool stores **encrypted Playwright session cookies / browser storage state*
 
 Session encryption protects against casual copying of `.eclass-mcp/session.json` or `.eclass-mcp/cengage-state.json`. It does **not** protect against a fully compromised OS user account, a malicious process running as the same user, keyloggers, or disclosure of the local `.env` file.
 
+When a Moodle mobile token is minted (ADR 0011), it is stored only inside the same encrypted eClass session envelope, never in `.env`, cache files, logs, or tool output. It is as sensitive as the cookie session and longer-lived: it grants every function the Moodle mobile service allows for this student until it expires or is revoked. Local removal and server-side revocation are different:
+
+- `/logout` deletes the local envelope (cookies and token together) and stops any renewal in flight from saving a new token. It does not revoke the token on the Moodle side.
+- Rotating `ECLASS_MCP_SESSION_SECRET` makes local copies unreadable to this server. It does not revoke the token either; a copy of the decrypted token would still work.
+- Only Moodle can revoke the token: reset keys under eClass Preferences → Security keys when that page is shown, or ask York to revoke it. If session files or a decrypted token may have been copied, do this as well as `/logout`.
+
+The token's lifetime at York is not yet observed; see ADR 0011. The server uses the token for read-only REST functions only, and sends no token traffic in `playwright` mode.
+
 The local `/logout` route performs best-effort auth-session deletion and overwrite before unlinking. Secure wipe cannot be guaranteed on SSDs, journaling filesystems, OneDrive/cloud sync, backups, or other copy-on-write storage.
 
 ## Remote URL boundary
@@ -32,7 +40,7 @@ User-supplied or page-derived URLs that can trigger authenticated fetches or bro
 
 The URL boundary rejects unsupported protocols, embedded credentials, spoofed hosts such as `eclass.yorku.ca.evil.test`, localhost/private-network hosts, IP literals in private ranges, and off-policy paths. Pinned-cache refresh re-validates stored resource URLs before re-fetching, so older pins cannot bypass the current policy.
 
-Validation errors redact sensitive query parameters such as `sesskey`, `wstoken`, `token`, `code`, `SAMLResponse`, and `RelayState` before logging or returning details.
+Validation errors redact sensitive query parameters such as `sesskey`, `wstoken`, `token`, `privatetoken`, `code`, `SAMLResponse`, and `RelayState` before logging or returning details. Logs also redact `moodlemobile://` launch payloads.
 
 ## Future write-tool risk model
 

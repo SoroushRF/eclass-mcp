@@ -53,6 +53,15 @@ Machine-readable **`code`** values (e.g. `SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANG
 
 When an eClass or SIS-backed tool hits `SESSION_EXPIRED`, the server opens `/auth`, waits up to **2 minutes** for the saved session to become valid, and retries the original tool operation once. If login is not completed in time, the tool returns the existing structured `status="auth_required"` response with retry guidance. Override the wait with **`ECLASS_MCP_AUTH_WAIT_MS`** in `.env`.
 
+### Mobile token lifecycle (ADR 0011)
+
+1. Outside `playwright` mode, `/auth` saves the cookie session, then mints a Moodle mobile token through the official `launch.php` handshake (best effort; a failed mint never fails the login). A fresh login replaces any earlier token. `playwright` mode mints nothing and sends no token traffic.
+2. The token lives only inside the encrypted session envelope. `http://localhost:<AUTH_PORT>/status` reports `mobileToken: "present" | "absent"`, never the value.
+3. Only `api` mode is token-only: REST-routed reads keep working after the cookie session goes stale, session AJAX is skipped without cookies, and the login window opens on demand when a cookie-only read (SIS, section text, item details, Cengage) needs it. `shadow` runs the Playwright path on every read, so it needs both the cookie session and the token.
+4. The user id and function list are tied to the token they were read with; a different token (new login, QR login, renewal) is checked again before use. In `api` mode the cache account scope comes from that check.
+5. A rejected token is renewed once through the cookie session; concurrent reads share that one renewal. If it fails, the tool reports `SESSION_EXPIRED` and the normal login flow runs.
+6. `/logout` deletes the session envelope, so the cookies and the token are removed from this machine together, and a renewal still in flight cannot save a token afterwards. This is local removal only: the token is not revoked on the Moodle side and stays valid there until it expires or is revoked from the eClass security keys page (see SECURITY.md).
+
 ### Secure session storage (E13)
 
 Local eClass/SIS cookies and Cengage/WebAssign Playwright storage state are encrypted at rest under `.eclass-mcp/` with `ECLASS_MCP_SESSION_SECRET`. The default install will not save or load auth sessions until that secret is set. Changing the secret invalidates saved sessions and requires re-authentication. Legacy plaintext session files from earlier versions are rejected; use `http://localhost:<AUTH_PORT>/logout` or delete the old auth files, then log in again.
@@ -91,8 +100,10 @@ flowchart LR
     F --> G
     G --> H1[Playwright HTML\nsafe default / fallback]
     G --> H2[Moodle AJAX\nsession JSON]
+    G --> H3[Moodle REST\nmobile token]
     H1 -- cookies --> H[eclass.yorku.ca]
     H2 -- BrowserContext.request + sesskey --> H
+    H3 -- fetch + wstoken --> H
     G -- cookies --> S[sis.yorku.ca]
     E --> I[PDF Analyzer\npdfjs-dist + @napi-rs/canvas]
     E --> J[DOCX / PPTX Parsers]
@@ -104,19 +115,36 @@ flowchart LR
 ### Hybrid eClass data access
 
 The eClass provider keeps the visible browser for Passport York / Shibboleth
-authentication and HTML-only reads, while proven read-only Moodle AJAX calls
-use the authenticated `BrowserContext.request` transport:
+authentication and HTML-only reads. Two read-only JSON gateways sit beside it:
+session AJAX (`BrowserContext.request` + `sesskey`) and, when a Moodle mobile
+token is stored, token REST (`/webservice/rest/server.php`, ADR 0011).
 
-- `list_courses` uses the enrolled-course AJAX function.
-- Course outlines use Moodle course-format state.
-- Deadline reads use the proven calendar functions.
+| Tool                                  | `api` / `shadow` source order                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------- |
+| `list_courses`                        | AJAX → REST `core_enrol_get_users_courses` → Playwright                         |
+| `get_deadlines`                       | AJAX calendar → REST `core_calendar_get_action_events_by_timesort` → Playwright |
+| `get_course_content`                  | REST `core_course_get_contents` → AJAX course state → Playwright                |
+| `get_grades`                          | REST grade reports → Playwright                                                 |
+| `get_announcements` (`courseId`)      | REST news forum discussions → Playwright                                        |
+| `get_assignments` (eClass index)      | REST assignments + read-only submission status → Playwright                     |
+| `get_file_text` downloads             | Token `/webservice/pluginfile.php` → Playwright                                 |
+| Section text, item details, preflight | Playwright                                                                      |
+
 - `shadow` runs both paths but returns Playwright data and records only
-  shape-level mismatch categories.
+  mismatch categories (an explicit per-operation field contract, multiplicity
+  and dates are compared; a read that fell back is not counted as a match). It needs the cookie
+  session and the token.
 - `api` uses one bounded Playwright fallback for eligible read failures.
-- Grades, forums, assignment details, submission preflight, and plugin-file
-  reads remain Playwright-backed. The mobile launch and capability-gated REST
-  client are not exposed as REST-backed MCP tools until each function has
-  account-owner live proof.
+  Validation failures, rate limits and size caps are reported, not retried
+  on another transport.
+- Section text, item details, submission preflight, quizzes, page prose,
+  direct file URLs and richer LTI/URL metadata stay on Playwright. This is a
+  deliberately smaller release than the original plan; the deferred routes
+  and their acceptance criteria are listed in
+  [the release checklist](docs/validation/eclass-hybrid-release.md#release-scope-decided-2026-09-27).
+- REST is skipped, not failed, when no mobile token is stored, and every REST
+  function is capability-gated against the token's service function list.
+- No REST write function is used.
 
 The safe default is Playwright mode. Configure the optional rollout locally:
 
@@ -132,7 +160,9 @@ Authenticated debug page dumps stay disabled unless
 `ECLASS_MCP_ALLOW_AUTH_DEBUG_DUMPS=1` is explicitly set for local diagnosis.
 
 API-primary can be disabled without rebuilding by setting
-`ECLASS_API_SOURCE_MODE=playwright` and restarting the MCP host. Do not put
+`ECLASS_API_SOURCE_MODE=playwright` and restarting the MCP host. That mode
+is a full kill switch: no REST reads, no token file downloads, and no mint
+after login. Do not put
 tokens, `sesskey` values, cookies, or launch redirect locations in `.env`,
 cache files, logs, or tool output. Mobile credentials, when minted by a
 future account-owner flow, remain in the encrypted session envelope only.
@@ -147,7 +177,7 @@ future account-owner flow, remain in the encrypted session envelope only.
 | `get_course_content`             | Sections, files, assignments for one course                                                                                                                                                      | `courseId`                                                                                                                                                                                                                                                   |
 | `get_section_text`               | Section page text, links, and tabbed content                                                                                                                                                     | `url`                                                                                                                                                                                                                                                        |
 | `get_assignments`                | Canonical cross-platform resolver for eClass + Cengage/WebAssign assignments                                                                                                                     | `courseId?`, `courseCode?`, `courseQuery?`, `scope?`, `month?`, `year?`, `from?`, `to?`, `includeExternal?`, `platformSelection?`                                                                                                                            |
-| `prepare_assignment_submission`  | Read-only T37 preflight for future assignment writes; resolves eClass/Moodle upload state or Cengage/WebAssign assignment facts and signs an exact `preflightRef`                                | `platform?`, `assignmentUrl?`, `courseId?`, `courseCode?`, `courseQuery?`, `assignmentId?`, `assignmentQuery?`, `entryUrl?`, `ssoUrl?`, `courseKey?`, `intendedFiles?`                                                                                        |
+| `prepare_assignment_submission`  | Read-only T37 preflight for future assignment writes; resolves eClass/Moodle upload state or Cengage/WebAssign assignment facts and signs an exact `preflightRef`                                | `platform?`, `assignmentUrl?`, `courseId?`, `courseCode?`, `courseQuery?`, `assignmentId?`, `assignmentQuery?`, `entryUrl?`, `ssoUrl?`, `courseKey?`, `intendedFiles?`                                                                                       |
 | `get_upcoming_deadlines`         | eClass-only assignments due in the next N days; use `get_assignments` for external-platform coverage                                                                                             | `daysAhead?`, `courseId?`                                                                                                                                                                                                                                    |
 | `get_deadlines`                  | eClass-only deadlines by scope: upcoming / month / range                                                                                                                                         | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?`                                                                                                                                                                                 |
 | `get_item_details`               | Full instructions + status + grade for one assignment or quiz URL                                                                                                                                | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?`                                                                                            |
@@ -374,6 +404,7 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | Codex tools not visible       | Restart Codex Desktop, run `npm run doctor`, and inspect `%USERPROFILE%\.codex\config.toml`; rerun `npm run setup:codex` if the target is stale                                                                                    |
 | Codex login/tool timeout      | Confirm `tool_timeout_sec = 180` under `[mcp_servers.eclass]` in `%USERPROFILE%\.codex\config.toml`; rerun `npm run setup:codex` if needed                                                                                         |
 | `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                                                                                                                                                                                |
+| Mobile token absent           | Log in again at `http://localhost:3000/auth` (the token is minted after login), or run `npm run probe:mobile`; `npm run doctor` explains the order                                                                                 |
 | `SESSION_STORAGE_UNAVAILABLE` | Set `ECLASS_MCP_SESSION_SECRET` in `.env`, restart the MCP server, clear old plaintext auth sessions, then authenticate again                                                                                                      |
 | `SCRAPE_LAYOUT_CHANGED`       | The eClass/Cengage page layout no longer matches known selectors. Retry once after refreshing auth if the page was mid-login; otherwise inspect stderr `selector_match` / `selector_failure` logs and optional selector snapshots. |
 | Wrong/changed session secret  | Restore the previous `ECLASS_MCP_SESSION_SECRET` or clear sessions at `http://localhost:3000/logout` and log in again                                                                                                              |

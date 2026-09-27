@@ -6,6 +6,10 @@
 - Cache key format: `sectiontext_v5_<sanitizedUrl>`.
 - Useful for rich sections where `get_course_content` only gives summaries/links.
 
+## Data source
+
+Playwright only. Section pages carry tabbed and embedded HTML that `core_course_get_contents` does not reproduce faithfully, so this tool is not routed to REST.
+
 ## Known Problems
 
 - Some deeply custom HTML blocks may produce noisy text.

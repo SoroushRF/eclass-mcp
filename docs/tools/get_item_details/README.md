@@ -8,6 +8,10 @@
   - optional CSV attachment inlining (`includeCsv`)
 - Supports payload controls (`maxImages`, `imageOffset`, CSV limits).
 
+## Data source
+
+Playwright only. Assignment and quiz detail pages carry attachments, instruction images, and rendered description HTML that the REST functions do not return in the same form, so this tool is not routed to REST yet.
+
 ## Known Problems
 
 - Grade extraction still misses some quiz layouts.

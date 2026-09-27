@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { getSessionFilePath } from '../scraper/session';
+import { advanceAuthGeneration, getSessionFilePath } from '../scraper/session';
 import {
   CENGAGE_SESSION_META_PATH,
   CENGAGE_STATE_PATH,
@@ -45,6 +45,7 @@ function knownAuthSessionPaths(): string[] {
 }
 
 export function clearAllAuthSessions(): ClearAuthSessionsResult {
+  advanceAuthGeneration();
   const activeAccountScope = getActiveEclassAccountScope();
   const result: ClearAuthSessionsResult = {
     removed: [],

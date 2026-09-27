@@ -36,11 +36,12 @@ export class EClassBrowserSession {
   }
 
   async getAuthenticatedContext(): Promise<BrowserContext> {
-    const browser = await this.getBrowser();
+    // Check for cookies first so a token-only session never starts Chromium.
     const cookies = loadSession();
     if (!cookies || cookies.length === 0) {
       throw new SessionExpiredError();
     }
+    const browser = await this.getBrowser();
 
     const context = await browser.newContext({
       userAgent:

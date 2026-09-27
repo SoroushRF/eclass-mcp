@@ -94,7 +94,7 @@ describe('capability-gated Moodle REST client', () => {
       reMint,
     });
 
-    await expect(client.getCourseContents(101)).resolves.toHaveLength(1);
+    await expect(client.getCourseContents(101)).resolves.toHaveLength(2);
     expect(clear).toHaveBeenCalledTimes(1);
     expect(reMint).toHaveBeenCalledTimes(1);
     expect(postRest).toHaveBeenNthCalledWith(
@@ -151,7 +151,7 @@ describe('capability-gated Moodle REST client', () => {
       .mockResolvedValueOnce(siteInfoFixture)
       .mockResolvedValueOnce(siteInfoFixture)
       .mockResolvedValueOnce({ courses: [] })
-      .mockResolvedValueOnce({ forums: [] })
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce({ usergrades: [] })
       .mockResolvedValueOnce({ usergrades: [] });
     const client = new MoodleRestClient({
@@ -182,7 +182,7 @@ describe('capability-gated Moodle REST client', () => {
     await expect(client.getAssignments(['101', '202'])).resolves.toEqual({
       courses: [],
     });
-    await expect(client.getForums(['101'])).resolves.toEqual({ forums: [] });
+    await expect(client.getForums(['101'])).resolves.toEqual([]);
     await expect(client.getGradeItems('101')).resolves.toEqual({
       usergrades: [],
     });
@@ -279,5 +279,386 @@ describe('capability-gated Moodle REST client', () => {
     await expect(client.discoverCapabilities()).rejects.toMatchObject({
       category: 'mobile_token_invalid',
     });
+  });
+});
+
+describe('REST credential lifecycle', () => {
+  const USER_COURSES = MOODLE_REST_CAPABILITIES.userCourses;
+
+  /** Fake Moodle keyed by token: each valid token is one user. */
+  function fakeMoodle(users: Record<string, number>) {
+    return vi.fn(
+      async (fn: string, args: Record<string, unknown>, token: string) => {
+        const userId = users[token];
+        if (userId === undefined) return invalidTokenFixture;
+        if (fn === MOODLE_REST_CAPABILITIES.siteInfo) {
+          return {
+            ...siteInfoFixture,
+            userid: userId,
+            functions: [...siteInfoFixture.functions, { name: USER_COURSES }],
+          };
+        }
+        if (fn === USER_COURSES) {
+          return args.userid === userId
+            ? [{ id: 100 + userId, shortname: `C${userId}` }]
+            : { errorcode: 'accessexception', exception: 'x', message: 'x' };
+        }
+        return courseContentsFixture;
+      }
+    );
+  }
+
+  it('rediscovers identity when the stored credential is replaced', async () => {
+    let active: MobileCredential | null = credential('token-a');
+    const identities: string[] = [];
+    const postRest = fakeMoodle({ 'token-a': 7, 'token-b': 9 });
+    const client = new MoodleRestClient({
+      transport: { postRest },
+      credentialReader: { load: () => active, clear: () => (active = null) },
+      onIdentity: (id) => identities.push(id),
+    });
+
+    await expect(client.getVerifiedUserId()).resolves.toBe('7');
+    await expect(client.getUserCourses()).resolves.toMatchObject([{ id: 107 }]);
+
+    active = credential('token-b');
+    await expect(client.getUserCourses()).resolves.toMatchObject([{ id: 109 }]);
+    await expect(client.getVerifiedUserId()).resolves.toBe('9');
+    // Reported on discovery and on each verified read; never out of order.
+    expect(identities.filter((id, i) => identities[i - 1] !== id)).toEqual([
+      '7',
+      '9',
+    ]);
+    expect(postRest.mock.calls.filter(([fn]) => fn === USER_COURSES)).toEqual([
+      [USER_COURSES, { userid: 7 }, 'token-a'],
+      [USER_COURSES, { userid: 9 }, 'token-b'],
+    ]);
+  });
+
+  it('shares one renewal across concurrent invalid-token reads', async () => {
+    let active: MobileCredential | null = credential('token-old');
+    const users: Record<string, number> = { 'token-old': 7 };
+    const postRest = fakeMoodle(users);
+    const client = new MoodleRestClient({
+      transport: { postRest },
+      credentialReader: { load: () => active, clear: () => (active = null) },
+      reMint: vi.fn(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        active = credential('token-new');
+        return active;
+      }),
+    });
+    await client.discoverCapabilities();
+    delete users['token-old'];
+    users['token-new'] = 7;
+
+    const reads = await Promise.all(
+      [101, 102, 103, 104].map((id) => client.getCourseContents(id))
+    );
+
+    expect(reads).toHaveLength(4);
+    expect(
+      (client as unknown as { reMint: ReturnType<typeof vi.fn> }).reMint
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a failed renewal as an invalid mobile token', async () => {
+    let active: MobileCredential | null = credential('token-old');
+    const client = new MoodleRestClient({
+      transport: { postRest: fakeMoodle({}) },
+      credentialReader: { load: () => active, clear: () => (active = null) },
+      reMint: async () => {
+        throw new Error('launch failed');
+      },
+    });
+
+    await expect(client.discoverCapabilities()).rejects.toMatchObject({
+      category: 'mobile_token_invalid',
+      upstreamCode: 'renewal_failed',
+    });
+    expect(active).toBeNull();
+  });
+
+  it('does not clear a credential that replaced the failed one', async () => {
+    let active: MobileCredential | null = credential('token-old');
+    const clear = vi.fn(() => (active = null));
+    const postRest = vi.fn(async () => {
+      // Another login stores a new token while this request is in flight.
+      active = credential('token-other');
+      return invalidTokenFixture;
+    });
+    const client = new MoodleRestClient({
+      transport: { postRest },
+      credentialReader: { load: () => active, clear },
+    });
+
+    // The failure belongs to the replaced token: reported as a credential
+    // change, not renewed or cleared under the new login.
+    await expect(client.discoverCapabilities()).rejects.toMatchObject({
+      upstreamCode: 'credential_changed',
+    });
+    expect(clear).not.toHaveBeenCalled();
+    expect(active).toMatchObject({ token: 'token-other' });
+  });
+
+  it('lets file downloads share the renewal', async () => {
+    let active: MobileCredential | null = credential('token-old');
+    const reMint = vi.fn(async () => {
+      active = credential('token-new');
+      return active;
+    });
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: { load: () => active, clear: () => (active = null) },
+      reMint,
+    });
+    const download = vi.fn(async (token: string) => {
+      if (token === 'token-old') {
+        throw new MoodleApiError({ category: 'mobile_token_invalid' });
+      }
+      return 'file';
+    });
+
+    await expect(client.withCredential(download)).resolves.toMatchObject({
+      value: 'file',
+    });
+    expect(reMint).toHaveBeenCalledTimes(1);
+    expect(download).toHaveBeenLastCalledWith('token-new');
+  });
+});
+
+describe('REST results are bound to the auth generation', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+
+  function harness(initial: string | null) {
+    const state = {
+      active: initial ? credential(initial) : null,
+      generation: 0,
+    };
+    return state;
+  }
+
+  it('rejects a result that arrives after the account was replaced (A to B)', async () => {
+    const state = harness('fake-token-a');
+    const read = deferred<string>();
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: {
+        load: () => state.active,
+        clear: () => (state.active = null),
+      },
+      authGeneration: () => state.generation,
+    });
+
+    const request = client.withCredential(async (token) => {
+      expect(token).toBe('fake-token-a');
+      return read.promise;
+    });
+    await Promise.resolve();
+    state.active = credential('fake-token-b');
+    read.resolve('account A result');
+
+    await expect(request).rejects.toMatchObject({
+      upstreamCode: 'credential_changed',
+    });
+  });
+
+  it('rejects a result that arrives after logout, even for a reissued token', async () => {
+    const state = harness('fake-token-a');
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: {
+        load: () => state.active,
+        clear: () => (state.active = null),
+      },
+      authGeneration: () => state.generation,
+    });
+
+    const afterLogout = deferred<string>();
+    const loggedOut = client.withCredential(() => afterLogout.promise);
+    await Promise.resolve();
+    state.active = null;
+    state.generation += 1;
+    afterLogout.resolve('stale');
+    await expect(loggedOut).rejects.toMatchObject({
+      upstreamCode: 'credential_changed',
+    });
+
+    // Same token stored again by a later login: fingerprint alone matches,
+    // the generation does not.
+    state.active = credential('fake-token-a');
+    const reissued = deferred<string>();
+    const beforeLogin = client.withCredential(() => reissued.promise);
+    await Promise.resolve();
+    state.generation += 1;
+    reissued.resolve('stale');
+    await expect(beforeLogin).rejects.toMatchObject({
+      upstreamCode: 'credential_changed',
+    });
+  });
+
+  it('does not renew or rerun an old-account request under a new account', async () => {
+    const state = harness('fake-token-a');
+    const reMint = vi.fn(async () => credential('fake-token-c'));
+    const fn = vi.fn(async (_token: string): Promise<string> => {
+      state.active = credential('fake-token-b');
+      throw new MoodleApiError({ category: 'mobile_token_invalid' });
+    });
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: {
+        load: () => state.active,
+        clear: () => (state.active = null),
+      },
+      authGeneration: () => state.generation,
+      reMint,
+    });
+
+    await expect(client.withCredential(fn)).rejects.toMatchObject({
+      upstreamCode: 'credential_changed',
+    });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(reMint).not.toHaveBeenCalled();
+    expect(state.active).toMatchObject({ token: 'fake-token-b' });
+  });
+
+  it('keeps a same-account result when a concurrent read renewed the token', async () => {
+    const state = harness('fake-token-old');
+    const slow = deferred<string>();
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: {
+        load: () => state.active,
+        clear: () => (state.active = null),
+      },
+      authGeneration: () => state.generation,
+      reMint: async () => {
+        state.active = credential('fake-token-new');
+        return state.active;
+      },
+    });
+
+    const slowRead = client.withCredential(() => slow.promise);
+    await Promise.resolve();
+    const renewing = client.withCredential(async (token) => {
+      if (token === 'fake-token-old') {
+        throw new MoodleApiError({ category: 'mobile_token_invalid' });
+      }
+      return 'renewed read';
+    });
+    await expect(renewing).resolves.toMatchObject({ value: 'renewed read' });
+    slow.resolve('same account');
+
+    await expect(slowRead).resolves.toMatchObject({ value: 'same account' });
+  });
+
+  it('lets a read that arrives during renewal join it', async () => {
+    const state = harness('fake-token-old');
+    const gate = deferred<void>();
+    let mintStarted!: () => void;
+    const started = new Promise<void>((r) => (mintStarted = r));
+    const reMint = vi.fn(async () => {
+      mintStarted();
+      await gate.promise;
+      state.active = credential('fake-token-new');
+      return state.active;
+    });
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: {
+        load: () => state.active,
+        clear: () => (state.active = null),
+      },
+      authGeneration: () => state.generation,
+      reMint,
+    });
+    const operation = async (token: string) => {
+      if (token === 'fake-token-old') {
+        throw new MoodleApiError({ category: 'mobile_token_invalid' });
+      }
+      return `ok:${token}`;
+    };
+
+    const first = client.withCredential(operation);
+    await started;
+    expect(state.active).toBeNull();
+    expect(client.hasPendingRenewal()).toBe(true);
+
+    const arriving = client.withCredential(operation);
+    const arrivingDiscovery = client.discoverCapabilities().catch((e) => e);
+    gate.resolve();
+
+    await expect(first).resolves.toMatchObject({ value: 'ok:fake-token-new' });
+    await expect(arriving).resolves.toMatchObject({
+      value: 'ok:fake-token-new',
+    });
+    await arrivingDiscovery;
+    expect(reMint).toHaveBeenCalledTimes(1);
+    expect(client.hasPendingRenewal()).toBe(false);
+
+    // After completion a new read simply uses the renewed token.
+    await expect(client.withCredential(operation)).resolves.toMatchObject({
+      value: 'ok:fake-token-new',
+    });
+  });
+
+  it('does not let logout keep a pending renewal joinable', async () => {
+    const state = harness('fake-token-old');
+    const gate = deferred<void>();
+    let mintStarted!: () => void;
+    const started = new Promise<void>((r) => (mintStarted = r));
+    const client = new MoodleRestClient({
+      transport: { postRest: vi.fn() },
+      credentialReader: {
+        load: () => state.active,
+        clear: () => (state.active = null),
+      },
+      authGeneration: () => state.generation,
+      reMint: async () => {
+        mintStarted();
+        await gate.promise;
+        throw new Error('generation changed');
+      },
+    });
+
+    const first = client
+      .withCredential(async () => {
+        throw new MoodleApiError({ category: 'mobile_token_invalid' });
+      })
+      .catch((e) => e);
+    await started;
+    state.generation += 1; // logout
+
+    expect(client.hasPendingRenewal()).toBe(false);
+    await expect(
+      client.withCredential(async () => 'never')
+    ).rejects.toMatchObject({ category: 'mobile_token_invalid' });
+    gate.resolve();
+    expect(await first).toMatchObject({ category: 'mobile_token_invalid' });
+  });
+});
+
+describe('verified identity callback', () => {
+  it('reports the verified user on every read, not only on discovery', async () => {
+    const onIdentity = vi.fn();
+    const postRest = vi.fn(async () => siteInfoFixture);
+    const client = new MoodleRestClient({
+      transport: { postRest },
+      credentialReader: {
+        load: () => credential('fake-token'),
+        clear: vi.fn(),
+      },
+      onIdentity,
+    });
+
+    await client.getVerifiedUserId();
+    await client.getVerifiedUserId();
+
+    expect(postRest).toHaveBeenCalledTimes(1);
+    expect(onIdentity.mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

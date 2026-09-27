@@ -1,8 +1,10 @@
 import fs from 'fs';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
+  AuthGenerationChangedError,
   clearSession,
   clearMobileCredential,
+  getAuthGeneration,
   getSessionFilePath,
   hasMobileCredential,
   isSavedSessionFresh,
@@ -11,6 +13,7 @@ import {
   loadSessionDataForTests,
   loadSession,
   saveMobileCredential,
+  saveMobileCredentialForGeneration,
   saveSession,
   SESSION_DATA_SCHEMA_VERSION,
   SESSION_STALE_HOURS,
@@ -120,8 +123,8 @@ describe('session file behavior', () => {
     const credential = {
       service: 'moodle_mobile_app' as const,
       token,
-      issuedAt: '2026-08-21T20:00:00.000Z',
-      expiresAt: '2026-08-22T20:00:00.000Z',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
     saveSession([], fileName);
@@ -140,6 +143,69 @@ describe('session file behavior', () => {
     clearMobileCredential(fileName);
     expect(loadMobileCredential(fileName)).toBeNull();
     expect(hasMobileCredential(fileName)).toBe(false);
+  });
+
+  it('refuses to save a renewed token after logout or a new login', () => {
+    const fileName = 'vitest-session-mobile.json';
+    const credential = {
+      service: 'moodle_mobile_app' as const,
+      token: 'fake-renewed-token',
+      issuedAt: new Date().toISOString(),
+    };
+
+    saveSession([], fileName);
+    const renewalStart = getAuthGeneration();
+    // Logout while the renewal is in flight.
+    clearSession(fileName);
+    expect(() =>
+      saveMobileCredentialForGeneration(credential, renewalStart, fileName)
+    ).toThrow(AuthGenerationChangedError);
+    expect(fs.existsSync(getSessionFilePath(fileName))).toBe(false);
+
+    saveSession([], fileName);
+    const afterLogin = getAuthGeneration();
+    saveSession([], fileName);
+    expect(() =>
+      saveMobileCredentialForGeneration(credential, afterLogin, fileName)
+    ).toThrow(AuthGenerationChangedError);
+    expect(loadMobileCredential(fileName)).toBeNull();
+
+    saveMobileCredentialForGeneration(
+      credential,
+      getAuthGeneration(),
+      fileName
+    );
+    expect(loadMobileCredential(fileName)).toEqual(credential);
+  });
+
+  it('round-trips an optional private token and still loads credentials without one', () => {
+    const fileName = 'vitest-session-mobile.json';
+    const base = {
+      service: 'moodle_mobile_app' as const,
+      token: 'f'.repeat(32),
+      issuedAt: new Date().toISOString(),
+    };
+
+    // Envelope written before privateToken existed: no schema bump needed.
+    writeSecureJsonFile(getSessionFilePath(fileName), {
+      schema_version: SESSION_DATA_SCHEMA_VERSION,
+      saved_at: new Date().toISOString(),
+      cookies: [],
+      mobile: base,
+    });
+    expect(loadMobileCredential(fileName)).toEqual(base);
+
+    const withPrivate = { ...base, privateToken: 'e'.repeat(64) };
+    saveMobileCredential(withPrivate, fileName);
+    expect(loadMobileCredential(fileName)).toEqual(withPrivate);
+    expect(
+      fs.readFileSync(getSessionFilePath(fileName), 'utf-8')
+    ).not.toContain(withPrivate.privateToken);
+
+    expect(() =>
+      saveMobileCredential({ ...base, privateToken: '  ' }, fileName)
+    ).toThrow();
+    clearMobileCredential(fileName);
   });
 
   it('loads schema-version-one cookie sessions without a mobile credential', () => {

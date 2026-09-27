@@ -1,0 +1,22 @@
+{
+  "discussions": [
+    {
+      "id": 9001,
+      "discussion": 8001,
+      "name": "Welcome to the course",
+      "subject": "Welcome to the course",
+      "message": "<p>Hello &amp; welcome.</p><p>See <a href=\"https://example.com/syllabus\">the syllabus</a> and <a href=\"https://eclass.yorku.ca/course/view.php?id=101\">the course page</a>.</p>",
+      "created": 1767225600,
+      "userfullname": "Example Instructor",
+      "pinned": false
+    },
+    {
+      "id": 9002,
+      "discussion": 8002,
+      "name": "Second post",
+      "message": "Plain text body",
+      "created": 1767312000,
+      "userfullname": "Example Instructor"
+    }
+  ]
+}

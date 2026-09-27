@@ -67,6 +67,7 @@ Playwright paths.
 ## References
 
 - [Investigation report](../investigations/eclass-official-api-feasibility.md)
+- [Mobile token findings log](../investigations/eclass-mobile-token-findings.md)
 - Moodle public config `tool_mobile_get_public_config`
 - [Moodle web service client docs](https://docs.moodle.org/dev/Creating_a_web_service_client)
 - [York LTS mobile app](https://lthelp.yorku.ca/mobile-app)

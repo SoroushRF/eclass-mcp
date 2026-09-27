@@ -16,10 +16,12 @@ Only **setup** and a few **smoke tests** stay in the active scripts root. One-of
 | `test-pdf-parser.ts`           | Local PDF file -> parser (no eClass)                                                    |
 | `debug-file-url.ts`            | Trace download/parsing for one `fileUrl`                                                |
 | `inspect-cengage-dashboard.ts` | Dump authenticated Cengage/WebAssign page HTML, screenshot, state, and candidate links  |
+| `mobile-probe.ts`              | Account-owner mobile token probe over cookie-free REST (`--verify-only` skips minting)  |
 
 ```bash
 npm run build
 npm run doctor
+npm run probe:mobile
 npm run e2e:template
 npm run e2e:template -- --phase "Task 10 Harness Smoke"
 npm run setup -- --dry-run

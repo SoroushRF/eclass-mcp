@@ -1,0 +1,26 @@
+{
+  "courses": [
+    {
+      "id": 101,
+      "fullname": "TEST 1001 - Example Course",
+      "shortname": "TEST 1001",
+      "assignments": [
+        {
+          "id": 301,
+          "cmid": 12,
+          "course": 101,
+          "name": "Sample assignment",
+          "duedate": 1767225600
+        },
+        {
+          "id": 302,
+          "cmid": 15,
+          "course": 101,
+          "name": "Second assignment",
+          "duedate": 0
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

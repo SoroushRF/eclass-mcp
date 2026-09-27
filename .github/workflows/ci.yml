@@ -4,27 +4,67 @@ on:
   push:
     branches: [master]
   pull_request:
-    branches: [master]
+    # Include feature branches so stacked PRs get CI before retargeting to master.
+    branches: [master, 'feat/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
-    timeout-minutes: 15
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        node-version: [20.x, 22.x]
-
+  # Platform-independent checks run once instead of in every matrix cell.
+  quality:
+    name: Lint, format, typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
-      - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Typecheck tests
+        run: npm run typecheck:tests
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format check
+        run: npm run format:check
+
+      - name: Package dry run
+        run: npm pack --dry-run
+
+  test:
+    name: Test (${{ matrix.os }}, Node ${{ matrix.node-version }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is the primary desktop-host platform. Node 20.x covers the
+        # `engines` floor (>=20.19.0); 22.x and 24.x are the current LTS lines.
+        os: [ubuntu-latest, windows-latest]
+        node-version: [22.x, 24.x]
+        include:
+          - os: ubuntu-latest
+            node-version: 20.x
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -32,43 +72,76 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # `npm run build` runs `tsc` (typecheck + emit to dist); no separate --noEmit step.
       - name: Build
         run: npm run build
 
-      - name: Package Dry Run
-        run: npm pack --dry-run
-
-      - name: Typecheck (No Emit)
-        run: npm run typecheck
-
-      - name: Typecheck Tests (No Emit)
-        run: npm run typecheck:tests
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Format Check
-        run: npm run format:check
-
-      - name: Test (Coverage)
+      - name: Test (coverage)
         run: npm run test:coverage
 
-      - name: Upload Coverage Artifact
-        if: always()
+      - name: Upload coverage
+        if: always() && matrix.os == 'ubuntu-latest' && matrix.node-version == '22.x'
         uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.os }}-node-${{ matrix.node-version }}
+          name: coverage
           path: coverage/
+          if-no-files-found: ignore
+
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+
+      # Runtime dependencies only: this server handles session cookies and
+      # mobile tokens and parses downloaded course files.
+      - name: npm audit (runtime, high+)
+        run: npm audit --omit=dev --audit-level=high
 
   dependency-review:
+    name: Dependency review
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v4
+      # The action needs the repository's Dependency graph setting. Skip with
+      # a notice only when GitHub says the graph is off (404, or 403 naming
+      # the dependency graph); any other failure (outage, rate limit, token
+      # permissions) fails the job instead of being reported as "disabled".
+      - name: Check dependency graph
+        id: graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SBOM_URL: ${{ github.api_url }}/repos/${{ github.repository }}/dependency-graph/sbom
+        run: |
+          status=$(curl -sS -o body.json -w '%{http_code}' \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "$SBOM_URL") || status=000
+          message=$(jq -r '.message // ""' body.json 2>/dev/null || true)
+          rm -f body.json
+          if [ "$status" = "200" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          elif [ "$status" = "404" ] || { [ "$status" = "403" ] && echo "$message" | grep -qi 'dependency graph'; }; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Dependency review skipped::Dependency graph is not enabled (HTTP $status). Enable Settings → Code security → Dependency graph to review dependency changes on pull requests. The Security audit job still runs."
+          else
+            echo "::error title=Dependency graph check failed::Unexpected HTTP $status from the dependency graph API: $message"
+            exit 1
+          fi
 
-      - name: Dependency Review
+      - uses: actions/checkout@v4
+        if: steps.graph.outputs.enabled == 'true'
+
+      - name: Dependency review
+        if: steps.graph.outputs.enabled == 'true'
         uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

@@ -56,6 +56,53 @@ rows are in
 Manual MCP Inspector and Claude Desktop prompt-matrix rows are likewise
 not marked as live evidence. The generated E2E template is only a scaffold.
 
+## Mobile REST routing promotion
+
+Token REST routing (ADR 0011) is implemented behind the same source modes and
+is **not promoted**: the default stays `playwright`, and no row below has
+account-owner live evidence yet. A row is promoted only after
+`npm run probe:mobile` shows the function in the token's service
+([capability matrix](./eclass-mobile-rest-capabilities.md)) and a `shadow`
+session logs `eClass API shadow match` for that operation with no recurring
+mismatch category.
+
+| Operation (`/hybrid/<op>`)  | Tool                 | REST functions                                                                                               | Deterministic tests | Live shadow | Promoted |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------- | ----------- | -------- |
+| `course_content`            | `get_course_content` | `core_course_get_contents`                                                                                   | Yes                 | Pending     | No       |
+| `grades`                    | `get_grades`         | `gradereport_user_get_grade_items`, `gradereport_overview_get_course_grades`                                 | Yes                 | Pending     | No       |
+| `announcements`             | `get_announcements`  | `mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions`                                         | Yes                 | Pending     | No       |
+| `assignment_index`          | `get_assignments`    | `mod_assign_get_assignments`, `mod_assign_get_submission_status`, `core_course_get_contents` (section names) | Yes                 | Pending     | No       |
+| `courses` (fallback only)   | `list_courses`       | `core_enrol_get_users_courses`                                                                               | Yes                 | Pending     | No       |
+| `deadlines` (fallback only) | `get_deadlines`      | `core_calendar_get_action_events_by_timesort`                                                                | Yes                 | Pending     | No       |
+| `file_download`             | `get_file_text`      | `/webservice/pluginfile.php`                                                                                 | Yes                 | Pending     | No       |
+
+A shadow match means each field in the contract below was equal on both
+sides after normalization; duplicates count. Fields not listed are
+deliberate exclusions and are not verified by a match.
+
+| Operation        | Compared (mismatch category)                                                                                                                                                                 | Not compared, and why                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Courses          | id, name and course code as one key (`course_set`); `count`                                                                                                                                  | `url` (built from the id on both paths)                                                                              |
+| Course content   | section order and titles (`section_count`, `section_title`); item type, name and URL per section (`section_membership`) and overall (`visible_module_set`); platforms (`external_platforms`) | item descriptions and intros (not in the REST outline; see Release scope)                                            |
+| Deadlines        | ids (`deadline_set`), `name`, course id (`course`), `due_date`; `count`                                                                                                                      | `status`, course name/code (derived from the course id), `url`                                                       |
+| Grades           | course and item (`grade_item_set`), `grade_value`, `grade_range`, `grade_percentage`, `grade_feedback`; `count`                                                                              | none                                                                                                                 |
+| Announcements    | ids (`discussion_set`), `title_mismatch`, `content_mismatch`, `author_mismatch`, link URLs (`links_mismatch`), `date_mismatch`; `count`                                                      | link labels and `sourceDiscussionUrl` (labels differ by renderer; the URL is what the tool acts on), `discussionUrl` |
+| Assignment index | ids (`assignment_set`), `submission_status`, `submission_state`, `name`, course id (`course`), `url`, `type`, `section`, `grade`, `due_date`; `count`                                        | course name/code (derived from the course id)                                                                        |
+
+Normalization: labels are trimmed, whitespace-collapsed and lower-cased;
+body text collapses whitespace but keeps word boundaries; a blank grade
+equals `-`; URLs compare origin, path and sorted query parameters.
+
+Any read also reports `api_path_fell_back` when the API result came through
+a fallback (for example AJAX → REST), so it did not validate the path under
+test.
+
+Dates are compared as instants: two ISO timestamps exactly, a display date
+to the minute in the host's time zone (run the canary with the host in the
+Moodle profile's zone). A date that cannot be parsed yields
+`<category>_unverified`, which is a failure, not a skip. When the shadow
+window expires, the API read stops issuing further calls.
+
 ## Rollback rehearsal
 
 The built host was started with:
@@ -76,8 +123,69 @@ API requests. Configuration rollback is:
    tools are unchanged.
 
 REST token invalidation, logout cleanup, and session-context closure are
-covered by deterministic unit tests. REST-backed MCP tools were not enabled,
-so no live token invalidation rehearsal was appropriate.
+covered by deterministic unit tests. REST reads now run in `shadow` and `api`
+modes when a mobile token is stored; `ECLASS_API_SOURCE_MODE=playwright`
+is a full kill switch (no REST reads, no token file downloads, no mint after
+login). A live token-invalidation rehearsal remains an account-owner step.
+
+## Release scope (decided 2026-09-27)
+
+This is a deliberately **smaller release than the original mobile-token
+plan**. It routes only the operations in the table above to REST. The
+following planned routes are **not implemented** and keep their current
+Playwright paths:
+
+| Deferred route                                         | Acceptance criteria before it ships                                                                                   |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Section text (`get_section_text`), page/label prose    | `mod_page`/`mod_label` functions in the probe; shadow comparator for text and links; two clean live shadow runs       |
+| Item details (`get_item_details`), module intros       | Per-module REST mappers (assign, quiz, url, resource); comparator over description, dates and links; live shadow runs |
+| Submission preflight (`prepare_assignment_submission`) | Read-only REST status and file-area mapping; must not call any write function; shadow runs                            |
+| Quizzes (quiz items in `get_item_details`, attempts)   | `mod_quiz_get_quizzes_by_courses`/`mod_quiz_get_user_attempts` in the probe; comparator; shadow runs                  |
+| Direct file URL discovery, richer LTI/URL metadata     | `mod_resource`/`mod_folder`/`mod_url`/`mod_lti` mappers; comparator coverage for URL and platform fields; shadow runs |
+
+The course-content mapper remains an outline (sections, modules, URLs).
+The REST assignment index is assignment-only, like the Playwright index it
+replaces; it provides no quiz behavior, and quiz reads are unchanged by this
+release. No REST write function is used.
+
+## Audit remediation evidence (2026-09-27)
+
+Automated, on `feat/eclass-mobile-token`, Windows, Node `v24.11.1`: 98 test
+files and 789 tests passed; `test:coverage` passed at 76.26% global branch
+coverage; `typecheck`, `typecheck:tests`, `lint` and `format:check` passed.
+The fixes and their regression tests:
+
+| Finding                                 | Fix                                                                | Tests                                                         |
+| --------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Identity not bound to the token         | Fingerprint-bound site info; api-mode account scope from it        | `eclass-api-rest.test.ts`, `eclass-api-account-scope.test.ts` |
+| Parallel mints; logout resurrection     | Shared renewal; auth generation checked before saving              | `eclass-api-rest.test.ts`, `session.test.ts`                  |
+| Kill switch leaked token traffic        | No mint, REST or token download in `playwright` mode               | `auth-mobile-mint.test.ts`, `eclass-token-files.test.ts`      |
+| `shadow` treated as token-only          | Only `api` is token-only; no AJAX bootstrap without cookies        | `auth-mobile-mint.test.ts`, `eclass-hybrid-rest.test.ts`      |
+| Unknown status shown as "No submission" | `Unknown (status unavailable)`; personal extensions set due date   | `eclass-hybrid-rest.test.ts`, `eclass-rest-canary.test.ts`    |
+| First 50 global events only             | Course-scoped function or bounded paging; fail at the bound        | `eclass-hybrid-rest.test.ts`                                  |
+| Terminal errors retried or masked       | Validation, rate limit, size cap surface; REST error kept          | `eclass-hybrid-rest.test.ts`, `eclass-token-files.test.ts`    |
+| Weak shadow comparison                  | Multisets and field values; `*_unverified`; `api_path_fell_back`   | `eclass-api-canary.test.ts`, `eclass-hybrid-rest.test.ts`     |
+| Probe used the cookie session           | Cookie-free fetch; user id and functions required; `--verify-only` | `eclass-api-mobile-probe.test.ts`                             |
+
+Still open, and not replaced by the tests above: the account-owner probe
+(`npm run probe:mobile` must print `result: PASS`), the capability matrix,
+York's observed token lifetime, two clean live shadow runs per operation,
+an `api` run with cookies unavailable, and the desktop prompt matrix.
+
+## Delivery order
+
+`feat/eclass-hybrid-api` is not on `master` yet, so merging the mobile token
+PR into it does not deliver anything. Merge in dependency order, rerunning
+CI on each resulting head:
+
+1. `feat/eclass-hybrid-api` → `master`.
+2. Retarget `feat/eclass-mobile-token` to `master`, rebase if needed, merge.
+3. Retarget `feat/eclass-qr-login` to `master` only after its own review
+   and owner evidence (QR stays off by default), then merge.
+
+Keep the atomic commits (merge commit or rebase merge, not squash). Tag and
+write release notes only after the release checklist passes on the merged
+`master` head.
 
 ## Final gate status
 
