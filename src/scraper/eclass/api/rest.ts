@@ -36,6 +36,7 @@ export const MOODLE_REST_CAPABILITIES = {
   forums: 'mod_forum_get_forums_by_courses',
   forumDiscussions: 'mod_forum_get_forum_discussions',
   actionEvents: 'core_calendar_get_action_events_by_timesort',
+  courseActionEvents: 'core_calendar_get_action_events_by_course',
   gradeItems: 'gradereport_user_get_grade_items',
   overviewGrades: 'gradereport_overview_get_course_grades',
   submissionStatus: 'mod_assign_get_submission_status',
@@ -65,6 +66,7 @@ export const MOODLE_REST_ROUTING_FUNCTIONS = [
   'mod_quiz_get_quizzes_by_courses',
   'mod_quiz_get_user_attempts',
   'core_calendar_get_action_events_by_timesort',
+  'core_calendar_get_action_events_by_course',
   'core_enrol_get_users_courses',
   'core_course_get_updates_since',
   'core_files_get_files',
@@ -214,9 +216,24 @@ export class MoodleRestClient {
   async getActionEventsByTimesort(args: {
     timesortfrom: number;
     limitnum: number;
+    aftereventid?: number;
   }): Promise<MoodleCalendarData> {
     return this.callParsed(
       MOODLE_REST_CAPABILITIES.actionEvents,
+      args,
+      MoodleCalendarDataSchema
+    );
+  }
+
+  /** Course-scoped action events, so one busy course cannot crowd out another. */
+  async getActionEventsByCourse(args: {
+    courseid: number;
+    timesortfrom: number;
+    limitnum: number;
+    aftereventid?: number;
+  }): Promise<MoodleCalendarData> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.courseActionEvents,
       args,
       MoodleCalendarDataSchema
     );

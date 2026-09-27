@@ -97,9 +97,22 @@ function restReader() {
     getUserCourses: vi.fn(async () =>
       MoodleRestUserCoursesSchema.parse(userCoursesFixture)
     ),
-    getActionEventsByTimesort: vi.fn(async () =>
-      MoodleCalendarDataSchema.parse(calendar?.data)
+    getActionEventsByTimesort: vi.fn(
+      async (_args: {
+        timesortfrom: number;
+        limitnum: number;
+        aftereventid?: number;
+      }) => MoodleCalendarDataSchema.parse(calendar?.data)
     ),
+    getActionEventsByCourse: vi.fn(
+      async (_args: {
+        courseid: number;
+        timesortfrom: number;
+        limitnum: number;
+        aftereventid?: number;
+      }) => MoodleCalendarDataSchema.parse(calendar?.data)
+    ),
+    hasCapability: vi.fn(async (_name: string) => false),
     getAssignments: vi.fn(async () =>
       MoodleRestAssignmentsDataSchema.parse(assignmentsFixture)
     ),
@@ -511,5 +524,143 @@ describe('EclassHybridProvider REST routing', () => {
       category: 'rate_limited',
     });
     expect(rest.getUserCourses).not.toHaveBeenCalled();
+  });
+
+  it('keeps a validation failure instead of falling back to Playwright', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getGradeItems.mockRejectedValue(
+      new MoodleApiError({ category: 'invalid_parameter' })
+    );
+    const { hybrid, playwright } = provider({ restClient: rest });
+
+    await expect(hybrid.getGrades('101')).rejects.toMatchObject({
+      publicCode: 'VALIDATION_FAILED',
+    });
+    expect(playwright.getGrades).not.toHaveBeenCalled();
+  });
+
+  it('reports a terminal REST error over the earlier AJAX error', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getUserCourses.mockRejectedValue(
+      new MoodleApiError({ category: 'invalid_parameter' })
+    );
+    const apiClient = {
+      getEnrolledCourses: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'session_invalid' });
+      }),
+      getCourseFormatState: vi.fn(),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid } = provider({ restClient: rest, apiClient });
+
+    await expect(hybrid.getCourses()).rejects.toMatchObject({
+      category: 'invalid_parameter',
+    });
+  });
+
+  it('reports the AJAX error when REST course content is unusable', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getCourseContents.mockRejectedValue(
+      new MoodleApiError({ category: 'capability_unavailable' })
+    );
+    const apiClient = {
+      getEnrolledCourses: vi.fn(),
+      getCourseFormatState: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'rate_limited', status: 429 });
+      }),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid, playwright } = provider({ restClient: rest, apiClient });
+
+    await expect(hybrid.getCourseContent('101')).rejects.toMatchObject({
+      category: 'rate_limited',
+    });
+    expect(playwright.getCourseContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('REST calendar paging', () => {
+  const ajaxDown = () => ({
+    getEnrolledCourses: vi.fn(),
+    getCourseFormatState: vi.fn(),
+    getCalendarUpcoming: vi.fn(async () => {
+      throw new MoodleApiError({ category: 'session_invalid' });
+    }),
+    getCalendarActionEventsByTimesort: vi.fn(async () => {
+      throw new MoodleApiError({ category: 'session_invalid' });
+    }),
+  });
+
+  function event(id: number, courseId: number) {
+    return {
+      id,
+      name: `Event ${id}`,
+      timesort: 1_900_000_000 + id,
+      modulename: 'assign',
+      url: `${ORIGIN}/mod/assign/view.php?id=${id}`,
+      course: { id: courseId, fullname: `Course ${courseId}` },
+    };
+  }
+
+  it('pages past the first 50 global events to find the requested course', async () => {
+    quietLogs();
+    const rest = restReader();
+    const pageOne = Array.from({ length: 50 }, (_, i) => event(i + 1, 101));
+    rest.getActionEventsByTimesort
+      .mockResolvedValueOnce(
+        MoodleCalendarDataSchema.parse({ events: pageOne })
+      )
+      .mockResolvedValueOnce(
+        MoodleCalendarDataSchema.parse({ events: [event(51, 202)] })
+      );
+    const { hybrid } = provider({ restClient: rest, apiClient: ajaxDown() });
+
+    const deadlines = await hybrid.getDeadlines('202');
+
+    expect(deadlines.map((item) => item.id)).toEqual(['51']);
+    expect(rest.getActionEventsByTimesort).toHaveBeenCalledTimes(2);
+    expect(rest.getActionEventsByTimesort.mock.calls[1]?.[0]).toMatchObject({
+      aftereventid: 50,
+    });
+  });
+
+  it('uses the course-scoped function when the token has it', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.hasCapability.mockResolvedValue(true);
+    rest.getActionEventsByCourse.mockResolvedValue(
+      MoodleCalendarDataSchema.parse({ events: [event(9, 202)] })
+    );
+    const { hybrid } = provider({ restClient: rest, apiClient: ajaxDown() });
+
+    const deadlines = await hybrid.getDeadlines('202');
+
+    expect(deadlines.map((item) => item.id)).toEqual(['9']);
+    expect(rest.getActionEventsByCourse).toHaveBeenCalledWith(
+      expect.objectContaining({ courseid: 202, limitnum: 50 })
+    );
+    expect(rest.getActionEventsByTimesort).not.toHaveBeenCalled();
+  });
+
+  it('fails instead of returning a truncated list at the page bound', async () => {
+    quietLogs();
+    const rest = restReader();
+    let next = 1;
+    rest.getActionEventsByTimesort.mockImplementation(async () =>
+      MoodleCalendarDataSchema.parse({
+        events: Array.from({ length: 50 }, () => event(next++, 101)),
+      })
+    );
+    const { hybrid } = provider({ restClient: rest, apiClient: ajaxDown() });
+
+    await expect(hybrid.getDeadlines('202')).rejects.toMatchObject({
+      category: 'session_invalid',
+    });
+    expect(rest.getActionEventsByTimesort).toHaveBeenCalledTimes(10);
   });
 });

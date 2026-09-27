@@ -268,6 +268,9 @@ export interface FetchMoodleRestTransportOptions {
 
 const REST_FUNCTION_PATTERN = /^[a-z][a-z0-9_]*$/;
 
+/** `upstreamCode` for bodies over the byte cap; never retried elsewhere. */
+export const RESPONSE_TOO_LARGE = 'response_too_large';
+
 /**
  * Reads a response body while counting bytes, aborting once the cap is
  * exceeded so an oversized upstream body is never fully buffered.
@@ -281,6 +284,7 @@ export async function readCappedBody(
     await response.body?.cancel().catch(() => undefined);
     throw new MoodleApiError({
       category: 'malformed_response',
+      upstreamCode: RESPONSE_TOO_LARGE,
       status: response.status,
     });
   }
@@ -297,6 +301,7 @@ export async function readCappedBody(
       await reader.cancel().catch(() => undefined);
       throw new MoodleApiError({
         category: 'malformed_response',
+        upstreamCode: RESPONSE_TOO_LARGE,
         status: response.status,
       });
     }

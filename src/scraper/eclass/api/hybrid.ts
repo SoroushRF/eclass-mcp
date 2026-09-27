@@ -14,6 +14,7 @@ import {
   type HybridCanaryComparison,
 } from './canary';
 import { isMoodleApiError, MoodleApiError } from './errors';
+import { RESPONSE_TOO_LARGE } from './transport';
 import type { MoodleAjaxClient } from './client';
 import {
   isMoodleCourseContentComplete,
@@ -29,9 +30,10 @@ import {
   mapRestOverviewGrades,
   mapRestUserCourses,
 } from './rest-mappers';
-import type { MoodleRestClient } from './rest';
+import { MOODLE_REST_CAPABILITIES, type MoodleRestClient } from './rest';
 import type {
   MoodleCalendarData,
+  MoodleCalendarEvent,
   MoodleCourseFormatState,
   MoodleEnrolledCoursesData,
   MoodleRestSubmissionStatus,
@@ -65,6 +67,8 @@ export type RestReader = Pick<
   | 'getCourseContents'
   | 'getUserCourses'
   | 'getActionEventsByTimesort'
+  | 'getActionEventsByCourse'
+  | 'hasCapability'
   | 'getAssignments'
   | 'getSubmissionStatus'
   | 'getForums'
@@ -101,6 +105,10 @@ type FallbackTarget = 'playwright' | 'ajax' | 'rest';
 
 const DEFAULT_SHADOW_TIMEOUT_MS = 2_000;
 const SUBMISSION_STATUS_CONCURRENCY = 4;
+/** Moodle caps action-event pages at 50. */
+const CALENDAR_PAGE_SIZE = 50;
+/** Bound on REST calendar paging; reaching it is reported, not truncated. */
+const CALENDAR_MAX_PAGES = 10;
 
 const FALLBACK_MESSAGES: Record<FallbackTarget, string> = {
   playwright: 'eClass API read falling back to Playwright',
@@ -108,11 +116,43 @@ const FALLBACK_MESSAGES: Record<FallbackTarget, string> = {
   rest: 'eClass API read falling back to token REST',
 };
 
+/**
+ * Errors about the request itself. Retrying on another transport would hide
+ * them (a validation failure) or defeat them (a rate limit, a size cap).
+ */
+function isTerminalApiError(error: unknown): boolean {
+  return (
+    isMoodleApiError(error) &&
+    (error.category === 'rate_limited' ||
+      error.category === 'invalid_parameter' ||
+      error.upstreamCode === RESPONSE_TOO_LARGE)
+  );
+}
+
+/** Whether a failed API read may fall back to Playwright. */
 function isFallbackEligible(error: unknown): boolean {
   if (!isMoodleApiError(error)) return true;
+  return !isTerminalApiError(error) && error.category !== 'session_invalid';
+}
+
+/** REST could not be used at all, so its error says nothing about the read. */
+function isUnusableRestError(error: unknown): boolean {
   return (
-    error.category !== 'session_invalid' && error.category !== 'rate_limited'
+    isMoodleApiError(error) &&
+    (error.category === 'capability_unavailable' ||
+      error.category === 'mobile_token_invalid')
   );
+}
+
+/**
+ * Which error to surface when a read and its fallback both fail: a terminal
+ * fallback error wins; otherwise the primary error, unless the primary path
+ * was simply unusable.
+ */
+function selectReportedError(primary: unknown, fallback: unknown): unknown {
+  if (isTerminalApiError(fallback)) return fallback;
+  if (isUnusableRestError(primary)) return fallback;
+  return primary;
 }
 
 function apiFailureReason(error: unknown): string {
@@ -311,17 +351,12 @@ export class EclassHybridProvider implements EclassScraperDependency {
     try {
       return await ajaxRead();
     } catch (error) {
-      if (
-        !restRead ||
-        (isMoodleApiError(error) && error.category === 'rate_limited')
-      ) {
-        throw error;
-      }
+      if (!restRead || isTerminalApiError(error)) throw error;
       this.logFallback(operation, error, 'rest');
       try {
         return await restRead();
-      } catch {
-        throw error;
+      } catch (restError) {
+        throw selectReportedError(error, restError);
       }
     }
   }
@@ -338,7 +373,11 @@ export class EclassHybridProvider implements EclassScraperDependency {
     } catch (error) {
       if (!ajaxRead || !isFallbackEligible(error)) throw error;
       this.logFallback(operation, error, 'ajax');
-      return ajaxRead();
+      try {
+        return await ajaxRead();
+      } catch (ajaxError) {
+        throw selectReportedError(error, ajaxError);
+      }
     }
   }
 
@@ -407,20 +446,70 @@ export class EclassHybridProvider implements EclassScraperDependency {
             return mapMoodleCalendarToAssignments(calendar, this.origin);
           }
         : null,
-      this.restUsable()
-        ? async () => {
-            const calendar =
-              await this.restClient!.getActionEventsByTimesort(timesort);
-            const mapped = mapMoodleCalendarToAssignments(
-              calendar,
-              this.origin
-            );
-            return courseId
-              ? mapped.filter((item) => item.courseId === courseId)
-              : mapped;
-          }
-        : null
+      this.restUsable() ? () => this.restDeadlines(courseId) : null
     );
+  }
+
+  /**
+   * Upcoming action events over REST. A course filter uses the course-scoped
+   * function when available; otherwise pages follow `aftereventid` until a
+   * short page. Reaching the page bound throws instead of returning a
+   * truncated (possibly empty) list.
+   */
+  private async restDeadlines(courseId?: string): Promise<Assignment[]> {
+    const client = this.restClient!;
+    const timesortfrom = Math.floor(Date.now() / 1000);
+    const byCourse =
+      courseId !== undefined &&
+      (await client.hasCapability(MOODLE_REST_CAPABILITIES.courseActionEvents));
+    const fetchPage = (aftereventid?: number) => {
+      const page = {
+        timesortfrom,
+        limitnum: CALENDAR_PAGE_SIZE,
+        ...(aftereventid ? { aftereventid } : {}),
+      };
+      return byCourse
+        ? client.getActionEventsByCourse({
+            courseid: Number(courseId),
+            ...page,
+          })
+        : client.getActionEventsByTimesort(page);
+    };
+
+    const events: MoodleCalendarEvent[] = [];
+    const seen = new Set<string>();
+    let afterEventId: number | undefined;
+    let complete = false;
+    for (let page = 0; page < CALENDAR_MAX_PAGES; page++) {
+      const { events: pageEvents } = await fetchPage(afterEventId);
+      let added = 0;
+      for (const event of pageEvents) {
+        const id = String(event.id ?? event.eventid ?? '');
+        if (id && seen.has(id)) continue;
+        if (id) seen.add(id);
+        events.push(event);
+        added++;
+      }
+      if (pageEvents.length < CALENDAR_PAGE_SIZE) {
+        complete = true;
+        break;
+      }
+      const last = pageEvents[pageEvents.length - 1];
+      const lastId = Number(last?.id ?? last?.eventid);
+      if (added === 0 || !Number.isInteger(lastId) || lastId <= 0) break;
+      afterEventId = lastId;
+    }
+    if (!complete) {
+      throw new MoodleApiError({
+        category: 'upstream',
+        upstreamCode: 'calendar_incomplete',
+      });
+    }
+
+    const mapped = mapMoodleCalendarToAssignments({ events }, this.origin);
+    return courseId
+      ? mapped.filter((item) => item.courseId === courseId)
+      : mapped;
   }
 
   private async restAssignments(courseId?: string): Promise<DeadlineItem[]> {
@@ -439,8 +528,15 @@ export class EclassHybridProvider implements EclassScraperDependency {
         try {
           return await this.restClient!.getSubmissionStatus(assignId);
         } catch (error) {
-          // One unreadable status should not hide the assignment itself.
-          if (!isFallbackEligible(error)) throw error;
+          // One unreadable status becomes "Unknown", not a hidden assignment.
+          // A rate limit or expired session fails the whole read instead.
+          if (
+            isMoodleApiError(error) &&
+            (error.category === 'rate_limited' ||
+              error.category === 'session_invalid')
+          ) {
+            throw error;
+          }
           return null;
         }
       }

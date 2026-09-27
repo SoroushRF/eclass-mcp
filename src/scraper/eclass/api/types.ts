@@ -137,6 +137,8 @@ export const MoodleCalendarEventSchema = z
   })
   .passthrough();
 
+export type MoodleCalendarEvent = z.infer<typeof MoodleCalendarEventSchema>;
+
 export const MoodleCalendarDataSchema = z
   .object({
     events: z.array(MoodleCalendarEventSchema).default([]),
