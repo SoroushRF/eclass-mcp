@@ -268,10 +268,23 @@ export function effectiveDueSeconds(
     : assignmentDueDate;
 }
 
+/** Course module id -> section display name, from course contents. */
+export function sectionNamesByModule(
+  contents: MoodleRestCourseContents
+): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const section of contents) {
+    const name = (section.name ?? '').trim();
+    for (const module of section.modules) names.set(String(module.id), name);
+  }
+  return names;
+}
+
 export function mapRestAssignments(
   data: MoodleRestAssignmentsData,
   origin: string,
-  statuses: ReadonlyMap<string, MoodleRestSubmissionStatus | null>
+  statuses: ReadonlyMap<string, MoodleRestSubmissionStatus | null>,
+  sectionsByModule: ReadonlyMap<string, string> = new Map()
 ): DeadlineItem[] {
   return data.courses.flatMap((course) => {
     const courseId = String(course.id);
@@ -293,7 +306,7 @@ export function mapRestAssignments(
           `/mod/assign/view.php?id=${encodeURIComponent(cmid)}`
         ),
         type: 'assign' as const,
-        section: '',
+        section: sectionsByModule.get(cmid) ?? '',
         submission: extended ? `${label}; extension granted` : label,
         grade: grade || '-',
         ...buildCourseMetadata(courseId, courseName),

@@ -11,8 +11,11 @@ import type {
  * Shadow comparison of an API read against the Playwright read of the same
  * data. Only category names and counts leave this module, never values.
  *
- * A pass means every compared field was observed on both sides and was
- * equivalent after normalization. Duplicates count (multisets, not sets).
+ * Each comparator checks an explicit list of fields (the preserved contract,
+ * documented in docs/validation/eclass-hybrid-release.md); fields it does
+ * not list are deliberate exclusions, not implied matches. A pass means each
+ * listed field was equivalent after normalization. Duplicates count
+ * (multisets, not sets).
  * A date that cannot be parsed is reported as `*_unverified`, which fails
  * the comparison instead of being skipped.
  *
@@ -44,9 +47,35 @@ function normalizedLabel(value: string | undefined): string {
   return (value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-/** Whitespace-insensitive text, for bodies rendered differently by source. */
+/**
+ * Body text with whitespace runs collapsed (HTML and rendered text break
+ * lines differently). Word boundaries are kept, so "a b" and "ab" differ.
+ */
 function normalizedText(value: string | undefined): string {
-  return (value ?? '').replace(/\s+/g, '').toLowerCase();
+  return (value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** A grade cell: blank and "-" both mean no grade. */
+function normalizedGrade(value: string | undefined): string {
+  const label = normalizedLabel(value);
+  return label === '-' ? '' : label;
+}
+
+/**
+ * A Moodle URL compared by origin, path and sorted query parameters, so
+ * parameter order and a trailing fragment do not count; anything else does.
+ */
+function normalizedUrl(value: string | undefined): string {
+  const raw = (value ?? '').trim();
+  try {
+    const url = new URL(raw);
+    const params = [...url.searchParams.entries()]
+      .map(([key, param]) => `${key}=${param}`)
+      .sort();
+    return `${url.origin.toLowerCase()}${url.pathname}?${params.join('&')}`;
+  } catch {
+    return raw;
+  }
 }
 
 function multiset(keys: readonly string[]): Map<string, number> {
@@ -346,6 +375,17 @@ export function compareAssignmentIndexCanary(
     }
     if (normalizedLabel(api.name) !== normalizedLabel(playwright.name)) {
       mismatches.push('name');
+    }
+    if (api.courseId !== playwright.courseId) mismatches.push('course');
+    if (normalizedUrl(api.url) !== normalizedUrl(playwright.url)) {
+      mismatches.push('url');
+    }
+    if (api.type !== playwright.type) mismatches.push('type');
+    if (normalizedLabel(api.section) !== normalizedLabel(playwright.section)) {
+      mismatches.push('section');
+    }
+    if (normalizedGrade(api.grade) !== normalizedGrade(playwright.grade)) {
+      mismatches.push('grade');
     }
     compareInstant(mismatches, 'due_date', api.dueDate, playwright.dueDate);
   }

@@ -131,14 +131,17 @@ token is stored, token REST (`/webservice/rest/server.php`, ADR 0011).
 | Section text, item details, preflight | Playwright                                                                      |
 
 - `shadow` runs both paths but returns Playwright data and records only
-  mismatch categories (field values, multiplicity and dates are compared; a
-  read that fell back is not counted as a match). It needs the cookie
+  mismatch categories (an explicit per-operation field contract, multiplicity
+  and dates are compared; a read that fell back is not counted as a match). It needs the cookie
   session and the token.
 - `api` uses one bounded Playwright fallback for eligible read failures.
   Validation failures, rate limits and size caps are reported, not retried
   on another transport.
-- Section text, item details, submission preflight and quizzes stay on
-  Playwright in this release; there is no REST route for them yet.
+- Section text, item details, submission preflight, quizzes, page prose,
+  direct file URLs and richer LTI/URL metadata stay on Playwright. This is a
+  deliberately smaller release than the original plan; the deferred routes
+  and their acceptance criteria are listed in
+  [the release checklist](docs/validation/eclass-hybrid-release.md#release-scope-decided-2026-09-27).
 - REST is skipped, not failed, when no mobile token is stored, and every REST
   function is capability-gated against the token's service function list.
 - No REST write function is used.

@@ -66,31 +66,36 @@ account-owner live evidence yet. A row is promoted only after
 session logs `eClass API shadow match` for that operation with no recurring
 mismatch category.
 
-| Operation (`/hybrid/<op>`)  | Tool                 | REST functions                                                               | Deterministic tests | Live shadow | Promoted |
-| --------------------------- | -------------------- | ---------------------------------------------------------------------------- | ------------------- | ----------- | -------- |
-| `course_content`            | `get_course_content` | `core_course_get_contents`                                                   | Yes                 | Pending     | No       |
-| `grades`                    | `get_grades`         | `gradereport_user_get_grade_items`, `gradereport_overview_get_course_grades` | Yes                 | Pending     | No       |
-| `announcements`             | `get_announcements`  | `mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions`         | Yes                 | Pending     | No       |
-| `assignment_index`          | `get_assignments`    | `mod_assign_get_assignments`, `mod_assign_get_submission_status`             | Yes                 | Pending     | No       |
-| `courses` (fallback only)   | `list_courses`       | `core_enrol_get_users_courses`                                               | Yes                 | Pending     | No       |
-| `deadlines` (fallback only) | `get_deadlines`      | `core_calendar_get_action_events_by_timesort`                                | Yes                 | Pending     | No       |
-| `file_download`             | `get_file_text`      | `/webservice/pluginfile.php`                                                 | Yes                 | Pending     | No       |
+| Operation (`/hybrid/<op>`)  | Tool                 | REST functions                                                                                               | Deterministic tests | Live shadow | Promoted |
+| --------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------- | ----------- | -------- |
+| `course_content`            | `get_course_content` | `core_course_get_contents`                                                                                   | Yes                 | Pending     | No       |
+| `grades`                    | `get_grades`         | `gradereport_user_get_grade_items`, `gradereport_overview_get_course_grades`                                 | Yes                 | Pending     | No       |
+| `announcements`             | `get_announcements`  | `mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions`                                         | Yes                 | Pending     | No       |
+| `assignment_index`          | `get_assignments`    | `mod_assign_get_assignments`, `mod_assign_get_submission_status`, `core_course_get_contents` (section names) | Yes                 | Pending     | No       |
+| `courses` (fallback only)   | `list_courses`       | `core_enrol_get_users_courses`                                                                               | Yes                 | Pending     | No       |
+| `deadlines` (fallback only) | `get_deadlines`      | `core_calendar_get_action_events_by_timesort`                                                                | Yes                 | Pending     | No       |
+| `file_download`             | `get_file_text`      | `/webservice/pluginfile.php`                                                                                 | Yes                 | Pending     | No       |
 
-A shadow match means every compared field was seen on both sides and was
-equal after normalization; duplicates count. Mismatch categories:
+A shadow match means each field in the contract below was equal on both
+sides after normalization; duplicates count. Fields not listed are
+deliberate exclusions and are not verified by a match.
 
-- Courses: `count`, `course_set`.
-- Course content: `section_count`, `section_title`, `section_membership`,
-  `visible_module_set`, `external_platforms`.
-- Deadlines: `count`, `deadline_set`, `name`, `course`, `due_date`.
-- Grades: `count`, `grade_item_set`, `grade_value`, `grade_range`,
-  `grade_percentage`, `grade_feedback`.
-- Announcements: `count`, `discussion_set`, `title_mismatch`,
-  `content_mismatch`, `author_mismatch`, `links_mismatch`, `date_mismatch`.
-- Assignment index: `count`, `assignment_set`, `submission_status`,
-  `submission_state`, `name`, `due_date`.
-- Any read: `api_path_fell_back` when the API result came through a fallback
-  (for example AJAX → REST), so it did not validate the path under test.
+| Operation        | Compared (mismatch category)                                                                                                                                                                 | Not compared, and why                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Courses          | id, name and course code as one key (`course_set`); `count`                                                                                                                                  | `url` (built from the id on both paths)                                                                              |
+| Course content   | section order and titles (`section_count`, `section_title`); item type, name and URL per section (`section_membership`) and overall (`visible_module_set`); platforms (`external_platforms`) | item descriptions and intros (not in the REST outline; see Release scope)                                            |
+| Deadlines        | ids (`deadline_set`), `name`, course id (`course`), `due_date`; `count`                                                                                                                      | `status`, course name/code (derived from the course id), `url`                                                       |
+| Grades           | course and item (`grade_item_set`), `grade_value`, `grade_range`, `grade_percentage`, `grade_feedback`; `count`                                                                              | none                                                                                                                 |
+| Announcements    | ids (`discussion_set`), `title_mismatch`, `content_mismatch`, `author_mismatch`, link URLs (`links_mismatch`), `date_mismatch`; `count`                                                      | link labels and `sourceDiscussionUrl` (labels differ by renderer; the URL is what the tool acts on), `discussionUrl` |
+| Assignment index | ids (`assignment_set`), `submission_status`, `submission_state`, `name`, course id (`course`), `url`, `type`, `section`, `grade`, `due_date`; `count`                                        | course name/code (derived from the course id)                                                                        |
+
+Normalization: labels are trimmed, whitespace-collapsed and lower-cased;
+body text collapses whitespace but keeps word boundaries; a blank grade
+equals `-`; URLs compare origin, path and sorted query parameters.
+
+Any read also reports `api_path_fell_back` when the API result came through
+a fallback (for example AJAX → REST), so it did not validate the path under
+test.
 
 Dates are compared as instants: two ISO timestamps exactly, a display date
 to the minute in the host's time zone (run the canary with the host in the
@@ -123,14 +128,25 @@ modes when a mobile token is stored; `ECLASS_API_SOURCE_MODE=playwright`
 is a full kill switch (no REST reads, no token file downloads, no mint after
 login). A live token-invalidation rehearsal remains an account-owner step.
 
-## Release scope
+## Release scope (decided 2026-09-27)
 
-This release routes only the operations in the table above to REST. Section
-text (`get_section_text`), item details, submission preflight
-(`prepare_assignment_submission`) and quizzes stay on Playwright; the
-assignment index covers assignments only, as the Playwright index does. No
-REST write function is used. Widening this scope needs its own capability
-evidence and shadow runs.
+This is a deliberately **smaller release than the original mobile-token
+plan**. It routes only the operations in the table above to REST. The
+following planned routes are **not implemented** and keep their current
+Playwright paths:
+
+| Deferred route                                         | Acceptance criteria before it ships                                                                                   |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Section text (`get_section_text`), page/label prose    | `mod_page`/`mod_label` functions in the probe; shadow comparator for text and links; two clean live shadow runs       |
+| Item details (`get_item_details`), module intros       | Per-module REST mappers (assign, quiz, url, resource); comparator over description, dates and links; live shadow runs |
+| Submission preflight (`prepare_assignment_submission`) | Read-only REST status and file-area mapping; must not call any write function; shadow runs                            |
+| Quizzes (quiz items in `get_item_details`, attempts)   | `mod_quiz_get_quizzes_by_courses`/`mod_quiz_get_user_attempts` in the probe; comparator; shadow runs                  |
+| Direct file URL discovery, richer LTI/URL metadata     | `mod_resource`/`mod_folder`/`mod_url`/`mod_lti` mappers; comparator coverage for URL and platform fields; shadow runs |
+
+The course-content mapper remains an outline (sections, modules, URLs).
+The REST assignment index is assignment-only, like the Playwright index it
+replaces; it provides no quiz behavior, and quiz reads are unchanged by this
+release. No REST write function is used.
 
 ## Audit remediation evidence (2026-09-27)
 

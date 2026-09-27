@@ -14,7 +14,7 @@ import {
   compareGradeCanary,
   type HybridCanaryComparison,
 } from './canary';
-import { isMoodleApiError, MoodleApiError } from './errors';
+import { CREDENTIAL_CHANGED, isMoodleApiError, MoodleApiError } from './errors';
 import { RESPONSE_TOO_LARGE } from './transport';
 import type { MoodleAjaxClient } from './client';
 import {
@@ -25,6 +25,7 @@ import {
 } from './mappers';
 import {
   mapRestAssignments,
+  sectionNamesByModule,
   mapRestCourseContents,
   mapRestForumDiscussions,
   mapRestGradeItems,
@@ -124,14 +125,16 @@ const FALLBACK_MESSAGES: Record<FallbackTarget, string> = {
 
 /**
  * Errors about the request itself. Retrying on another transport would hide
- * them (a validation failure) or defeat them (a rate limit, a size cap).
+ * them (a validation failure), defeat them (a rate limit, a size cap), or
+ * rerun a previous account's request under the new account's session.
  */
 function isTerminalApiError(error: unknown): boolean {
   return (
     isMoodleApiError(error) &&
     (error.category === 'rate_limited' ||
       error.category === 'invalid_parameter' ||
-      error.upstreamCode === RESPONSE_TOO_LARGE)
+      error.upstreamCode === RESPONSE_TOO_LARGE ||
+      error.upstreamCode === CREDENTIAL_CHANGED)
   );
 }
 
@@ -573,11 +576,13 @@ export class EclassHybridProvider implements EclassScraperDependency {
           return await this.restClient!.getSubmissionStatus(assignId);
         } catch (error) {
           // One unreadable status becomes "Unknown", not a hidden assignment.
-          // A rate limit or expired session fails the whole read instead.
+          // A rate limit, expired session or account switch fails the whole
+          // read instead.
           if (
             isMoodleApiError(error) &&
             (error.category === 'rate_limited' ||
-              error.category === 'session_invalid')
+              error.category === 'session_invalid' ||
+              error.upstreamCode === CREDENTIAL_CHANGED)
           ) {
             throw error;
           }
@@ -588,8 +593,46 @@ export class EclassHybridProvider implements EclassScraperDependency {
     return mapRestAssignments(
       data,
       this.origin,
-      new Map(assignIds.map((id, index) => [id, statuses[index] ?? null]))
+      new Map(assignIds.map((id, index) => [id, statuses[index] ?? null])),
+      await this.restSectionNames(
+        data.courses
+          .filter((course) => course.assignments.length > 0)
+          .map((course) => String(course.id))
+      )
     );
+  }
+
+  /**
+   * Section names for the assignment index (the Playwright index shows a
+   * Section column). A course whose contents cannot be read leaves its
+   * sections blank, which the shadow canary reports; terminal errors and
+   * account switches fail the read.
+   */
+  private async restSectionNames(
+    courseIds: readonly string[]
+  ): Promise<Map<string, string>> {
+    const names = new Map<string, string>();
+    const perCourse = await mapWithConcurrency(
+      courseIds,
+      SUBMISSION_STATUS_CONCURRENCY,
+      async (courseId) => {
+        try {
+          return sectionNamesByModule(
+            await this.restClient!.getCourseContents(courseId)
+          );
+        } catch (error) {
+          if (isTerminalApiError(error)) throw error;
+          if (isMoodleApiError(error) && error.category === 'session_invalid') {
+            throw error;
+          }
+          return new Map<string, string>();
+        }
+      }
+    );
+    for (const map of perCourse) {
+      for (const [cmid, name] of map) names.set(cmid, name);
+    }
+    return names;
   }
 
   private async restGrades(courseId?: string): Promise<Grade[]> {

@@ -394,9 +394,11 @@ describe('EclassHybridProvider REST routing', () => {
         courseId: '101',
         courseCode: 'TEST1001',
         url: `${ORIGIN}/mod/assign/view.php?id=12`,
+        section: 'Week 1',
       }),
       expect.objectContaining({
         id: '15',
+        section: '',
         dueDate: '',
         status: 'Unknown (status unavailable)',
         grade: '-',
@@ -442,6 +444,51 @@ describe('EclassHybridProvider REST routing', () => {
       'Unknown (status unavailable)',
       'Unknown (status unavailable)',
     ]);
+  });
+
+  it('reads section names from course contents for the assignment index', async () => {
+    quietLogs();
+    const rest = restReader();
+    const { hybrid } = provider({ restClient: rest });
+
+    const items = await hybrid.getAllAssignmentDeadlines('101');
+
+    expect(rest.getCourseContents).toHaveBeenCalledWith('101');
+    expect(items.map((item) => item.section)).toEqual(['Week 1', '']);
+  });
+
+  it('leaves sections blank when course contents are unreadable, but fails on terminal errors', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getCourseContents.mockRejectedValue(
+      new MoodleApiError({ category: 'capability_unavailable' })
+    );
+    const { hybrid } = provider({ restClient: rest });
+    const items = await hybrid.getAllAssignmentDeadlines('101');
+    expect(items.map((item) => item.section)).toEqual(['', '']);
+
+    rest.getCourseContents.mockRejectedValue(
+      new MoodleApiError({ category: 'rate_limited', status: 429 })
+    );
+    await expect(hybrid.getAllAssignmentDeadlines('101')).rejects.toMatchObject(
+      { category: 'rate_limited' }
+    );
+  });
+
+  it('fails the read, without a fallback, when the account changes mid-read', async () => {
+    const rest = restReader();
+    rest.getSubmissionStatus.mockRejectedValue(
+      new MoodleApiError({
+        category: 'upstream',
+        upstreamCode: 'credential_changed',
+      })
+    );
+    const { hybrid, playwright } = provider({ restClient: rest });
+
+    await expect(hybrid.getAllAssignmentDeadlines('101')).rejects.toMatchObject(
+      { upstreamCode: 'credential_changed' }
+    );
+    expect(playwright.getAllAssignmentDeadlines).not.toHaveBeenCalled();
   });
 
   it('fails the assignment index on a rate limit instead of hiding it', async () => {

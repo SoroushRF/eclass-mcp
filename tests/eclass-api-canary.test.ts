@@ -252,10 +252,12 @@ describe('eClass canary field comparison', () => {
     courseId: '101',
     url: 'https://eclass.yorku.ca/mod/assign/view.php?id=1',
     type: 'assign',
+    section: 'Week 1',
     submission: 'Submitted for grading',
+    grade: '80.00 / 100.00',
   };
 
-  it('compares assignment submission state and effective due date', () => {
+  it('compares the assignment index contract field by field', () => {
     expect(
       compareAssignmentIndexCanary([indexItem], [{ ...indexItem }]).passed
     ).toBe(true);
@@ -264,12 +266,79 @@ describe('eClass canary field comparison', () => {
       [{ status: 'Closed' }, 'submission_status'],
       [{ dueDate: '2026-10-09T03:59:00.000Z' }, 'due_date'],
       [{ dueDate: 'Not a date' }, 'due_date_unverified'],
+      [{ grade: '0.00 / 100.00' }, 'grade'],
+      [{ grade: '-' }, 'grade'],
+      [{ courseId: '999' }, 'course'],
+      [{ section: 'Week 8' }, 'section'],
+      [{ section: '' }, 'section'],
+      [{ url: 'https://eclass.yorku.ca/mod/assign/view.php?id=999' }, 'url'],
+      [{ type: 'quiz' }, 'type'],
+      [{ name: 'Lab 2' }, 'name'],
     ] as const) {
       expect(
         compareAssignmentIndexCanary([indexItem], [{ ...indexItem, ...change }])
           .mismatchCategories
       ).toEqual([category]);
     }
+  });
+
+  it('reproduces the review case: grade, course, section and URL all changed', () => {
+    const changed = {
+      ...indexItem,
+      url: 'https://eclass.yorku.ca/mod/assign/view.php?id=999',
+      courseId: '999',
+      courseName: 'Course B',
+      section: 'Week 8',
+      grade: '0',
+    };
+    const result = compareAssignmentIndexCanary([indexItem], [changed]);
+    expect(result.passed).toBe(false);
+    expect(result.mismatchCategories).toEqual(
+      expect.arrayContaining(['grade', 'course', 'section', 'url'])
+    );
+  });
+
+  it('treats blank and "-" grades, and URL parameter order, as equal', () => {
+    const noGrade = { ...indexItem, grade: '' };
+    expect(
+      compareAssignmentIndexCanary([noGrade], [{ ...noGrade, grade: '-' }])
+        .passed
+    ).toBe(true);
+    const url = 'https://eclass.yorku.ca/mod/assign/view.php?id=1&action=view';
+    expect(
+      compareAssignmentIndexCanary(
+        [{ ...indexItem, url }],
+        [
+          {
+            ...indexItem,
+            url: 'https://eclass.yorku.ca/mod/assign/view.php?action=view&id=1',
+          },
+        ]
+      ).passed
+    ).toBe(true);
+  });
+
+  it('keeps word boundaries when comparing body text', () => {
+    const base = {
+      id: 'd1',
+      title: 'T',
+      content: 'Meet in room 101 today',
+      author: 'A',
+      date: '2026-09-20T14:00:00.000Z',
+      links: [] as Announcement['links'],
+    } as Announcement;
+    expect(
+      compareAnnouncementCanary(
+        [base],
+        [{ ...base, content: '  Meet in\nroom 101   today ' }]
+      ).passed
+    ).toBe(true);
+    expect(
+      compareAnnouncementCanary(
+        [base],
+        [{ ...base, content: 'Meet in room 1 01 today' }]
+      ).mismatchCategories
+    ).toEqual(['content_mismatch']);
   });
 
   it('reads display dates to the minute', () => {
