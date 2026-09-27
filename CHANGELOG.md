@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added pull request and issue templates, and documented Conventional Commits and the documentation rule in `CONTRIBUTING.md`.
+- Added the eClass mobile token findings log (`docs/investigations/eclass-mobile-token-findings.md`) and proposed ADR 0011 for Moodle mobile token REST access.
 - Added T37 `prepare_assignment_submission`, a read-only assignment preflight tool that resolves eClass/Moodle and Cengage/WebAssign targets, signs exact `preflightRef` facts, blocks unsafe intended files or finalized/no-upload states, and marks external-platform writes unsupported for now.
 - Added Windows Codex Desktop setup support with `npm run setup:codex`, safe TOML merge/backup/restore handling, and doctor checks for the Codex `mcp_servers.eclass` registration.
 - Added follow-up ADR coverage for the MCP tool boundary, RMP circuit breaker, structured trace correlation, manual dependency injection, and read-only cache observability (`docs/adr/0005` through `0009`, plus the ADR index).
@@ -27,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed a date-dependent session test whose hard-coded mobile credential expiry had passed.
+- Corrected the ADR index status for ADR 0010 (Accepted behind the `playwright` default).
 - Removed the remaining production `Promise<any>` type escape hatch and tightened the static production typing guard.
 - Added a defensive, redacted `cache_health` failure envelope for unexpected local health-collector failures.
 - Fixed stale docs that still referenced old tool counts or request-id-only logging, and corrected changelog wording around Cengage dependency injection.
