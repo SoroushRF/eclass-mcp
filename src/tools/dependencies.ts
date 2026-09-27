@@ -10,6 +10,11 @@ import {
   type EclassHybridProviderOptions,
 } from '../scraper/eclass/api/hybrid';
 import { getEclassApiConfig } from '../scraper/eclass/api/constants';
+import {
+  downloadFileWithToken,
+  toWebservicePluginfileUrl,
+} from '../scraper/eclass/api/token-files';
+import { loadMobileCredential } from '../scraper/session';
 import { RMPClient } from '../scraper/rmp';
 import { SISScraper } from '../scraper/sis';
 import { CengageScraper } from '../scraper/cengage';
@@ -61,6 +66,14 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
   });
   const options: EclassHybridProviderOptions = {
     playwright: defaultEClassScraper,
+    tokenFiles: {
+      download: async (fileUrl) => {
+        if (!toWebservicePluginfileUrl(fileUrl)) return null;
+        const credential = loadMobileCredential();
+        if (!credential) return null;
+        return downloadFileWithToken(fileUrl, credential.token);
+      },
+    },
     apiClient: new MoodleAjaxClient({
       sessionContext: apiSessionContext,
       origin: config.origin,

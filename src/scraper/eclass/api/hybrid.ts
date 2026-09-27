@@ -24,6 +24,7 @@ import type {
   MoodleEnrolledCoursesData,
 } from './types';
 import type { EclassApiSessionContext } from './session-context';
+import type { DownloadedFile } from './token-files';
 import type {
   Announcement,
   Assignment,
@@ -50,8 +51,14 @@ type ShadowComparator<T> = (
   playwrightValue: T
 ) => HybridCanaryComparison;
 
+/** Token-authenticated file source; returns null when it does not apply. */
+export interface TokenFileSource {
+  download(fileUrl: string): Promise<DownloadedFile | null>;
+}
+
 export interface EclassHybridProviderOptions {
   playwright: EclassScraperDependency;
+  tokenFiles?: TokenFileSource;
   apiClient?: ApiReader;
   apiSessionContext?: Pick<EclassApiSessionContext, 'close'>;
   closeOwnedResources?: () => Promise<void>;
@@ -102,6 +109,7 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 
 export class EclassHybridProvider implements EclassScraperDependency {
   private readonly playwright: EclassScraperDependency;
+  private readonly tokenFiles?: TokenFileSource;
   private readonly apiClient?: ApiReader;
   private readonly apiSessionContext?: Pick<EclassApiSessionContext, 'close'>;
   private readonly closeOwnedResources?: () => Promise<void>;
@@ -112,6 +120,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
   constructor(options: EclassHybridProviderOptions) {
     const config = getEclassApiConfig();
     this.playwright = options.playwright;
+    this.tokenFiles = options.tokenFiles;
     this.apiClient = options.apiClient;
     this.apiSessionContext = options.apiSessionContext;
     this.closeOwnedResources = options.closeOwnedResources;
@@ -172,7 +181,20 @@ export class EclassHybridProvider implements EclassScraperDependency {
     return this.playwright.getAnnouncements(courseId, limit);
   }
 
-  downloadFile(fileUrl: string) {
+  /**
+   * Token download first when a mobile credential exists and the URL is a
+   * pluginfile (ADR 0011); any failure falls back to the Playwright download,
+   * which also handles wrapper pages such as `/mod/resource/view.php`.
+   */
+  async downloadFile(fileUrl: string): Promise<DownloadedFile> {
+    if (this.tokenFiles) {
+      try {
+        const file = await this.tokenFiles.download(fileUrl);
+        if (file) return file;
+      } catch (error) {
+        this.logFallback('file_download', error);
+      }
+    }
     return this.playwright.downloadFile(fileUrl);
   }
 
