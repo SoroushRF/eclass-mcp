@@ -1,9 +1,11 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  createCookieFreeSiteInfoReader,
   formatMobileProbeReport,
+  mobileProbePassed,
   runMobileProbe,
   writeMobileFunctionList,
 } from '../src/scraper/eclass/api/mobile-probe';
@@ -41,8 +43,11 @@ describe('mobile probe', () => {
       getSiteInfo: async () => siteInfo,
     });
 
+    expect(mobileProbePassed(report)).toBe(true);
     expect(report).toMatchObject({
       minted: true,
+      credentialSource: 'minted',
+      identityVerified: true,
       tokenLength: 32,
       tokenIsHex32: true,
       privateTokenPresent: true,
@@ -99,6 +104,62 @@ describe('mobile probe', () => {
       privateTokenPresent: false,
       restError: 'mobile_token_invalid:invalidtoken',
     });
+  });
+
+  it('fails on an empty function list or a missing user id', async () => {
+    const cases: Array<[unknown, string]> = [
+      [{ ...siteInfo, functions: [] }, 'no_functions'],
+      [{ ...siteInfo, functions: undefined }, 'no_functions'],
+      [{ ...siteInfo, userid: 0 }, 'missing_userid'],
+      [{ ...siteInfo, userid: undefined }, 'missing_userid'],
+      [{ unexpected: true }, 'missing_userid'],
+      ['not json', 'malformed_response'],
+    ];
+    for (const [raw, restError] of cases) {
+      const { report } = await runMobileProbe({
+        launch: async () => credential,
+        getSiteInfo: async () => raw,
+      });
+      expect(report.restError).toBe(restError);
+      expect(mobileProbePassed(report)).toBe(false);
+      expect(formatMobileProbeReport(report)).toContain('result: FAIL');
+    }
+  });
+
+  it('verifies a stored token without minting', async () => {
+    const getSiteInfo = vi.fn(async () => siteInfo);
+    const { report } = await runMobileProbe({
+      launch: async () => credential,
+      credentialSource: 'stored',
+      getSiteInfo,
+    });
+    expect(report.credentialSource).toBe('stored');
+    expect(getSiteInfo).toHaveBeenCalledWith(credential);
+    expect(formatMobileProbeReport(report)).toContain('result: PASS');
+  });
+
+  it('reads site info over fetch with the token and no cookie', async () => {
+    const fetchImpl = vi.fn(
+      async (_url: string, _init: RequestInit) =>
+        new Response(JSON.stringify(siteInfo), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+    );
+    const read = createCookieFreeSiteInfoReader({
+      origin: 'https://eclass.yorku.ca',
+      timeoutMs: 1000,
+      fetchImpl,
+    });
+
+    await expect(read(credential)).resolves.toMatchObject({ userid: 987654 });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toBe('https://eclass.yorku.ca/webservice/rest/server.php');
+    const headers = new Headers(init.headers);
+    expect(headers.has('cookie')).toBe(false);
+    expect(init.credentials ?? 'omit').not.toBe('include');
+    expect(new URLSearchParams(String(init.body)).get('wstoken')).toBe(TOKEN);
   });
 
   it('writes the function list as JSON', () => {

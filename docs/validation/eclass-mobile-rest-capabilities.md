@@ -12,7 +12,12 @@ never prints token values, user ids, usernames, site names, or emails.
 ## How to fill this in
 
 1. Log in through the MCP `/auth` flow.
-2. Run `npm run probe:mobile`.
+2. Run `npm run probe:mobile`. It mints a token, then reads site info with
+   the token alone over the production `fetch` transport (no cookies). It
+   ends with `result: PASS` only if Moodle returned a positive user id (not
+   printed) and a non-empty function list. To check an already stored token
+   without minting a new one, run `npm run probe:mobile -- --verify-only`.
+   A `FAIL` is a stop: record the error category and do not promote.
 3. Copy the `yes`/`no` column into **Available** below, and the
    `release`, `version`, `function count`, token length and shape, and private
    token presence into **Probe summary**.
@@ -29,11 +34,12 @@ The full function list is written to `.eclass-mcp/debug/mobile-functions.json`
 | --- | --- |
 | Date | Pending |
 | Minted | Pending |
+| Cookie-free site info (`result`) | Pending |
 | Token length / 32-hex shape | Pending |
 | Private token present | Pending |
 | Moodle `release` / `version` | Pending |
 | Function count | Pending |
-| Token lifetime (`managetoken.php`) | Pending |
+| Token lifetime (`managetoken.php`) | Unknown (record the observed value; do not assume Moodle's default) |
 
 ## Routing functions
 

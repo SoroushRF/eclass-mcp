@@ -2,7 +2,12 @@
  * Account-owner probe for the Moodle mobile token path (ADR 0011, Phase 2).
  *
  * Usage (after logging in through the MCP /auth flow):
- *   npm run probe:mobile
+ *   npm run probe:mobile                  # mint a token, then verify it
+ *   npm run probe:mobile -- --verify-only # verify the stored token only
+ *
+ * Verification reads site info over the production cookie-free fetch
+ * transport. The run passes (exit 0) only with a positive user id and a
+ * non-empty function list; neither the id nor the token is printed.
  *
  * Prints only shapes (yes/no, lengths, release/version, function count and
  * routing presence). The full sorted function-name list is written to
@@ -17,19 +22,20 @@ import { getEclassApiConfig } from '../src/scraper/eclass/api/constants';
 import { EclassApiSessionContext } from '../src/scraper/eclass/api/session-context';
 import { MoodleMobileLauncher } from '../src/scraper/eclass/api/mobile';
 import {
+  createCookieFreeSiteInfoReader,
   formatMobileProbeReport,
+  mobileProbePassed,
   runMobileProbe,
   writeMobileFunctionList,
 } from '../src/scraper/eclass/api/mobile-probe';
 import {
-  MOODLE_REST_CAPABILITIES,
-  MoodleRestClient,
-} from '../src/scraper/eclass/api/rest';
-import { PlaywrightMoodleTransport } from '../src/scraper/eclass/api/transport';
-import { getSessionFilePath } from '../src/scraper/session';
+  getSessionFilePath,
+  loadMobileCredential,
+} from '../src/scraper/session';
 
 async function main(): Promise<number> {
   const config = getEclassApiConfig();
+  const verifyOnly = process.argv.includes('--verify-only');
   const browserSession = new EClassBrowserSession();
   const sessionContext = new EclassApiSessionContext({
     browserSession,
@@ -44,18 +50,18 @@ async function main(): Promise<number> {
       timeoutMs: config.timeoutMs,
     });
     const { report, functionNames } = await runMobileProbe({
-      launch: () => launcher.launch(),
-      getSiteInfo: async () => {
-        const session = await sessionContext.getSession();
-        const client = new MoodleRestClient({
-          transport: new PlaywrightMoodleTransport({
-            request: session.request,
-            origin: config.origin,
-            timeoutMs: config.timeoutMs,
-          }),
-        });
-        return client.callCapability(MOODLE_REST_CAPABILITIES.siteInfo);
-      },
+      launch: verifyOnly
+        ? async () => {
+            const stored = loadMobileCredential();
+            if (!stored) throw new Error('NoStoredToken');
+            return stored;
+          }
+        : () => launcher.launch(),
+      credentialSource: verifyOnly ? 'stored' : 'minted',
+      getSiteInfo: createCookieFreeSiteInfoReader({
+        origin: config.origin,
+        timeoutMs: config.timeoutMs,
+      }),
     });
 
     console.log(formatMobileProbeReport(report));
@@ -64,7 +70,7 @@ async function main(): Promise<number> {
       writeMobileFunctionList(outFile, functionNames);
       console.log(`function list written to ${outFile} (gitignored)`);
     }
-    return report.minted && !report.restError ? 0 : 1;
+    return mobileProbePassed(report) ? 0 : 1;
   } catch (error) {
     // The session bootstrap throws when no fresh cookie session exists.
     console.error(
