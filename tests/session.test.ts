@@ -41,6 +41,7 @@ afterEach(() => {
     'vitest-session-delete.json',
     'vitest-session-save-error.json',
     'vitest-session-mobile.json',
+    'vitest-session-token-only.json',
   ];
   for (const fileName of files) {
     cleanupSessionFile(fileName);
@@ -354,5 +355,25 @@ describe('session file behavior', () => {
     } finally {
       process.env.ECLASS_MCP_SESSION_SECRET = original;
     }
+  });
+});
+
+describe('token-only sessions', () => {
+  it('never count as a fresh cookie session', () => {
+    const fileName = 'vitest-session-token-only.json';
+    saveSession([], fileName, {
+      service: 'moodle_mobile_app',
+      token: 'fake-token-only',
+      issuedAt: '2026-09-27T00:00:00.000Z',
+    });
+
+    expect(isSessionValid(fileName)).toBe(false);
+    expect(loadSession(fileName)).toBeNull();
+    expect(loadMobileCredential(fileName)).toMatchObject({
+      token: 'fake-token-only',
+    });
+    expect(loadSessionDataForTests(fileName)?.saved_at).toBe(
+      new Date(0).toISOString()
+    );
   });
 });

@@ -21,7 +21,22 @@ function removeSessionFile(): void {
 }
 
 function writeFreshSession(): void {
-  saveSession([], path.basename(sessionFilePath));
+  // A cookie session needs cookies; a token-only envelope never counts.
+  saveSession(
+    [
+      {
+        name: 'FakeMoodleSession',
+        value: 'fake-cookie-value',
+        domain: 'eclass.yorku.ca',
+        path: '/',
+        expires: -1,
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+      },
+    ],
+    path.basename(sessionFilePath)
+  );
 }
 
 beforeAll(() => {

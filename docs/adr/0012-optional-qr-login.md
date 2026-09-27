@@ -51,6 +51,10 @@ signed-in account owner.
    API browser contexts are closed, the previous account's caches are
    cleared, and the account scope moves to the QR user. Both paths advance
    the auth generation, so a token renewal in flight cannot overwrite it.
+   The token-only envelope has no cookies and an epoch cookie timestamp, and
+   a session without cookies is never a valid cookie session, so `/status`,
+   the auth wait and cookie-dependent routing report it as signed out of
+   the browser session.
 7. **Explicit error mapping.** `qrcodedisabled`, `apprequired`, `invalidkey`,
    `expiredkey`, IP mismatch, `autologinnotallowedtoadmins`, and disabled
    mobile services each map to a fixed message that points back to `/auth`.

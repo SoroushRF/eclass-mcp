@@ -17,6 +17,7 @@ import {
   getAuthUrl,
   startAuthServer,
   stopAuthServer,
+  waitForAuthSession,
 } from '../src/auth/server';
 import type { FetchLike } from '../src/scraper/eclass/api/transport';
 import { rootLogger } from '../src/logging/logger';
@@ -36,6 +37,15 @@ const FAKE_KEY = 'FAKEqrKEY0123456789abcdefABCDEF0';
 const FAKE_TOKEN = 'faketoken0123456789abcdef012345';
 const FAKE_PRIVATE = 'fakeprivate0123456789abcdef0123';
 const PAYLOAD = `moodlemobile://${ORIGIN}?qrlogin=${FAKE_KEY}&userid=42`;
+// Real storage functions, captured before any spy, for tests that redirect
+// them to a throwaway envelope instead of the real session.json.
+const realSession = {
+  saveSession: session.saveSession,
+  isSessionValid: session.isSessionValid,
+  loadSession: session.loadSession,
+  hasMobileCredential: session.hasMobileCredential,
+  clearSession: session.clearSession,
+};
 
 function captureLogs() {
   const lines: string[] = [];
@@ -474,6 +484,53 @@ describe.sequential('QR login routes', () => {
       headers: { Origin: form.origin },
     });
   }
+
+  it('leaves a QR-only login without a fresh cookie session (status, auth wait)', async () => {
+    captureLogs();
+    const testFile = 'vitest-qr-token-only.json';
+    vi.spyOn(session, 'saveSession').mockImplementation((cookies, _f, mobile) =>
+      realSession.saveSession(cookies, testFile, mobile)
+    );
+    vi.spyOn(session, 'isSessionValid').mockImplementation(() =>
+      realSession.isSessionValid(testFile)
+    );
+    vi.spyOn(session, 'loadSession').mockImplementation(() =>
+      realSession.loadSession(testFile)
+    );
+    vi.spyOn(session, 'hasMobileCredential').mockImplementation(() =>
+      realSession.hasMobileCredential(testFile)
+    );
+    vi.spyOn(
+      sessionContext,
+      'closeAllEclassApiSessionContexts'
+    ).mockResolvedValue(undefined);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.includes('service-nologin.php')
+          ? json([{ error: false, data: { token: FAKE_TOKEN } }])
+          : siteInfo(42)
+      )
+    );
+    try {
+      const form = await openForm();
+      const result = await submit(form, PAYLOAD);
+      expect(result.status).toBe(200);
+
+      const status = await request(getAuthUrl().replace('/auth', '/status'));
+      expect(JSON.parse(status.body)).toMatchObject({
+        authenticated: false,
+        mobileToken: 'present',
+      });
+      expect(session.isSessionValid()).toBe(false);
+      expect(session.loadSession()).toBeNull();
+      await expect(
+        waitForAuthSession({ timeoutMs: 5, pollIntervalMs: 1 })
+      ).resolves.toBe(false);
+    } finally {
+      realSession.clearSession(testFile);
+    }
+  });
 
   it('exchanges, verifies and stores a QR login without echoing secrets', async () => {
     const logs = captureLogs();
