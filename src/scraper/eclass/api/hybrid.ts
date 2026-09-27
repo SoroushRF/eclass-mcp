@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import { getLogger } from '../../../logging/context';
 import {
   createSafeApiLogFields,
@@ -173,9 +174,36 @@ function apiErrorCode(error: unknown): string {
   return 'UPSTREAM_ERROR';
 }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+/**
+ * Per-read record of an API read in progress: which fallbacks it took (so a
+ * shadow comparison of a read that fell back is not counted as a clean API
+ * validation) and whether its shadow window already expired.
+ */
+interface ApiReadTrace {
+  fallbacks: FallbackTarget[];
+  cancelled: boolean;
+}
+
+const apiReadTrace = new AsyncLocalStorage<ApiReadTrace>();
+
+/** Stops further calls of a shadow read whose result is no longer wanted. */
+function throwIfReadCancelled(): void {
+  if (apiReadTrace.getStore()?.cancelled) {
+    throw new MoodleApiError({
+      category: 'timeout',
+      upstreamCode: 'shadow_cancelled',
+    });
+  }
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout?: () => void
+): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
+      onTimeout?.();
       reject(new MoodleApiError({ category: 'timeout' }));
     }, timeoutMs);
     promise.then(
@@ -202,6 +230,7 @@ async function mapWithConcurrency<T, R>(
     { length: Math.min(limit, items.length) },
     async () => {
       while (next < items.length) {
+        throwIfReadCancelled();
         const index = next++;
         results[index] = await fn(items[index]!);
       }
@@ -495,6 +524,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
     let afterEventId: number | undefined;
     let complete = false;
     for (let page = 0; page < CALENDAR_MAX_PAGES; page++) {
+      throwIfReadCancelled();
       const { events: pageEvents } = await fetchPage(afterEventId);
       let added = 0;
       for (const event of pageEvents) {
@@ -637,8 +667,15 @@ export class EclassHybridProvider implements EclassScraperDependency {
     compare: ShadowComparator<T>
   ): Promise<T> {
     const startedAt = Date.now();
+    const trace: ApiReadTrace = { fallbacks: [], cancelled: false };
     const [apiResult, playwrightResult] = await Promise.allSettled([
-      withTimeout(apiRead(), this.shadowTimeoutMs),
+      withTimeout(
+        apiReadTrace.run(trace, apiRead),
+        this.shadowTimeoutMs,
+        () => {
+          trace.cancelled = true;
+        }
+      ),
       playwrightRead(),
     ]);
 
@@ -661,7 +698,20 @@ export class EclassHybridProvider implements EclassScraperDependency {
       return playwrightResult.value;
     }
 
-    const comparison = compare(apiResult.value, playwrightResult.value);
+    const compared = compare(apiResult.value, playwrightResult.value);
+    // A read that reached its result through a fallback did not validate
+    // the API path it was meant to measure.
+    const comparison =
+      trace.fallbacks.length > 0
+        ? {
+            ...compared,
+            passed: false,
+            mismatchCategories: [
+              ...compared.mismatchCategories,
+              'api_path_fell_back',
+            ],
+          }
+        : compared;
     const level = comparison.mismatchCategories.length > 0 ? 'warn' : 'info';
     getLogger()[level](
       createSafeApiLogFields({
@@ -685,6 +735,7 @@ export class EclassHybridProvider implements EclassScraperDependency {
     error: unknown,
     target: FallbackTarget = 'playwright'
   ): void {
+    apiReadTrace.getStore()?.fallbacks.push(target);
     const safeError = serializeApiErrorForLog(error);
     getLogger().warn(
       createSafeApiLogFields({

@@ -76,11 +76,27 @@ mismatch category.
 | `deadlines` (fallback only) | `get_deadlines`      | `core_calendar_get_action_events_by_timesort`                                | Yes                 | Pending     | No       |
 | `file_download`             | `get_file_text`      | `/webservice/pluginfile.php`                                                 | Yes                 | Pending     | No       |
 
-Shadow mismatch categories to watch: `section_count`, `visible_module_set`,
-`grade_item_set`, `grade_value`, `discussion_set`, `title_mismatch`,
-`assignment_set`, `submission_status`. Expected, benign differences: REST
-announcement and assignment dates are ISO 8601, while the Playwright path
-returns page display text; these fields are not compared.
+A shadow match means every compared field was seen on both sides and was
+equal after normalization; duplicates count. Mismatch categories:
+
+- Courses: `count`, `course_set`.
+- Course content: `section_count`, `section_title`, `section_membership`,
+  `visible_module_set`, `external_platforms`.
+- Deadlines: `count`, `deadline_set`, `name`, `course`, `due_date`.
+- Grades: `count`, `grade_item_set`, `grade_value`, `grade_range`,
+  `grade_percentage`, `grade_feedback`.
+- Announcements: `count`, `discussion_set`, `title_mismatch`,
+  `content_mismatch`, `author_mismatch`, `links_mismatch`, `date_mismatch`.
+- Assignment index: `count`, `assignment_set`, `submission_status`,
+  `submission_state`, `name`, `due_date`.
+- Any read: `api_path_fell_back` when the API result came through a fallback
+  (for example AJAX → REST), so it did not validate the path under test.
+
+Dates are compared as instants: two ISO timestamps exactly, a display date
+to the minute in the host's time zone (run the canary with the host in the
+Moodle profile's zone). A date that cannot be parsed yields
+`<category>_unverified`, which is a failure, not a skip. When the shadow
+window expires, the API read stops issuing further calls.
 
 ## Rollback rehearsal
 

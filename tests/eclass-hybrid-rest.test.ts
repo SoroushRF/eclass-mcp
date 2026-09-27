@@ -689,3 +689,74 @@ describe('REST calendar paging', () => {
     expect(rest.getActionEventsByTimesort).toHaveBeenCalledTimes(10);
   });
 });
+
+describe('shadow evidence', () => {
+  function captureWarnings() {
+    const lines: string[] = [];
+    vi.spyOn(rootLogger, 'info').mockImplementation((() => undefined) as never);
+    vi.spyOn(rootLogger, 'warn').mockImplementation(((...args: unknown[]) => {
+      lines.push(JSON.stringify(args));
+    }) as never);
+    return lines;
+  }
+
+  it('does not count a read that fell back as a clean API validation', async () => {
+    const logs = captureWarnings();
+    const apiClient = {
+      getEnrolledCourses: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'upstream' });
+      }),
+      getCourseFormatState: vi.fn(),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid, rest } = provider({
+      mode: 'shadow',
+      shadowTimeoutMs: 500,
+      apiClient,
+    });
+
+    await hybrid.getCourses();
+
+    expect(rest.getUserCourses).toHaveBeenCalledTimes(1);
+    const mismatch = logs.find((line) =>
+      line.includes('eClass API shadow mismatch')
+    );
+    expect(mismatch).toContain('api_path_fell_back');
+  });
+
+  it('stops submission-status fan-out once the shadow window expires', async () => {
+    quietLogs();
+    const base = MoodleRestAssignmentsDataSchema.parse(assignmentsFixture);
+    const template = base.courses[0]!.assignments[0]!;
+    const many = {
+      ...base,
+      courses: [
+        {
+          ...base.courses[0]!,
+          assignments: Array.from({ length: 20 }, (_, index) => ({
+            ...template,
+            id: 5000 + index,
+          })),
+        },
+      ],
+    };
+    const rest = restReader();
+    rest.getAssignments.mockResolvedValue(many);
+    rest.getSubmissionStatus.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      return MoodleRestSubmissionStatusSchema.parse(submissionStatusFixture);
+    });
+    const { hybrid, playwright } = provider({
+      mode: 'shadow',
+      shadowTimeoutMs: 10,
+      restClient: rest,
+    });
+
+    await hybrid.getAllAssignmentDeadlines('101');
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(playwright.getAllAssignmentDeadlines).toHaveBeenCalledTimes(1);
+    expect(rest.getSubmissionStatus.mock.calls.length).toBeLessThanOrEqual(4);
+  });
+});

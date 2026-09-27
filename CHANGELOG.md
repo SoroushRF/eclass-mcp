@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An unreadable assignment status was reported as "No submission"; it is now "Unknown (status unavailable)". Personal extensions set the effective due date.
 - REST deadlines read only the first 50 global events, so a busy course hid others. Reads now use the course-scoped function or page with a bound, and fail instead of returning a truncated list.
 - A validation failure, rate limit or oversized response is no longer retried on another transport or hidden behind an earlier AJAX error.
+- Shadow comparisons checked little more than ids and names. They now compare multiplicity, section titles and membership, grade range, percentage and feedback, announcement content, author, links and date, and assignment submission state and due date; unreadable dates fail as `*_unverified`. A shadow read that fell back is reported as `api_path_fell_back`, and a timed-out shadow read stops issuing calls.
 - Fixed the Moodle mobile launch parser: `launch.php` redirects to `moodlemobile://token=<base64(md5(wwwroot+passport):::token[:::privatetoken])>`, which the old query-string parser could never read. The md5 prefix is now verified against this process's passport.
 - Redacted Moodle app scheme payloads, private tokens, and QR login keys in logs.
 - Fixed the `mod_forum_get_forums_by_courses` REST schema, which expected an object although Moodle returns a bare array.

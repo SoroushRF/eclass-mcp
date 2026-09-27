@@ -131,7 +131,9 @@ token is stored, token REST (`/webservice/rest/server.php`, ADR 0011).
 | Section text, item details, preflight | Playwright                                                                      |
 
 - `shadow` runs both paths but returns Playwright data and records only
-  mismatch categories. It needs the cookie session and the token.
+  mismatch categories (field values, multiplicity and dates are compared; a
+  read that fell back is not counted as a match). It needs the cookie
+  session and the token.
 - `api` uses one bounded Playwright fallback for eligible read failures.
   Validation failures, rate limits and size caps are reported, not retried
   on another transport.
