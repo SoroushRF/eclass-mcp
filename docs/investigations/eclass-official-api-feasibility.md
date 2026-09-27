@@ -6,7 +6,7 @@ default.
 **Dates:** 13 August 2026  
 **Site:** York University eClass (`https://eclass.yorku.ca`)  
 **Product under study:** this repository’s local MCP server (`eclass-mcp`)  
-**Related ADR:** [ADR 0010 — Hybrid eClass data access (session JSON + optional mobile handshake)](../adr/0010-hybrid-eclass-data-access.md)
+**Related ADR:** [ADR 0010 — Hybrid eClass data access (session JSON + optional mobile handshake)](../adr/0010-hybrid-eclass-data-access.md); follow-up log: [mobile token findings](./eclass-mobile-token-findings.md)
 
 ## Implementation result
 
