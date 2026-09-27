@@ -1,8 +1,10 @@
 import fs from 'fs';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import {
+  AuthGenerationChangedError,
   clearSession,
   clearMobileCredential,
+  getAuthGeneration,
   getSessionFilePath,
   hasMobileCredential,
   isSavedSessionFresh,
@@ -11,6 +13,7 @@ import {
   loadSessionDataForTests,
   loadSession,
   saveMobileCredential,
+  saveMobileCredentialForGeneration,
   saveSession,
   SESSION_DATA_SCHEMA_VERSION,
   SESSION_STALE_HOURS,
@@ -140,6 +143,39 @@ describe('session file behavior', () => {
     clearMobileCredential(fileName);
     expect(loadMobileCredential(fileName)).toBeNull();
     expect(hasMobileCredential(fileName)).toBe(false);
+  });
+
+  it('refuses to save a renewed token after logout or a new login', () => {
+    const fileName = 'vitest-session-mobile.json';
+    const credential = {
+      service: 'moodle_mobile_app' as const,
+      token: 'fake-renewed-token',
+      issuedAt: new Date().toISOString(),
+    };
+
+    saveSession([], fileName);
+    const renewalStart = getAuthGeneration();
+    // Logout while the renewal is in flight.
+    clearSession(fileName);
+    expect(() =>
+      saveMobileCredentialForGeneration(credential, renewalStart, fileName)
+    ).toThrow(AuthGenerationChangedError);
+    expect(fs.existsSync(getSessionFilePath(fileName))).toBe(false);
+
+    saveSession([], fileName);
+    const afterLogin = getAuthGeneration();
+    saveSession([], fileName);
+    expect(() =>
+      saveMobileCredentialForGeneration(credential, afterLogin, fileName)
+    ).toThrow(AuthGenerationChangedError);
+    expect(loadMobileCredential(fileName)).toBeNull();
+
+    saveMobileCredentialForGeneration(
+      credential,
+      getAuthGeneration(),
+      fileName
+    );
+    expect(loadMobileCredential(fileName)).toEqual(credential);
   });
 
   it('round-trips an optional private token and still loads credentials without one', () => {

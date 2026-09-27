@@ -8,6 +8,7 @@ import {
 } from '../scraper/eclass';
 import { SecureSessionStorageError } from '../security/secure-session-store';
 import { handleEclassSessionExpired } from './auth-retry';
+import { ensureEclassAccountScope } from './dependencies';
 import { EclassToolErrorResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
 import { sessionStorageUnavailableResponse } from './auth-retry';
@@ -144,6 +145,10 @@ export async function runEclassToolBoundary<T extends McpToolResult>(
 ): Promise<T> {
   return runToolBoundary({
     ...options,
+    run: async () => {
+      await ensureEclassAccountScope();
+      return options.run();
+    },
     onUnknownError:
       options.onUnknownError ??
       (() => toBoundaryResult<T>(internalErrorResponse(options.toolName))),

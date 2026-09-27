@@ -16,6 +16,7 @@ async function loadWipeModule(root: string) {
   vi.resetModules();
   vi.doMock('../src/scraper/session', () => ({
     getSessionFilePath: () => path.join(root, 'session.json'),
+    advanceAuthGeneration: () => 1,
   }));
   vi.doMock('../src/scraper/cengage-session', () => ({
     CENGAGE_STATE_PATH: path.join(root, 'cengage-state.json'),
@@ -153,6 +154,7 @@ describe('secure session wipe behavior', () => {
     vi.resetModules();
     vi.doMock('../src/scraper/session', () => ({
       getSessionFilePath: () => path.join(root, 'session.json'),
+      advanceAuthGeneration: () => 1,
     }));
     vi.doMock('../src/scraper/cengage-session', () => ({
       CENGAGE_STATE_PATH: path.join(root, 'cengage-state.json'),

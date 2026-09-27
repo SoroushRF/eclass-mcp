@@ -308,16 +308,19 @@ export class EclassHybridProvider implements EclassScraperDependency {
   }
 
   /**
-   * Token download first when a mobile credential exists and the URL is a
-   * pluginfile (ADR 0011); any failure falls back to the Playwright download,
-   * which also handles wrapper pages such as `/mod/resource/view.php`.
+   * Outside `playwright` mode, a token download is tried first when a mobile
+   * credential exists and the URL is a pluginfile (ADR 0011). Rate limits and
+   * size caps are surfaced; other failures fall back to the Playwright
+   * download, which also handles wrapper pages such as
+   * `/mod/resource/view.php`. `playwright` mode sends no token traffic.
    */
   async downloadFile(fileUrl: string): Promise<DownloadedFile> {
-    if (this.tokenFiles) {
+    if (this.tokenFiles && this.mode !== 'playwright') {
       try {
         const file = await this.tokenFiles.download(fileUrl);
         if (file) return file;
       } catch (error) {
+        if (isTerminalApiError(error)) throw error;
         this.logFallback('file_download', error);
       }
     }

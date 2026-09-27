@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import {
   clearMobileCredential,
   loadMobileCredential,
@@ -85,6 +86,28 @@ export interface MoodleRestClientOptions {
   transport: Pick<MoodleTransport, 'postRest'>;
   credentialReader?: MobileCredentialReader;
   reMint?: () => Promise<MobileCredential>;
+  /**
+   * Called with the verified Moodle user id each time site info is
+   * discovered for a new credential (sets the account cache scope).
+   */
+  onIdentity?: (userId: string) => void;
+}
+
+/**
+ * Site info discovered for one credential. `fingerprint` is a SHA-256 of the
+ * token, held in memory only, so state never outlives the token it was
+ * discovered with.
+ */
+interface BoundIdentity {
+  fingerprint: string;
+  capabilities: ReadonlySet<string>;
+  userId: number | null;
+}
+
+class IdentityChangedError extends Error {}
+
+function credentialFingerprint(token: string): string {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 function parseRestError(value: unknown): void {
@@ -131,9 +154,15 @@ export class MoodleRestClient {
   private readonly transport: Pick<MoodleTransport, 'postRest'>;
   private readonly credentialReader: MobileCredentialReader;
   private readonly reMint?: () => Promise<MobileCredential>;
-  private capabilities: ReadonlySet<string> | null = null;
-  // Kept in memory only for `core_enrol_get_users_courses`; never logged.
-  private userId: number | null = null;
+  private readonly onIdentity?: (userId: string) => void;
+  // User id and capabilities are bound to one credential; never logged.
+  private bound: BoundIdentity | null = null;
+  private discovery: {
+    fingerprint: string;
+    promise: Promise<BoundIdentity>;
+  } | null = null;
+  private renewal: { fingerprint: string; promise: Promise<void> } | null =
+    null;
 
   constructor(options: MoodleRestClientOptions) {
     this.transport = options.transport;
@@ -142,25 +171,11 @@ export class MoodleRestClient {
       clear: () => clearMobileCredential(),
     };
     this.reMint = options.reMint;
+    this.onIdentity = options.onIdentity;
   }
 
   async discoverCapabilities(force = false): Promise<ReadonlySet<string>> {
-    if (this.capabilities && !force) {
-      return new Set(this.capabilities);
-    }
-    const raw = await this.callRaw(MOODLE_REST_CAPABILITIES.siteInfo, {}, true);
-    const parsed = MoodleRestSiteInfoSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new MoodleApiError({ category: 'malformed_response' });
-    }
-    const userId = Number(parsed.data.userid);
-    this.userId = Number.isInteger(userId) && userId > 0 ? userId : null;
-    this.capabilities = new Set(
-      (parsed.data.functions ?? [])
-        .map((fn) => fn.name.trim())
-        .filter((name) => name.length > 0)
-    );
-    return new Set(this.capabilities);
+    return new Set((await this.boundIdentity(force)).capabilities);
   }
 
   async hasCapability(functionName: string): Promise<boolean> {
@@ -168,8 +183,75 @@ export class MoodleRestClient {
     return capabilities.has(functionName);
   }
 
+  /** The verified Moodle user id for the active credential. */
+  async getVerifiedUserId(): Promise<string> {
+    const { userId } = await this.boundIdentity();
+    if (userId === null) {
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        upstreamCode: 'missing_userid',
+      });
+    }
+    return String(userId);
+  }
+
   getCapabilityNames(): string[] {
-    return this.capabilities ? [...this.capabilities].sort() : [];
+    return this.bound ? [...this.bound.capabilities].sort() : [];
+  }
+
+  /**
+   * Site info for the credential stored right now. Concurrent callers share
+   * one discovery, and a replaced credential is always rediscovered.
+   */
+  private async boundIdentity(force = false): Promise<BoundIdentity> {
+    const fingerprint = this.activeFingerprint();
+    if (!force && this.bound?.fingerprint === fingerprint) return this.bound;
+    if (force || this.discovery?.fingerprint !== fingerprint) {
+      const promise: Promise<BoundIdentity> = this.discover().finally(() => {
+        if (this.discovery?.promise === promise) this.discovery = null;
+      });
+      this.discovery = { fingerprint, promise };
+    }
+    return this.discovery!.promise;
+  }
+
+  private async discover(): Promise<BoundIdentity> {
+    const { value: raw, fingerprint } = await this.withCredential((token) =>
+      this.post(MOODLE_REST_CAPABILITIES.siteInfo, {}, token)
+    );
+    const parsed = MoodleRestSiteInfoSchema.safeParse(raw);
+    if (!parsed.success) {
+      throw new MoodleApiError({ category: 'malformed_response' });
+    }
+    const userId = Number(parsed.data.userid);
+    const bound: BoundIdentity = {
+      fingerprint,
+      userId: Number.isSafeInteger(userId) && userId > 0 ? userId : null,
+      capabilities: new Set(
+        (parsed.data.functions ?? [])
+          .map((fn) => fn.name.trim())
+          .filter((name) => name.length > 0)
+      ),
+    };
+    // Publish only while the credential is still the one discovered with.
+    if (this.storedFingerprint() === fingerprint) {
+      this.bound = bound;
+      if (bound.userId !== null) this.onIdentity?.(String(bound.userId));
+    }
+    return bound;
+  }
+
+  private storedFingerprint(): string | null {
+    const credential = this.credentialReader.load();
+    return credential ? credentialFingerprint(credential.token) : null;
+  }
+
+  private activeFingerprint(): string {
+    const fingerprint = this.storedFingerprint();
+    if (!fingerprint) {
+      throw new MoodleApiError({ category: 'mobile_token_invalid' });
+    }
+    return fingerprint;
   }
 
   async callCapability(
@@ -185,7 +267,7 @@ export class MoodleRestClient {
         });
       }
     }
-    return this.callRaw(functionName, args, true);
+    return this.callRaw(functionName, args);
   }
 
   async getCourseContents(
@@ -198,19 +280,47 @@ export class MoodleRestClient {
     );
   }
 
+  /**
+   * Sends the user id discovered for the same credential that makes the
+   * request; a credential replaced mid-call is rediscovered once.
+   */
   async getUserCourses(): Promise<MoodleRestUserCourses> {
-    await this.discoverCapabilities();
-    if (this.userId === null) {
-      throw new MoodleApiError({
-        category: 'malformed_response',
-        upstreamCode: 'missing_userid',
-      });
+    const functionName = MOODLE_REST_CAPABILITIES.userCourses;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const identity = await this.boundIdentity();
+      if (identity.userId === null) {
+        throw new MoodleApiError({
+          category: 'malformed_response',
+          upstreamCode: 'missing_userid',
+        });
+      }
+      if (!identity.capabilities.has(functionName)) {
+        throw new MoodleApiError({
+          category: 'capability_unavailable',
+          upstreamCode: functionName,
+        });
+      }
+      try {
+        const { value } = await this.withCredential((token) => {
+          if (credentialFingerprint(token) !== identity.fingerprint) {
+            throw new IdentityChangedError();
+          }
+          return this.post(functionName, { userid: identity.userId }, token);
+        });
+        const parsed = MoodleRestUserCoursesSchema.safeParse(value);
+        if (!parsed.success) {
+          throw new MoodleApiError({ category: 'malformed_response' });
+        }
+        return parsed.data;
+      } catch (error) {
+        if (error instanceof IdentityChangedError) continue;
+        throw error;
+      }
     }
-    return this.callParsed(
-      MOODLE_REST_CAPABILITIES.userCourses,
-      { userid: this.userId },
-      MoodleRestUserCoursesSchema
-    );
+    throw new MoodleApiError({
+      category: 'upstream',
+      upstreamCode: 'identity_changed',
+    });
   }
 
   async getActionEventsByTimesort(args: {
@@ -313,42 +423,90 @@ export class MoodleRestClient {
 
   private async callRaw(
     functionName: string,
-    args: Record<string, unknown>,
-    allowReMint: boolean
+    args: Record<string, unknown>
   ): Promise<unknown> {
-    let attemptedReMint = false;
+    const { value } = await this.withCredential((token) =>
+      this.post(functionName, args, token)
+    );
+    return value;
+  }
+
+  private async post(
+    functionName: string,
+    args: Record<string, unknown>,
+    token: string
+  ): Promise<unknown> {
+    const raw = await this.transport.postRest(functionName, args, token);
+    parseRestError(raw);
+    return raw;
+  }
+
+  /**
+   * Runs `fn` with the stored token. On an invalid token the credential is
+   * renewed once (shared with concurrent callers) and `fn` retried once.
+   * Token file downloads use the same lifecycle.
+   */
+  async withCredential<T>(
+    fn: (token: string) => Promise<T>
+  ): Promise<{ value: T; fingerprint: string }> {
+    let renewed = false;
     while (true) {
       const credential = this.credentialReader.load();
       if (!credential) {
         throw new MoodleApiError({ category: 'mobile_token_invalid' });
       }
+      const fingerprint = credentialFingerprint(credential.token);
       try {
-        const raw = await this.transport.postRest(
-          functionName,
-          args,
-          credential.token
-        );
-        parseRestError(raw);
-        return raw;
+        return { value: await fn(credential.token), fingerprint };
       } catch (error) {
-        if (
-          isMobileTokenError(error) &&
-          allowReMint &&
-          !attemptedReMint &&
-          this.reMint
-        ) {
-          attemptedReMint = true;
-          this.credentialReader.clear();
-          await this.reMint();
-          this.capabilities = null;
+        if (!isMobileTokenError(error)) throw error;
+        if (!renewed && this.reMint) {
+          renewed = true;
+          await this.renew(fingerprint);
           continue;
         }
-        if (isMobileTokenError(error)) {
-          this.credentialReader.clear();
-        }
+        this.invalidate(fingerprint);
         throw error;
       }
     }
+  }
+
+  /**
+   * One renewal per failed credential. A caller whose token was already
+   * replaced by a concurrent renewal skips minting and retries with the new
+   * token. A failed renewal surfaces as `mobile_token_invalid`.
+   */
+  private renew(failedFingerprint: string): Promise<void> {
+    if (this.renewal?.fingerprint === failedFingerprint) {
+      return this.renewal.promise;
+    }
+    const current = this.storedFingerprint();
+    if (current && current !== failedFingerprint) return Promise.resolve();
+
+    const promise: Promise<void> = (async () => {
+      this.invalidate(failedFingerprint);
+      try {
+        await this.reMint!();
+      } catch (error) {
+        throw new MoodleApiError({
+          category: 'mobile_token_invalid',
+          upstreamCode: 'renewal_failed',
+          cause: error,
+        });
+      }
+    })().finally(() => {
+      if (this.renewal?.promise === promise) this.renewal = null;
+    });
+    this.renewal = { fingerprint: failedFingerprint, promise };
+    return promise;
+  }
+
+  /** Forgets state for a failed credential, clearing it only if still stored. */
+  private invalidate(fingerprint: string): void {
+    if (this.storedFingerprint() === fingerprint) {
+      this.credentialReader.clear();
+    }
+    if (this.bound?.fingerprint === fingerprint) this.bound = null;
   }
 }
 

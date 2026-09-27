@@ -75,11 +75,36 @@ export interface SessionData {
   mobile?: MobileCredential;
 }
 
+/**
+ * In-process counter that changes on every login, logout and session clear.
+ * A token renewal captures it when it starts and refuses to save if it moved,
+ * so a renewal still in flight cannot restore a credential after logout or
+ * write one into another account's session.
+ */
+let authGeneration = 0;
+
+export function getAuthGeneration(): number {
+  return authGeneration;
+}
+
+export function advanceAuthGeneration(): number {
+  authGeneration += 1;
+  return authGeneration;
+}
+
+export class AuthGenerationChangedError extends Error {
+  constructor() {
+    super('The eClass session changed while a mobile token was being renewed.');
+    this.name = 'AuthGenerationChangedError';
+  }
+}
+
 export function saveSession(
   cookies: Cookie[],
   fileName: string = 'session.json',
   mobile?: MobileCredential
 ): void {
+  advanceAuthGeneration();
   if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
   }
@@ -190,6 +215,21 @@ export function saveMobileCredential(
   });
 }
 
+/**
+ * Saves a renewed credential only if no login, logout or clear happened
+ * since `generation` was captured.
+ */
+export function saveMobileCredentialForGeneration(
+  mobile: MobileCredential,
+  generation: number,
+  fileName: string = 'session.json'
+): void {
+  if (generation !== authGeneration) {
+    throw new AuthGenerationChangedError();
+  }
+  saveMobileCredential(mobile, fileName);
+}
+
 export function clearMobileCredential(fileName: string = 'session.json'): void {
   const file = getSessionFilePath(fileName);
   if (!fs.existsSync(file)) return;
@@ -295,6 +335,7 @@ export function isSessionValid(fileName: string = 'session.json'): boolean {
 }
 
 export function clearSession(fileName: string = 'session.json'): void {
+  advanceAuthGeneration();
   const file = getSessionFilePath(fileName);
   if (fs.existsSync(file)) {
     try {

@@ -5,7 +5,10 @@ import {
   downloadFileWithToken,
   toWebservicePluginfileUrl,
 } from '../src/scraper/eclass/api/token-files';
-import type { FetchLike } from '../src/scraper/eclass/api/transport';
+import {
+  RESPONSE_TOO_LARGE,
+  type FetchLike,
+} from '../src/scraper/eclass/api/transport';
 import { rootLogger } from '../src/logging/logger';
 import type { EclassScraperDependency } from '../src/tools/dependencies';
 
@@ -164,7 +167,7 @@ describe('hybrid provider file downloads', () => {
     const html = playwright();
     const provider = new EclassHybridProvider({
       playwright: html,
-      mode: 'playwright',
+      mode: 'api',
       origin: ORIGIN,
       tokenFiles: {
         download: vi.fn(async () => ({
@@ -186,7 +189,7 @@ describe('hybrid provider file downloads', () => {
     const html = playwright();
     const notApplicable = new EclassHybridProvider({
       playwright: html,
-      mode: 'playwright',
+      mode: 'api',
       origin: ORIGIN,
       tokenFiles: { download: vi.fn(async () => null) },
     });
@@ -196,7 +199,7 @@ describe('hybrid provider file downloads', () => {
 
     const failing = new EclassHybridProvider({
       playwright: html,
-      mode: 'playwright',
+      mode: 'api',
       origin: ORIGIN,
       tokenFiles: {
         download: vi.fn(async () => {
@@ -208,5 +211,49 @@ describe('hybrid provider file downloads', () => {
       filename: 'playwright.pdf',
     });
     expect(html.downloadFile).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends no token traffic in playwright mode', async () => {
+    const html = playwright();
+    const download = vi.fn(async () => ({
+      buffer: Buffer.from('token'),
+      mimeType: 'application/pdf',
+      filename: 'token.pdf',
+    }));
+    const provider = new EclassHybridProvider({
+      playwright: html,
+      mode: 'playwright',
+      origin: ORIGIN,
+      tokenFiles: { download },
+    });
+
+    await expect(provider.downloadFile(FILE_URL)).resolves.toMatchObject({
+      filename: 'playwright.pdf',
+    });
+    expect(download).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a rate limit or size cap instead of retrying in the browser', async () => {
+    const html = playwright();
+    for (const error of [
+      new MoodleApiError({ category: 'rate_limited' }),
+      new MoodleApiError({
+        category: 'upstream',
+        upstreamCode: RESPONSE_TOO_LARGE,
+      }),
+    ]) {
+      const provider = new EclassHybridProvider({
+        playwright: html,
+        mode: 'api',
+        origin: ORIGIN,
+        tokenFiles: {
+          download: vi.fn(async () => {
+            throw error;
+          }),
+        },
+      });
+      await expect(provider.downloadFile(FILE_URL)).rejects.toBe(error);
+    }
+    expect(html.downloadFile).not.toHaveBeenCalled();
   });
 });

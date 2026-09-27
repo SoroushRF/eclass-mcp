@@ -42,6 +42,7 @@ describe('mobile token mint after login', () => {
       context: fakeContext(),
       origin: ORIGIN,
       timeoutMs: 1000,
+      sourceMode: 'shadow',
       createLauncher: () => ({ launch }),
     });
 
@@ -60,6 +61,7 @@ describe('mobile token mint after login', () => {
       context: fakeContext(),
       origin: ORIGIN,
       timeoutMs: 1000,
+      sourceMode: 'shadow',
       createLauncher: () => ({
         launch: async () => {
           throw new MoodleApiError({
@@ -74,6 +76,27 @@ describe('mobile token mint after login', () => {
     expect(outcome.privateToken).toBe(false);
     expect(outcome.errorCode).toBeTruthy();
     expect(logs.join('\n')).toContain('mobile_token_mint_failed');
+  });
+});
+
+describe('mobile token mint kill switch', () => {
+  it('mints nothing in playwright mode', async () => {
+    const launch = vi.fn();
+
+    const outcome = await mintMobileTokenAfterLogin({
+      context: fakeContext(),
+      origin: ORIGIN,
+      timeoutMs: 1000,
+      sourceMode: 'playwright',
+      createLauncher: () => ({ launch }),
+    });
+
+    expect(outcome).toEqual({
+      minted: false,
+      privateToken: false,
+      errorCode: 'disabled',
+    });
+    expect(launch).not.toHaveBeenCalled();
   });
 });
 
