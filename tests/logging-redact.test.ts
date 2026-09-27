@@ -77,6 +77,46 @@ describe('redactCookieSubstrings', () => {
     expect(value).toContain('Location: [Redacted]');
   });
 
+  it('redacts real launch.php payloads and QR login links in free text', () => {
+    const launch = 'moodlemobile://token=ZmFrZTo6OmZha2U6OjpmYWtlcHJpdmF0ZQ==';
+    const qr =
+      'moodlemobile://https://eclass.yorku.ca?qrlogin=fakeqrkey123&userid=42';
+    const value = redactCookieSubstrings(
+      `launch failed for ${launch} then QR ${qr} and moodle://token=abc123`
+    );
+
+    expect(value).not.toContain('ZmFrZTo6');
+    expect(value).not.toContain('fakeqrkey123');
+    expect(value).not.toContain('userid=42');
+    expect(value).not.toContain('abc123');
+    expect(value).toContain('moodlemobile://[Redacted]');
+    expect(value).toContain('moodle://[Redacted]');
+  });
+
+  it('redacts private tokens and QR keys in URLs and query strings', () => {
+    const text = redactCookieSubstrings(
+      'https://eclass.yorku.ca/x?privatetoken=priv1&qrloginkey=qr1&qrlogin=qr2 private_token=priv2'
+    );
+    expect(text).not.toMatch(/priv1|priv2|qr1|qr2/);
+
+    const url = redactUrlForLog(
+      'https://eclass.yorku.ca/webservice/pluginfile.php/1/a.pdf?token=tok1&privatetoken=priv3&forcedownload=1'
+    );
+    expect(url).not.toMatch(/tok1|priv3/);
+    expect(url).toContain('forcedownload=1');
+  });
+
+  it('redacts mobile credential fields in structured logs', () => {
+    const value = redactStructuredLogFields({
+      mobile: { privateToken: 'priv-secret', token: 'tok-secret' },
+      qrLoginKey: 'qr-secret',
+      wstoken: 'ws-secret',
+    });
+    expect(JSON.stringify(value)).not.toMatch(
+      /priv-secret|tok-secret|qr-secret|ws-secret/
+    );
+  });
+
   it('redacts nested structured API fields and error bodies', () => {
     const value = redactStructuredLogFields({
       operation: 'ajax',

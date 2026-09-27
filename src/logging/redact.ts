@@ -9,6 +9,9 @@ const SENSITIVE_QUERY_KEYS = new Set([
   'sesskey',
   'wstoken',
   'token',
+  'privatetoken',
+  'qrlogin',
+  'qrloginkey',
   'passport',
   'mobiletoken',
   'access_token',
@@ -34,6 +37,9 @@ const SENSITIVE_LOG_KEYS = new Set([
   'sesskey',
   'wstoken',
   'token',
+  'privatetoken',
+  'qrlogin',
+  'qrloginkey',
   'passport',
   'mobiletoken',
   'accesstoken',
@@ -70,6 +76,13 @@ export function redactCookieSubstrings(message: string): string {
 
   let out = message;
 
+  // Moodle app custom-scheme URLs carry launch tokens or QR login keys in any
+  // position (host, path, or query), so drop everything after the scheme.
+  out = out.replace(
+    /\b(moodlemobile|moodle):\/\/[^\s'"<>]+/gi,
+    `$1://${REDACTED_VALUE}`
+  );
+
   // Authorization, redirect, and cookie header lines
   out = out.replace(
     /\b(Authorization|Location|Set-Cookie|Cookie)\s*:\s*[^\n]*/gi,
@@ -79,7 +92,7 @@ export function redactCookieSubstrings(message: string): string {
   // Common sensitive URL query params
   out = redactUrlQueryParams(out);
   out = out.replace(
-    /\b(sesskey|wstoken|token|auth|code|state|key|UserPass|password|pass|secret|SAMLResponse|RelayState|passport|mobile_token|access_token|refresh_token)=[^&\s#'"]+/gi,
+    /\b(sesskey|wstoken|token|auth|code|state|key|UserPass|password|pass|secret|SAMLResponse|RelayState|passport|mobile_token|private_?token|qrlogin|qrloginkey|access_token|refresh_token)=[^&\s#'"]+/gi,
     `$1=${REDACTED_VALUE}`
   );
 
