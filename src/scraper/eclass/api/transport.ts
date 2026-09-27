@@ -50,7 +50,7 @@ function isTimeoutError(error: unknown): boolean {
   return name === 'TimeoutError' || name === 'AbortError';
 }
 
-function appendRestArgument(
+export function appendRestArgument(
   params: URLSearchParams,
   key: string,
   value: unknown
@@ -251,6 +251,173 @@ export class PlaywrightMoodleTransport implements MoodleTransport {
             : { errorCode: normalized.category }),
         }),
         'Moodle API request failed'
+      );
+      throw normalized;
+    }
+  }
+}
+
+export type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
+
+export interface FetchMoodleRestTransportOptions {
+  origin: string;
+  timeoutMs: number;
+  maxResponseBytes?: number;
+  fetchImpl?: FetchLike;
+}
+
+const REST_FUNCTION_PATTERN = /^[a-z][a-z0-9_]*$/;
+
+/**
+ * Reads a response body while counting bytes, aborting once the cap is
+ * exceeded so an oversized upstream body is never fully buffered.
+ */
+export async function readCappedBody(
+  response: Response,
+  maxBytes: number
+): Promise<Buffer> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new MoodleApiError({
+      category: 'malformed_response',
+      status: response.status,
+    });
+  }
+  if (!response.body) return Buffer.alloc(0);
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        status: response.status,
+      });
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks, total);
+}
+
+/**
+ * Token-only Moodle REST transport (ADR 0011). Uses global `fetch`, so REST
+ * reads need no Playwright browser context. The token travels only in the
+ * POST body, never in the URL, logs, or thrown errors.
+ */
+export class FetchMoodleRestTransport implements Pick<
+  MoodleTransport,
+  'postRest'
+> {
+  private readonly origin: string;
+  private readonly timeoutMs: number;
+  private readonly maxResponseBytes: number;
+  private readonly fetchImpl: FetchLike;
+
+  constructor(options: FetchMoodleRestTransportOptions) {
+    this.origin = assertOrigin(options.origin);
+    this.timeoutMs = options.timeoutMs;
+    this.maxResponseBytes =
+      options.maxResponseBytes ?? DEFAULT_MOODLE_RESPONSE_BYTES;
+    this.fetchImpl =
+      options.fetchImpl ?? ((input, init) => globalThis.fetch(input, init));
+  }
+
+  async postRest(
+    functionName: string,
+    args: Record<string, unknown>,
+    token: string
+  ): Promise<unknown> {
+    if (!token.trim()) {
+      throw new MoodleApiError({ category: 'mobile_token_invalid' });
+    }
+    if (!REST_FUNCTION_PATTERN.test(functionName)) {
+      throw new MoodleApiError({ category: 'malformed_response' });
+    }
+
+    const params = new URLSearchParams();
+    params.set('wstoken', token);
+    params.set('wsfunction', functionName);
+    params.set('moodlewsrestformat', 'json');
+    for (const [key, value] of Object.entries(args)) {
+      appendRestArgument(params, key, value);
+    }
+
+    const startedAt = Date.now();
+    let status: number | undefined;
+    let responseBytes: number | undefined;
+    try {
+      const response = await this.fetchImpl(
+        new URL(ECLASS_REST_PATH, this.origin).toString(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+          body: params.toString(),
+          redirect: 'error',
+          signal: AbortSignal.timeout(this.timeoutMs),
+        }
+      );
+      status = response.status;
+      const body = await readCappedBody(response, this.maxResponseBytes);
+      responseBytes = body.byteLength;
+
+      if (status < 200 || status >= 300) {
+        // 401/403 here usually mean a WAF or proxy block, not a dead token:
+        // Moodle reports token problems as 200 + `invalidtoken`.
+        const category: MoodleApiErrorCategory = classifyHttpStatus(status);
+        throw new MoodleApiError({ category, status });
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body.toString('utf8')) as unknown;
+      } catch (cause) {
+        throw new MoodleApiError({
+          category: 'malformed_response',
+          status,
+          cause,
+        });
+      }
+
+      getLogger().info(
+        createSafeApiLogFields({
+          operation: functionName,
+          source: 'rest',
+          endpointPath: ECLASS_REST_PATH,
+          status,
+          durationMs: Date.now() - startedAt,
+          responseBytes,
+        }),
+        'Moodle REST request completed'
+      );
+      return parsed;
+    } catch (error) {
+      const normalized =
+        error instanceof MoodleApiError
+          ? error
+          : new MoodleApiError({
+              category: isTimeoutError(error) ? 'timeout' : 'upstream',
+              status,
+            });
+      getLogger().warn(
+        createSafeApiLogFields({
+          operation: functionName,
+          source: 'rest',
+          endpointPath: ECLASS_REST_PATH,
+          ...(status !== undefined ? { status } : {}),
+          durationMs: Date.now() - startedAt,
+          ...(responseBytes !== undefined ? { responseBytes } : {}),
+          errorCode: normalized.category,
+        }),
+        'Moodle REST request failed'
       );
       throw normalized;
     }

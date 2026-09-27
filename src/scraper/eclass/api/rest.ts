@@ -88,7 +88,13 @@ function parseRestError(value: unknown): void {
       upstreamCode: errorCode,
     });
   }
-  if (errorCode === 'servicenotavailable') {
+  if (errorCode === 'invalidparameter') {
+    throw new MoodleApiError({
+      category: 'invalid_parameter',
+      upstreamCode: errorCode,
+    });
+  }
+  if (errorCode === 'servicenotavailable' || errorCode === 'accessexception') {
     throw new MoodleApiError({
       category: 'capability_unavailable',
       upstreamCode: errorCode,
