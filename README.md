@@ -53,6 +53,14 @@ Machine-readable **`code`** values (e.g. `SESSION_EXPIRED`, `SCRAPE_LAYOUT_CHANG
 
 When an eClass or SIS-backed tool hits `SESSION_EXPIRED`, the server opens `/auth`, waits up to **2 minutes** for the saved session to become valid, and retries the original tool operation once. If login is not completed in time, the tool returns the existing structured `status="auth_required"` response with retry guidance. Override the wait with **`ECLASS_MCP_AUTH_WAIT_MS`** in `.env`.
 
+### Mobile token lifecycle (ADR 0011)
+
+1. `/auth` saves the cookie session, then mints a Moodle mobile token through the official `launch.php` handshake (best effort; a failed mint never fails the login). A fresh login replaces any earlier token.
+2. The token lives only inside the encrypted session envelope. `http://localhost:<AUTH_PORT>/status` reports `mobileToken: "present" | "absent"`, never the value.
+3. In `shadow` or `api` source mode, REST-routed reads keep working after the cookie session goes stale. At startup the login window is not opened in that case; it opens on demand when a cookie-only read (SIS, section text, item details, Cengage) needs it.
+4. A rejected token is re-minted once through the cookie session; if that also fails, the tool reports `SESSION_EXPIRED` and the normal login flow runs.
+5. `/logout` deletes the session envelope, so the cookies and the token are cleared together.
+
 ### Secure session storage (E13)
 
 Local eClass/SIS cookies and Cengage/WebAssign Playwright storage state are encrypted at rest under `.eclass-mcp/` with `ECLASS_MCP_SESSION_SECRET`. The default install will not save or load auth sessions until that secret is set. Changing the secret invalidates saved sessions and requires re-authentication. Legacy plaintext session files from earlier versions are rejected; use `http://localhost:<AUTH_PORT>/logout` or delete the old auth files, then log in again.
@@ -384,6 +392,7 @@ Use `eclass:get_item_details` with includeCsv=true (csvMode=full or preview).
 | Codex tools not visible       | Restart Codex Desktop, run `npm run doctor`, and inspect `%USERPROFILE%\.codex\config.toml`; rerun `npm run setup:codex` if the target is stale                                                                                    |
 | Codex login/tool timeout      | Confirm `tool_timeout_sec = 180` under `[mcp_servers.eclass]` in `%USERPROFILE%\.codex\config.toml`; rerun `npm run setup:codex` if needed                                                                                         |
 | `"eClass session expired"`    | Visit `http://localhost:3000/auth` and log in again                                                                                                                                                                                |
+| Mobile token absent           | Log in again at `http://localhost:3000/auth` (the token is minted after login), or run `npm run probe:mobile`; `npm run doctor` explains the order                                                                                 |
 | `SESSION_STORAGE_UNAVAILABLE` | Set `ECLASS_MCP_SESSION_SECRET` in `.env`, restart the MCP server, clear old plaintext auth sessions, then authenticate again                                                                                                      |
 | `SCRAPE_LAYOUT_CHANGED`       | The eClass/Cengage page layout no longer matches known selectors. Retry once after refreshing auth if the page was mid-login; otherwise inspect stderr `selector_match` / `selector_failure` logs and optional selector snapshots. |
 | Wrong/changed session secret  | Restore the previous `ECLASS_MCP_SESSION_SECRET` or clear sessions at `http://localhost:3000/logout` and log in again                                                                                                              |

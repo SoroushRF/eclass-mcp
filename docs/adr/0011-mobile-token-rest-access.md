@@ -6,6 +6,16 @@ Proposed. Pending the account-owner capability probe (see
 [findings log](../investigations/eclass-mobile-token-findings.md), open
 questions 1–2).
 
+Implementation status (2026-09-27): the parser fix, token REST transport,
+token file downloads, capability-gated REST routing (behind the `shadow`
+and `api` source modes), mint-after-login, and token-aware startup are in
+place with deterministic tests. The status moves to Accepted once the
+probe and a live `shadow` session confirm the capability matrix; per-tool
+promotion is tracked in
+[`eclass-hybrid-release.md`](../validation/eclass-hybrid-release.md).
+Autologin (`tool_mobile_get_autologin_key`) is deferred until the probe
+shows York issues a private token.
+
 ## Context
 
 [ADR 0010](./0010-hybrid-eclass-data-access.md) moved course lists, course
