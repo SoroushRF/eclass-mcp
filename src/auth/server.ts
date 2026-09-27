@@ -1,7 +1,12 @@
 import http from 'http';
 import { randomBytes, timingSafeEqual } from 'crypto';
 import { chromium, type Browser } from 'playwright';
-import { saveSession, isSessionValid, type Cookie } from '../scraper/session';
+import {
+  saveSession,
+  isSessionValid,
+  hasMobileCredential,
+  type Cookie,
+} from '../scraper/session';
 import {
   CENGAGE_STATE_PATH,
   getCengageSessionValidity,
@@ -405,6 +410,11 @@ export async function startAuthServer() {
         }
         cache.clearVolatile();
 
+        // saveSession replaced the envelope, so any previous account's token
+        // is gone; mint a fresh one while the login is fresh (best effort).
+        const { mintMobileTokenAfterLogin } = await import('./mobile-mint');
+        await mintMobileTokenAfterLogin({ context }).catch(() => undefined);
+
         res.writeHead(200, { 'Content-Type': 'text/html' });
         res.end(`
           <!DOCTYPE html>
@@ -505,14 +515,21 @@ export async function startAuthServer() {
     } else if (pathname === '/status') {
       const secureSessionConfigured = isSecureSessionConfigured();
       let authenticated = false;
+      let mobileToken: 'present' | 'absent' = 'absent';
       try {
         authenticated = secureSessionConfigured ? isSessionValid() : false;
+        mobileToken =
+          secureSessionConfigured && hasMobileCredential()
+            ? 'present'
+            : 'absent';
       } catch {
         // Keep authenticated=false when the configured secret cannot decrypt
         // existing auth material.
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ authenticated, secureSessionConfigured }));
+      res.end(
+        JSON.stringify({ authenticated, secureSessionConfigured, mobileToken })
+      );
     } else if (pathname === '/logout') {
       if (req.method === 'POST') {
         let body: string;
@@ -543,7 +560,7 @@ export async function startAuthServer() {
           <html>
             <body style="font-family: sans-serif; max-width: 720px; margin: 48px auto; line-height: 1.5;">
               <h2>Clear local auth sessions?</h2>
-              <p>This removes encrypted eClass/SIS and Cengage/WebAssign auth session files from <code>.eclass-mcp/</code>. It does not delete cache, pins, debug output, or course-platform mappings.</p>
+              <p>This removes encrypted eClass/SIS and Cengage/WebAssign auth session files, including any stored Moodle mobile token, from <code>.eclass-mcp/</code>. It does not delete cache, pins, debug output, or course-platform mappings.</p>
               <form method="POST" action="/logout">
                 <input type="hidden" name="_csrf" value="${escapeHtml(authCsrfNonce ?? '')}">
                 <button type="submit" style="padding: 8px 14px;">Clear auth sessions</button>

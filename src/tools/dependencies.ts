@@ -97,7 +97,13 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
       timeoutMs: config.timeoutMs,
     }),
     restClient,
-    hasMobileCredential: () => loadMobileCredential() !== null,
+    hasMobileCredential: () => {
+      try {
+        return loadMobileCredential() !== null;
+      } catch {
+        return false;
+      }
+    },
     apiSessionContext,
     closeOwnedResources: () => browserSession.close(),
     mode: config.sourceMode,

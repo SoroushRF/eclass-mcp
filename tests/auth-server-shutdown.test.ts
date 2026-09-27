@@ -220,6 +220,21 @@ describe.sequential('auth server shutdown', () => {
     expect(clearSpy).toHaveBeenCalledTimes(1);
   });
 
+  it('reports mobile token presence in /status without values', async () => {
+    await startAuthServer();
+    const statusUrl = getAuthUrl().replace('/auth', '/status');
+    const response = await request(statusUrl);
+
+    expect(response.status).toBe(200);
+    const body = JSON.parse(response.body) as Record<string, unknown>;
+    expect(Object.keys(body).sort()).toEqual([
+      'authenticated',
+      'mobileToken',
+      'secureSessionConfigured',
+    ]);
+    expect(['present', 'absent']).toContain(body.mobileToken);
+  });
+
   it('HTML-escapes authentication errors', async () => {
     mockAuthBrowser({
       goto: vi.fn(async () => {

@@ -697,7 +697,8 @@ function checkMobileCredential(context) {
     case 'present':
       return pass(
         'eClass mobile credential',
-        'present (token-based REST reads available)'
+        'present (REST reads available in shadow/api modes; token file downloads in every mode)',
+        'Order: login saves cookies, then mints the token. With stale cookies, REST reads keep working and the login window opens only for cookie-only reads.'
       );
     case 'expired':
       return warn(
@@ -717,7 +718,7 @@ function checkMobileCredential(context) {
       return info(
         'eClass mobile credential',
         'absent (eClass reads use the cookie session and Playwright)',
-        'Order: cookie session -> mobile token -> REST capabilities. Run npm run probe:mobile after login to mint and inspect.'
+        `Order: log in at http://localhost:${context.authPort}/auth (saves cookies, then mints the token) -> REST capabilities. If the mint failed, npm run probe:mobile retries it and reports shapes only.`
       );
   }
 }

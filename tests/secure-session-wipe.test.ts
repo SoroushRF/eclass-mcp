@@ -113,6 +113,33 @@ describe('secure session wipe behavior', () => {
     );
   });
 
+  it('clearAllAuthSessions removes the mobile credential with the eClass envelope', async () => {
+    const root = makeTempDir();
+    // The mobile token lives only inside the eClass session envelope (ADR
+    // 0002, 0011); fixture values are obviously fake.
+    fs.writeFileSync(
+      path.join(root, 'session.json'),
+      JSON.stringify({
+        cookies: [],
+        mobile: { service: 'moodle_mobile_app', token: 'fake-token' },
+      }),
+      'utf8'
+    );
+    fs.writeFileSync(path.join(root, 'session.json.tmp-mobile'), 'x', 'utf8');
+
+    const { clearAllAuthSessions } = await loadWipeModule(root);
+    const result = clearAllAuthSessions();
+
+    expect(result.errors).toEqual([]);
+    expect(result.removed).toEqual(
+      expect.arrayContaining([
+        path.join(root, 'session.json'),
+        path.join(root, 'session.json.tmp-mobile'),
+      ])
+    );
+    expect(fs.readdirSync(root)).toEqual([]);
+  });
+
   it('clearAllAuthSessions records delete errors and continues with later files', async () => {
     const root = makeTempDir();
     fs.writeFileSync(path.join(root, 'session.json'), 'session', 'utf8');

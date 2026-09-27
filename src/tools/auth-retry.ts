@@ -1,9 +1,27 @@
 import * as authServer from '../auth/server';
 import { sessionStorageUnavailablePayload } from '../errors/tool-error';
-import { SessionExpiredError } from '../scraper/session';
+import { getEclassApiConfig } from '../scraper/eclass/api/constants';
+import { hasMobileCredential, SessionExpiredError } from '../scraper/session';
 import { SecureSessionStorageError } from '../security/secure-session-store';
 import { EclassToolErrorResponseSchema } from './eclass-contracts';
 import { asValidatedMcpText } from './mcp-validated-response';
+
+/**
+ * True when REST-routed eClass reads can run without a cookie session: a
+ * non-`playwright` source mode and a stored, unexpired mobile token
+ * (ADR 0011). Cookie-only reads still raise SessionExpiredError, and
+ * `handleEclassSessionExpired` opens the login window on demand.
+ */
+export function canServeEclassReadsWithToken(
+  sourceMode = getEclassApiConfig().sourceMode
+): boolean {
+  if (sourceMode === 'playwright') return false;
+  try {
+    return hasMobileCredential();
+  } catch {
+    return false;
+  }
+}
 
 export async function handleEclassSessionExpired<T>(
   error: SessionExpiredError,
