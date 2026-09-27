@@ -120,8 +120,8 @@ describe('session file behavior', () => {
     const credential = {
       service: 'moodle_mobile_app' as const,
       token,
-      issuedAt: '2026-08-21T20:00:00.000Z',
-      expiresAt: '2026-08-22T20:00:00.000Z',
+      issuedAt: new Date(Date.now() - 60_000).toISOString(),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     };
 
     saveSession([], fileName);
