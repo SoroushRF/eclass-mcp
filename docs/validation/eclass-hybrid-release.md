@@ -120,9 +120,56 @@ API requests. Configuration rollback is:
 REST token invalidation, logout cleanup, and session-context closure are
 covered by deterministic unit tests. REST reads now run in `shadow` and `api`
 modes when a mobile token is stored; `ECLASS_API_SOURCE_MODE=playwright`
-disables all REST reads except token file downloads, which fall back to
-Playwright on any failure. A live token-invalidation rehearsal remains an
-account-owner step.
+is a full kill switch (no REST reads, no token file downloads, no mint after
+login). A live token-invalidation rehearsal remains an account-owner step.
+
+## Release scope
+
+This release routes only the operations in the table above to REST. Section
+text (`get_section_text`), item details, submission preflight
+(`prepare_assignment_submission`) and quizzes stay on Playwright; the
+assignment index covers assignments only, as the Playwright index does. No
+REST write function is used. Widening this scope needs its own capability
+evidence and shadow runs.
+
+## Audit remediation evidence (2026-09-27)
+
+Automated, on `feat/eclass-mobile-token`, Windows, Node `v24.11.1`: 98 test
+files and 789 tests passed; `test:coverage` passed at 76.26% global branch
+coverage; `typecheck`, `typecheck:tests`, `lint` and `format:check` passed.
+The fixes and their regression tests:
+
+| Finding                                 | Fix                                                                | Tests                                                         |
+| --------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------- |
+| Identity not bound to the token         | Fingerprint-bound site info; api-mode account scope from it        | `eclass-api-rest.test.ts`, `eclass-api-account-scope.test.ts` |
+| Parallel mints; logout resurrection     | Shared renewal; auth generation checked before saving              | `eclass-api-rest.test.ts`, `session.test.ts`                  |
+| Kill switch leaked token traffic        | No mint, REST or token download in `playwright` mode               | `auth-mobile-mint.test.ts`, `eclass-token-files.test.ts`      |
+| `shadow` treated as token-only          | Only `api` is token-only; no AJAX bootstrap without cookies        | `auth-mobile-mint.test.ts`, `eclass-hybrid-rest.test.ts`      |
+| Unknown status shown as "No submission" | `Unknown (status unavailable)`; personal extensions set due date   | `eclass-hybrid-rest.test.ts`, `eclass-rest-canary.test.ts`    |
+| First 50 global events only             | Course-scoped function or bounded paging; fail at the bound        | `eclass-hybrid-rest.test.ts`                                  |
+| Terminal errors retried or masked       | Validation, rate limit, size cap surface; REST error kept          | `eclass-hybrid-rest.test.ts`, `eclass-token-files.test.ts`    |
+| Weak shadow comparison                  | Multisets and field values; `*_unverified`; `api_path_fell_back`   | `eclass-api-canary.test.ts`, `eclass-hybrid-rest.test.ts`     |
+| Probe used the cookie session           | Cookie-free fetch; user id and functions required; `--verify-only` | `eclass-api-mobile-probe.test.ts`                             |
+
+Still open, and not replaced by the tests above: the account-owner probe
+(`npm run probe:mobile` must print `result: PASS`), the capability matrix,
+York's observed token lifetime, two clean live shadow runs per operation,
+an `api` run with cookies unavailable, and the desktop prompt matrix.
+
+## Delivery order
+
+`feat/eclass-hybrid-api` is not on `master` yet, so merging the mobile token
+PR into it does not deliver anything. Merge in dependency order, rerunning
+CI on each resulting head:
+
+1. `feat/eclass-hybrid-api` → `master`.
+2. Retarget `feat/eclass-mobile-token` to `master`, rebase if needed, merge.
+3. Retarget `feat/eclass-qr-login` to `master` only after its own review
+   and owner evidence (QR stays off by default), then merge.
+
+Keep the atomic commits (merge commit or rebase merge, not squash). Tag and
+write release notes only after the release checklist passes on the merged
+`master` head.
 
 ## Final gate status
 
