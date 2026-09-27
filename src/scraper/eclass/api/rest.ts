@@ -5,14 +5,28 @@ import {
 } from '../../session';
 import { MoodleApiError } from './errors';
 import type { MoodleTransport } from './transport';
+import type { z } from 'zod';
 import {
+  MoodleCalendarDataSchema,
   MoodleRestAssignmentsDataSchema,
   MoodleRestCourseContentsSchema,
   MoodleRestErrorEnvelopeSchema,
+  MoodleRestForumDiscussionsSchema,
   MoodleRestForumsDataSchema,
   MoodleRestGradeItemsDataSchema,
+  MoodleRestOverviewGradesSchema,
   MoodleRestSiteInfoSchema,
+  MoodleRestSubmissionStatusSchema,
+  MoodleRestUserCoursesSchema,
+  type MoodleCalendarData,
+  type MoodleRestAssignmentsData,
   type MoodleRestCourseContents,
+  type MoodleRestForumDiscussions,
+  type MoodleRestForumsData,
+  type MoodleRestGradeItemsData,
+  type MoodleRestOverviewGrades,
+  type MoodleRestSubmissionStatus,
+  type MoodleRestUserCourses,
 } from './types';
 
 export const MOODLE_REST_CAPABILITIES = {
@@ -20,7 +34,12 @@ export const MOODLE_REST_CAPABILITIES = {
   courseContents: 'core_course_get_contents',
   assignments: 'mod_assign_get_assignments',
   forums: 'mod_forum_get_forums_by_courses',
+  forumDiscussions: 'mod_forum_get_forum_discussions',
+  actionEvents: 'core_calendar_get_action_events_by_timesort',
   gradeItems: 'gradereport_user_get_grade_items',
+  overviewGrades: 'gradereport_overview_get_course_grades',
+  submissionStatus: 'mod_assign_get_submission_status',
+  userCourses: 'core_enrol_get_users_courses',
   pluginFiles: 'core_files_get_files',
 } as const;
 
@@ -111,6 +130,8 @@ export class MoodleRestClient {
   private readonly credentialReader: MobileCredentialReader;
   private readonly reMint?: () => Promise<MobileCredential>;
   private capabilities: ReadonlySet<string> | null = null;
+  // Kept in memory only for `core_enrol_get_users_courses`; never logged.
+  private userId: number | null = null;
 
   constructor(options: MoodleRestClientOptions) {
     this.transport = options.transport;
@@ -130,6 +151,8 @@ export class MoodleRestClient {
     if (!parsed.success) {
       throw new MoodleApiError({ category: 'malformed_response' });
     }
+    const userId = Number(parsed.data.userid);
+    this.userId = Number.isInteger(userId) && userId > 0 ? userId : null;
     this.capabilities = new Set(
       (parsed.data.functions ?? [])
         .map((fn) => fn.name.trim())
@@ -166,48 +189,105 @@ export class MoodleRestClient {
   async getCourseContents(
     courseId: string | number
   ): Promise<MoodleRestCourseContents> {
-    const raw = await this.callCapability(
+    return this.callParsed(
       MOODLE_REST_CAPABILITIES.courseContents,
-      { courseid: Number(courseId) }
+      { courseid: Number(courseId) },
+      MoodleRestCourseContentsSchema
     );
-    const parsed = MoodleRestCourseContentsSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new MoodleApiError({ category: 'malformed_response' });
+  }
+
+  async getUserCourses(): Promise<MoodleRestUserCourses> {
+    await this.discoverCapabilities();
+    if (this.userId === null) {
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        upstreamCode: 'missing_userid',
+      });
     }
-    return parsed.data;
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.userCourses,
+      { userid: this.userId },
+      MoodleRestUserCoursesSchema
+    );
+  }
+
+  async getActionEventsByTimesort(args: {
+    timesortfrom: number;
+    limitnum: number;
+  }): Promise<MoodleCalendarData> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.actionEvents,
+      args,
+      MoodleCalendarDataSchema
+    );
   }
 
   async getAssignments(
     courseIds: readonly (string | number)[]
-  ): Promise<unknown> {
-    const raw = await this.callCapability(
+  ): Promise<MoodleRestAssignmentsData> {
+    return this.callParsed(
       MOODLE_REST_CAPABILITIES.assignments,
-      { courseids: courseIds.map(Number) }
+      { courseids: courseIds.map(Number) },
+      MoodleRestAssignmentsDataSchema
     );
-    const parsed = MoodleRestAssignmentsDataSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new MoodleApiError({ category: 'malformed_response' });
-    }
-    return parsed.data;
   }
 
-  async getForums(courseIds: readonly (string | number)[]): Promise<unknown> {
-    const raw = await this.callCapability(MOODLE_REST_CAPABILITIES.forums, {
-      courseids: courseIds.map(Number),
-    });
-    const parsed = MoodleRestForumsDataSchema.safeParse(raw);
-    if (!parsed.success) {
-      throw new MoodleApiError({ category: 'malformed_response' });
-    }
-    return parsed.data;
+  async getSubmissionStatus(
+    assignId: string | number
+  ): Promise<MoodleRestSubmissionStatus> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.submissionStatus,
+      { assignid: Number(assignId) },
+      MoodleRestSubmissionStatusSchema
+    );
   }
 
-  async getGradeItems(courseId?: string | number): Promise<unknown> {
-    const raw = await this.callCapability(
+  async getForums(
+    courseIds: readonly (string | number)[]
+  ): Promise<MoodleRestForumsData> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.forums,
+      { courseids: courseIds.map(Number) },
+      MoodleRestForumsDataSchema
+    );
+  }
+
+  async getForumDiscussions(
+    forumId: string | number,
+    perPage: number
+  ): Promise<MoodleRestForumDiscussions> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.forumDiscussions,
+      { forumid: Number(forumId), page: 0, perpage: perPage },
+      MoodleRestForumDiscussionsSchema
+    );
+  }
+
+  async getGradeItems(
+    courseId?: string | number
+  ): Promise<MoodleRestGradeItemsData> {
+    return this.callParsed(
       MOODLE_REST_CAPABILITIES.gradeItems,
-      courseId === undefined ? {} : { courseid: Number(courseId) }
+      courseId === undefined ? {} : { courseid: Number(courseId) },
+      MoodleRestGradeItemsDataSchema
     );
-    const parsed = MoodleRestGradeItemsDataSchema.safeParse(raw);
+  }
+
+  async getOverviewGrades(): Promise<MoodleRestOverviewGrades> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.overviewGrades,
+      {},
+      MoodleRestOverviewGradesSchema
+    );
+  }
+
+  private async callParsed<T>(
+    functionName: string,
+    args: Record<string, unknown>,
+    schema: z.ZodType<T>
+  ): Promise<T> {
+    const raw = await this.callCapability(functionName, args);
+    const parsed = schema.safeParse(raw);
     if (!parsed.success) {
       throw new MoodleApiError({ category: 'malformed_response' });
     }

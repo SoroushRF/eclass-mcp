@@ -94,7 +94,7 @@ describe('capability-gated Moodle REST client', () => {
       reMint,
     });
 
-    await expect(client.getCourseContents(101)).resolves.toHaveLength(1);
+    await expect(client.getCourseContents(101)).resolves.toHaveLength(2);
     expect(clear).toHaveBeenCalledTimes(1);
     expect(reMint).toHaveBeenCalledTimes(1);
     expect(postRest).toHaveBeenNthCalledWith(
@@ -151,7 +151,7 @@ describe('capability-gated Moodle REST client', () => {
       .mockResolvedValueOnce(siteInfoFixture)
       .mockResolvedValueOnce(siteInfoFixture)
       .mockResolvedValueOnce({ courses: [] })
-      .mockResolvedValueOnce({ forums: [] })
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce({ usergrades: [] })
       .mockResolvedValueOnce({ usergrades: [] });
     const client = new MoodleRestClient({
@@ -182,7 +182,7 @@ describe('capability-gated Moodle REST client', () => {
     await expect(client.getAssignments(['101', '202'])).resolves.toEqual({
       courses: [],
     });
-    await expect(client.getForums(['101'])).resolves.toEqual({ forums: [] });
+    await expect(client.getForums(['101'])).resolves.toEqual([]);
     await expect(client.getGradeItems('101')).resolves.toEqual({
       usergrades: [],
     });

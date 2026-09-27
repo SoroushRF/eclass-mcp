@@ -15,5 +15,38 @@
         "uservisible": 1
       }
     ]
+  },
+  {
+    "id": 2,
+    "name": "Week 1",
+    "section": 1,
+    "visible": 1,
+    "uservisible": 1,
+    "modules": [
+      {
+        "id": 12,
+        "name": "Sample assignment",
+        "modname": "assign",
+        "url": "https://eclass.yorku.ca/mod/assign/view.php?id=12",
+        "visible": 1,
+        "uservisible": 1
+      },
+      {
+        "id": 13,
+        "name": "Hidden quiz",
+        "modname": "quiz",
+        "url": "https://eclass.yorku.ca/mod/quiz/view.php?id=13",
+        "visible": 0,
+        "uservisible": 0
+      },
+      {
+        "id": 14,
+        "name": "Sample external tool",
+        "modname": "lti",
+        "url": "https://eclass.yorku.ca/mod/lti/view.php?id=14",
+        "visible": 1,
+        "uservisible": 1
+      }
+    ]
   }
 ]
