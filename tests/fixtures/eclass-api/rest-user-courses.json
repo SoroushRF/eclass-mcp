@@ -1,0 +1,14 @@
+[
+  {
+    "id": 101,
+    "shortname": "TEST 1001",
+    "fullname": "TEST 1001 - Example Course",
+    "visible": 1
+  },
+  {
+    "id": 202,
+    "shortname": "TEST 2002",
+    "fullname": "TEST 2002 - Second Example",
+    "visible": 1
+  }
+]

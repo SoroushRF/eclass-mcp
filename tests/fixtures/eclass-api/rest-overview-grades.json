@@ -1,0 +1,7 @@
+{
+  "grades": [
+    { "courseid": 101, "grade": "80.00", "rawgrade": "80.00000" },
+    { "courseid": 303, "grade": "-", "rawgrade": null }
+  ],
+  "warnings": []
+}

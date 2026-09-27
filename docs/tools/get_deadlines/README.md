@@ -12,6 +12,14 @@
 - Returns typed list with inferred `type` (`assign`/`quiz`/`other`).
 - Empty course-specific eClass results include `recommendedTool: "get_assignments"` so clients do not treat "no eClass deadlines" as final.
 
+## Data source
+
+1. **Session AJAX** calendar functions (primary in `api` and `shadow` modes).
+2. **Token REST** `core_calendar_get_action_events_by_timesort`, only when the AJAX read fails; results are filtered to `courseId` when one is given. A rate limit is never retried over REST.
+3. **Playwright** calendar pages (fallback and default mode).
+
+Mode is `ECLASS_API_SOURCE_MODE`: `playwright` (default) never calls REST; `shadow` runs both paths, returns Playwright data, and logs only mismatch categories; `api` returns the API result with one bounded Playwright fallback. REST is skipped (not failed) when no mobile credential is stored; a rejected token re-mints once through the cookie session (ADR 0011).
+
 ## Known Problems
 
 - Date parsing relies on Moodle date string consistency.

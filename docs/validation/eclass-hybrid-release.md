@@ -56,6 +56,32 @@ rows are in
 Manual MCP Inspector and Claude Desktop prompt-matrix rows are likewise
 not marked as live evidence. The generated E2E template is only a scaffold.
 
+## Mobile REST routing promotion
+
+Token REST routing (ADR 0011) is implemented behind the same source modes and
+is **not promoted**: the default stays `playwright`, and no row below has
+account-owner live evidence yet. A row is promoted only after
+`npm run probe:mobile` shows the function in the token's service
+([capability matrix](./eclass-mobile-rest-capabilities.md)) and a `shadow`
+session logs `eClass API shadow match` for that operation with no recurring
+mismatch category.
+
+| Operation (`/hybrid/<op>`)  | Tool                 | REST functions                                                               | Deterministic tests | Live shadow | Promoted |
+| --------------------------- | -------------------- | ---------------------------------------------------------------------------- | ------------------- | ----------- | -------- |
+| `course_content`            | `get_course_content` | `core_course_get_contents`                                                   | Yes                 | Pending     | No       |
+| `grades`                    | `get_grades`         | `gradereport_user_get_grade_items`, `gradereport_overview_get_course_grades` | Yes                 | Pending     | No       |
+| `announcements`             | `get_announcements`  | `mod_forum_get_forums_by_courses`, `mod_forum_get_forum_discussions`         | Yes                 | Pending     | No       |
+| `assignment_index`          | `get_assignments`    | `mod_assign_get_assignments`, `mod_assign_get_submission_status`             | Yes                 | Pending     | No       |
+| `courses` (fallback only)   | `list_courses`       | `core_enrol_get_users_courses`                                               | Yes                 | Pending     | No       |
+| `deadlines` (fallback only) | `get_deadlines`      | `core_calendar_get_action_events_by_timesort`                                | Yes                 | Pending     | No       |
+| `file_download`             | `get_file_text`      | `/webservice/pluginfile.php`                                                 | Yes                 | Pending     | No       |
+
+Shadow mismatch categories to watch: `section_count`, `visible_module_set`,
+`grade_item_set`, `grade_value`, `discussion_set`, `title_mismatch`,
+`assignment_set`, `submission_status`. Expected, benign differences: REST
+announcement and assignment dates are ISO 8601, while the Playwright path
+returns page display text; these fields are not compared.
+
 ## Rollback rehearsal
 
 The built host was started with:
@@ -76,8 +102,11 @@ API requests. Configuration rollback is:
    tools are unchanged.
 
 REST token invalidation, logout cleanup, and session-context closure are
-covered by deterministic unit tests. REST-backed MCP tools were not enabled,
-so no live token invalidation rehearsal was appropriate.
+covered by deterministic unit tests. REST reads now run in `shadow` and `api`
+modes when a mobile token is stored; `ECLASS_API_SOURCE_MODE=playwright`
+disables all REST reads except token file downloads, which fall back to
+Playwright on any failure. A live token-invalidation rehearsal remains an
+account-owner step.
 
 ## Final gate status
 

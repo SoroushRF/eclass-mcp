@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added pull request and issue templates, and documented Conventional Commits and the documentation rule in `CONTRIBUTING.md`.
 - Added the eClass mobile token findings log (`docs/investigations/eclass-mobile-token-findings.md`) and proposed ADR 0011 for Moodle mobile token REST access.
 - Added `npm run probe:mobile`, an account-owner diagnostic that mints a Moodle mobile token and reports only shapes (mint result, token length, private token presence, release, function count, routing presence). `npm run doctor` now reports the mobile credential state without values.
+- Routed eClass reads to Moodle mobile REST in `api` and `shadow` modes when a mobile token is stored: course content, grades, course announcements, and the eClass assignment index (with read-only submission status). Course lists and deadlines stay on session AJAX and use REST only as a fallback. Every function is capability-gated, falls back to Playwright, and is not yet promoted; the default mode is unchanged.
 - Added a token-only Moodle REST transport (`fetch`, no browser context) and token-authenticated file downloads through `/webservice/pluginfile.php`, with Playwright fallback on any failure.
 - Added T37 `prepare_assignment_submission`, a read-only assignment preflight tool that resolves eClass/Moodle and Cengage/WebAssign targets, signs exact `preflightRef` facts, blocks unsafe intended files or finalized/no-upload states, and marks external-platform writes unsupported for now.
 - Added Windows Codex Desktop setup support with `npm run setup:codex`, safe TOML merge/backup/restore handling, and doctor checks for the Codex `mcp_servers.eclass` registration.
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed the Moodle mobile launch parser: `launch.php` redirects to `moodlemobile://token=<base64(md5(wwwroot+passport):::token[:::privatetoken])>`, which the old query-string parser could never read. The md5 prefix is now verified against this process's passport.
 - Redacted Moodle app scheme payloads, private tokens, and QR login keys in logs.
+- Fixed the `mod_forum_get_forums_by_courses` REST schema, which expected an object although Moodle returns a bare array.
 - Fixed a date-dependent session test whose hard-coded mobile credential expiry had passed.
 - Corrected the ADR index status for ADR 0010 (Accepted behind the `playwright` default).
 - Removed the remaining production `Promise<any>` type escape hatch and tightened the static production typing guard.

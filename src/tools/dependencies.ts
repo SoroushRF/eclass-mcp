@@ -10,6 +10,9 @@ import {
   type EclassHybridProviderOptions,
 } from '../scraper/eclass/api/hybrid';
 import { getEclassApiConfig } from '../scraper/eclass/api/constants';
+import { MoodleMobileLauncher } from '../scraper/eclass/api/mobile';
+import { MoodleRestClient } from '../scraper/eclass/api/rest';
+import { FetchMoodleRestTransport } from '../scraper/eclass/api/transport';
 import {
   downloadFileWithToken,
   toWebservicePluginfileUrl,
@@ -64,6 +67,20 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
     origin: config.origin,
     timeoutMs: config.timeoutMs,
   });
+  // Token REST reads (ADR 0011). A rejected token re-mints once through the
+  // cookie session; without a stored credential REST is skipped entirely.
+  const launcher = new MoodleMobileLauncher({
+    sessionContext: apiSessionContext,
+    origin: config.origin,
+    timeoutMs: config.timeoutMs,
+  });
+  const restClient = new MoodleRestClient({
+    transport: new FetchMoodleRestTransport({
+      origin: config.origin,
+      timeoutMs: config.timeoutMs,
+    }),
+    reMint: () => launcher.launch(),
+  });
   const options: EclassHybridProviderOptions = {
     playwright: defaultEClassScraper,
     tokenFiles: {
@@ -79,6 +96,8 @@ export function getDefaultEclassHybridProvider(): EclassHybridProvider {
       origin: config.origin,
       timeoutMs: config.timeoutMs,
     }),
+    restClient,
+    hasMobileCredential: () => loadMobileCredential() !== null,
     apiSessionContext,
     closeOwnedResources: () => browserSession.close(),
     mode: config.sourceMode,

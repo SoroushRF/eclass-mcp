@@ -1,4 +1,11 @@
-import type { Assignment, Course, CourseContent } from '../types';
+import type {
+  Announcement,
+  Assignment,
+  Course,
+  CourseContent,
+  DeadlineItem,
+  Grade,
+} from '../types';
 
 export interface HybridCanaryComparison {
   passed: boolean;
@@ -105,4 +112,96 @@ export function assertCanaryPassed(
   throw new Error(
     `${label} canary failed: ${comparisonResult.mismatchCategories.join(',')}`
   );
+}
+
+function setMismatch(
+  apiKeys: ReadonlySet<string>,
+  playwrightKeys: ReadonlySet<string>
+): boolean {
+  return (
+    [...apiKeys].some((key) => !playwrightKeys.has(key)) ||
+    [...playwrightKeys].some((key) => !apiKeys.has(key))
+  );
+}
+
+function normalizedLabel(value: string): string {
+  return value.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+export function compareGradeCanary(
+  apiGrades: readonly Grade[],
+  playwrightGrades: readonly Grade[]
+): HybridCanaryComparison {
+  const key = (grade: Grade) =>
+    `${grade.courseId}|${normalizedLabel(grade.itemName)}`;
+  const apiByKey = new Map(apiGrades.map((grade) => [key(grade), grade]));
+  const playwrightByKey = new Map(
+    playwrightGrades.map((grade) => [key(grade), grade])
+  );
+  const mismatches: string[] = [];
+  if (apiByKey.size !== playwrightByKey.size) mismatches.push('count');
+  if (setMismatch(new Set(apiByKey.keys()), new Set(playwrightByKey.keys()))) {
+    mismatches.push('grade_item_set');
+  }
+  for (const [itemKey, apiGrade] of apiByKey) {
+    const playwrightGrade = playwrightByKey.get(itemKey);
+    if (
+      playwrightGrade &&
+      normalizedLabel(apiGrade.grade) !== normalizedLabel(playwrightGrade.grade)
+    ) {
+      mismatches.push('grade_value');
+    }
+  }
+  return comparison(mismatches, apiGrades.length, playwrightGrades.length);
+}
+
+export function compareAnnouncementCanary(
+  apiAnnouncements: readonly Announcement[],
+  playwrightAnnouncements: readonly Announcement[]
+): HybridCanaryComparison {
+  const ids = (items: readonly Announcement[]) =>
+    new Set(items.map((item) => item.id));
+  const titles = (items: readonly Announcement[]) =>
+    new Set(items.map((item) => `${item.id}|${normalizedLabel(item.title)}`));
+  const mismatches: string[] = [];
+  if (apiAnnouncements.length !== playwrightAnnouncements.length) {
+    mismatches.push('count');
+  }
+  if (setMismatch(ids(apiAnnouncements), ids(playwrightAnnouncements))) {
+    mismatches.push('discussion_set');
+  } else if (
+    setMismatch(titles(apiAnnouncements), titles(playwrightAnnouncements))
+  ) {
+    mismatches.push('title_mismatch');
+  }
+  return comparison(
+    mismatches,
+    apiAnnouncements.length,
+    playwrightAnnouncements.length
+  );
+}
+
+export function compareAssignmentIndexCanary(
+  apiItems: readonly DeadlineItem[],
+  playwrightItems: readonly DeadlineItem[]
+): HybridCanaryComparison {
+  const apiById = new Map(apiItems.map((item) => [item.id, item]));
+  const playwrightById = new Map(
+    playwrightItems.map((item) => [item.id, item])
+  );
+  const mismatches: string[] = [];
+  if (apiById.size !== playwrightById.size) mismatches.push('count');
+  if (setMismatch(new Set(apiById.keys()), new Set(playwrightById.keys()))) {
+    mismatches.push('assignment_set');
+  }
+  for (const [id, apiItem] of apiById) {
+    const playwrightItem = playwrightById.get(id);
+    if (
+      playwrightItem &&
+      normalizedLabel(apiItem.status) !== normalizedLabel(playwrightItem.status)
+    ) {
+      mismatches.push('submission_status');
+    }
+  }
+  return comparison(mismatches, apiItems.length, playwrightItems.length);
 }

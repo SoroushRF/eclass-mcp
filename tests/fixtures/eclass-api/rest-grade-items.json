@@ -1,0 +1,35 @@
+{
+  "usergrades": [
+    {
+      "courseid": 101,
+      "gradeitems": [
+        {
+          "id": 1,
+          "itemname": "Sample assignment",
+          "itemtype": "mod",
+          "itemmodule": "assign",
+          "gradeformatted": "8.00",
+          "rangeformatted": "0&ndash;10",
+          "percentageformatted": "80.00 %",
+          "feedback": "<p>Good &amp; clear.</p>"
+        },
+        {
+          "id": 2,
+          "itemname": "Hidden item",
+          "itemtype": "manual",
+          "gradeformatted": "-",
+          "gradeishidden": 1
+        },
+        {
+          "id": 3,
+          "itemname": null,
+          "itemtype": "course",
+          "gradeformatted": "80.00",
+          "rangeformatted": "0&ndash;100",
+          "percentageformatted": "80.00 %"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

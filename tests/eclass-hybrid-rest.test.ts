@@ -1,0 +1,464 @@
+import courseContentsFixture from './fixtures/eclass-api/rest-course-contents.json';
+import userCoursesFixture from './fixtures/eclass-api/rest-user-courses.json';
+import gradeItemsFixture from './fixtures/eclass-api/rest-grade-items.json';
+import overviewGradesFixture from './fixtures/eclass-api/rest-overview-grades.json';
+import forumsFixture from './fixtures/eclass-api/rest-forums.json';
+import discussionsFixture from './fixtures/eclass-api/rest-forum-discussions.json';
+import assignmentsFixture from './fixtures/eclass-api/rest-assignments.json';
+import submissionStatusFixture from './fixtures/eclass-api/rest-submission-status.json';
+import calendarFixture from './fixtures/eclass-api/ajax-calendar.json';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { EclassScraperDependency } from '../src/tools/dependencies';
+import { MoodleApiError } from '../src/scraper/eclass/api/errors';
+import {
+  EclassHybridProvider,
+  type RestReader,
+} from '../src/scraper/eclass/api/hybrid';
+import {
+  extractHtmlLinks,
+  htmlToPlainText,
+  submissionStatusLabel,
+} from '../src/scraper/eclass/api/rest-mappers';
+import {
+  MoodleAjaxResponseSchema,
+  MoodleCalendarDataSchema,
+  MoodleRestAssignmentsDataSchema,
+  MoodleRestCourseContentsSchema,
+  MoodleRestForumDiscussionsSchema,
+  MoodleRestForumsDataSchema,
+  MoodleRestGradeItemsDataSchema,
+  MoodleRestOverviewGradesSchema,
+  MoodleRestSubmissionStatusSchema,
+  MoodleRestUserCoursesSchema,
+} from '../src/scraper/eclass/api/types';
+import { rootLogger } from '../src/logging/logger';
+
+const ORIGIN = 'https://eclass.yorku.ca';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+function quietLogs() {
+  vi.spyOn(rootLogger, 'info').mockImplementation((() => undefined) as never);
+  vi.spyOn(rootLogger, 'warn').mockImplementation((() => undefined) as never);
+}
+
+function htmlProvider(): EclassScraperDependency {
+  return {
+    getCourses: vi.fn(async () => [
+      {
+        id: '999',
+        name: 'HTML Course',
+        url: `${ORIGIN}/course/view.php?id=999`,
+      },
+    ]),
+    getCourseContent: vi.fn(async (courseId: string) => ({
+      courseId,
+      sections: [
+        {
+          title: 'HTML section',
+          items: [
+            {
+              type: 'resource' as const,
+              name: 'HTML resource',
+              url: `${ORIGIN}/mod/resource/view.php?id=900`,
+            },
+          ],
+        },
+      ],
+    })),
+    getDeadlines: vi.fn(async () => []),
+    getAllAssignmentDeadlines: vi.fn(async () => []),
+    getItemDetails: vi.fn(),
+    getAssignmentSubmissionPreflight: vi.fn(),
+    downloadFile: vi.fn(),
+    getSectionText: vi.fn(),
+    getGrades: vi.fn(async () => [
+      {
+        courseId: '999',
+        itemName: 'HTML grade',
+        grade: '1',
+        range: '-',
+        percentage: '-',
+        feedback: '',
+      },
+    ]),
+    getAnnouncements: vi.fn(async () => []),
+  } as unknown as EclassScraperDependency;
+}
+
+function restReader() {
+  const calendar = MoodleAjaxResponseSchema.parse(calendarFixture)[0];
+  return {
+    getCourseContents: vi.fn(async () =>
+      MoodleRestCourseContentsSchema.parse(courseContentsFixture)
+    ),
+    getUserCourses: vi.fn(async () =>
+      MoodleRestUserCoursesSchema.parse(userCoursesFixture)
+    ),
+    getActionEventsByTimesort: vi.fn(async () =>
+      MoodleCalendarDataSchema.parse(calendar?.data)
+    ),
+    getAssignments: vi.fn(async () =>
+      MoodleRestAssignmentsDataSchema.parse(assignmentsFixture)
+    ),
+    getSubmissionStatus: vi.fn(async () =>
+      MoodleRestSubmissionStatusSchema.parse(submissionStatusFixture)
+    ),
+    getForums: vi.fn(async () =>
+      MoodleRestForumsDataSchema.parse(forumsFixture)
+    ),
+    getForumDiscussions: vi.fn(async () =>
+      MoodleRestForumDiscussionsSchema.parse(discussionsFixture)
+    ),
+    getGradeItems: vi.fn(async () =>
+      MoodleRestGradeItemsDataSchema.parse(gradeItemsFixture)
+    ),
+    getOverviewGrades: vi.fn(async () =>
+      MoodleRestOverviewGradesSchema.parse(overviewGradesFixture)
+    ),
+  } satisfies RestReader;
+}
+
+function provider(
+  options: Partial<ConstructorParameters<typeof EclassHybridProvider>[0]> = {}
+) {
+  const playwright = options.playwright ?? htmlProvider();
+  const rest =
+    (options.restClient as ReturnType<typeof restReader>) ?? restReader();
+  return {
+    playwright,
+    rest,
+    hybrid: new EclassHybridProvider({
+      playwright,
+      restClient: rest,
+      mode: 'api',
+      origin: ORIGIN,
+      ...options,
+    }),
+  };
+}
+
+describe('REST mapping helpers', () => {
+  it('turns Moodle HTML into plain text and extracts anchors', () => {
+    expect(htmlToPlainText('<p>A &amp; B</p><p>C&nbsp;D<br>E</p>')).toBe(
+      'A & B\nC D\nE'
+    );
+    expect(htmlToPlainText('<script>alert(1)</script>ok')).toBe('ok');
+    expect(
+      extractHtmlLinks(
+        `<a href="https://example.com/a?x=1&amp;y=2">A <b>link</b></a><a href='/rel'>R</a>`
+      )
+    ).toEqual([
+      { name: 'A link', url: 'https://example.com/a?x=1&y=2' },
+      { name: 'R', url: '/rel' },
+    ]);
+  });
+
+  it('uses Moodle assignment-index wording for submission status', () => {
+    expect(submissionStatusLabel(null)).toBe('No submission');
+    expect(
+      submissionStatusLabel({
+        lastattempt: { submission: { status: 'draft' } },
+      })
+    ).toBe('Draft (not submitted)');
+    expect(
+      submissionStatusLabel({
+        lastattempt: { teamsubmission: { status: 'submitted' } },
+      })
+    ).toBe('Submitted for grading');
+  });
+});
+
+describe('EclassHybridProvider REST routing', () => {
+  it('serves course content from REST in api mode with visible modules only', async () => {
+    const { hybrid, rest, playwright } = provider();
+
+    const content = await hybrid.getCourseContent('101');
+
+    expect(rest.getCourseContents).toHaveBeenCalledWith('101');
+    expect(playwright.getCourseContent).not.toHaveBeenCalled();
+    expect(content.courseId).toBe('101');
+    expect(content.sections.map((section) => section.title)).toEqual([
+      'General',
+      'Week 1',
+    ]);
+    expect(content.sections[1]?.items).toEqual([
+      {
+        type: 'assign',
+        name: 'Sample assignment',
+        url: `${ORIGIN}/mod/assign/view.php?id=12`,
+      },
+      {
+        type: 'lti',
+        name: 'Sample external tool',
+        url: `${ORIGIN}/mod/lti/view.php?id=14`,
+      },
+    ]);
+  });
+
+  it('falls back from REST to session AJAX, then to Playwright', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getCourseContents.mockRejectedValue(
+      new MoodleApiError({ category: 'capability_unavailable' })
+    );
+    const apiClient = {
+      getEnrolledCourses: vi.fn(),
+      getCourseFormatState: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'upstream' });
+      }),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid, playwright } = provider({ restClient: rest, apiClient });
+
+    const content = await hybrid.getCourseContent('101');
+
+    expect(rest.getCourseContents).toHaveBeenCalledTimes(1);
+    expect(apiClient.getCourseFormatState).toHaveBeenCalledTimes(1);
+    expect(playwright.getCourseContent).toHaveBeenCalledTimes(1);
+    expect(content.sections[0]?.title).toBe('HTML section');
+  });
+
+  it('skips REST entirely without a stored mobile credential', async () => {
+    const { hybrid, rest, playwright } = provider({
+      hasMobileCredential: () => false,
+    });
+
+    await hybrid.getCourseContent('101');
+    await hybrid.getGrades('101');
+    await hybrid.getAllAssignmentDeadlines();
+
+    expect(rest.getCourseContents).not.toHaveBeenCalled();
+    expect(rest.getGradeItems).not.toHaveBeenCalled();
+    expect(rest.getAssignments).not.toHaveBeenCalled();
+    expect(playwright.getCourseContent).toHaveBeenCalledTimes(1);
+    expect(playwright.getGrades).toHaveBeenCalledTimes(1);
+  });
+
+  it('never calls REST in playwright mode', async () => {
+    const { hybrid, rest, playwright } = provider({ mode: 'playwright' });
+
+    await hybrid.getGrades();
+    await hybrid.getCourseContent('101');
+
+    expect(rest.getOverviewGrades).not.toHaveBeenCalled();
+    expect(rest.getCourseContents).not.toHaveBeenCalled();
+    expect(playwright.getGrades).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns Playwright results in shadow mode while exercising REST', async () => {
+    quietLogs();
+    const { hybrid, rest } = provider({ mode: 'shadow', shadowTimeoutMs: 500 });
+
+    const grades = await hybrid.getGrades('101');
+
+    expect(grades[0]?.itemName).toBe('HTML grade');
+    expect(rest.getGradeItems).toHaveBeenCalledWith('101');
+  });
+
+  it('maps per-course grade items, hiding hidden grades', async () => {
+    const { hybrid } = provider();
+
+    await expect(hybrid.getGrades('101')).resolves.toEqual([
+      {
+        courseId: '101',
+        itemName: 'Sample assignment',
+        grade: '8.00',
+        range: '0–10',
+        percentage: '80.00 %',
+        feedback: 'Good & clear.',
+      },
+      {
+        courseId: '101',
+        itemName: 'Course total',
+        grade: '80.00',
+        range: '0–100',
+        percentage: '80.00 %',
+        feedback: '',
+      },
+    ]);
+  });
+
+  it('maps overview grades with course names from the enrolment list', async () => {
+    const { hybrid, rest } = provider();
+
+    const grades = await hybrid.getGrades();
+
+    expect(rest.getOverviewGrades).toHaveBeenCalledTimes(1);
+    expect(grades.map((grade) => [grade.courseId, grade.itemName])).toEqual([
+      ['101', 'TEST 1001 - Example Course'],
+      ['303', 'Course 303'],
+    ]);
+  });
+
+  it('reads announcements from the course news forum', async () => {
+    const { hybrid, rest, playwright } = provider();
+
+    const announcements = await hybrid.getAnnouncements('101', 1);
+
+    expect(rest.getForums).toHaveBeenCalledWith(['101']);
+    expect(rest.getForumDiscussions).toHaveBeenCalledWith(501, 1);
+    expect(playwright.getAnnouncements).not.toHaveBeenCalled();
+    expect(announcements).toEqual([
+      {
+        id: '8001',
+        title: 'Welcome to the course',
+        content: 'Hello & welcome.\nSee the syllabus and the course page.',
+        date: '2026-01-01T00:00:00.000Z',
+        author: 'Example Instructor',
+        discussionUrl: `${ORIGIN}/mod/forum/discuss.php?d=8001`,
+        links: [
+          {
+            name: 'the syllabus',
+            url: 'https://example.com/syllabus',
+            sourceDiscussionUrl: `${ORIGIN}/mod/forum/discuss.php?d=8001`,
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('returns no announcements when the course has no news forum', async () => {
+    const rest = restReader();
+    rest.getForums.mockResolvedValue(
+      MoodleRestForumsDataSchema.parse([
+        { id: 1, course: 101, type: 'general' },
+      ])
+    );
+    const { hybrid } = provider({ restClient: rest });
+
+    await expect(hybrid.getAnnouncements('101')).resolves.toEqual([]);
+    expect(rest.getForumDiscussions).not.toHaveBeenCalled();
+  });
+
+  it('keeps site-level announcements on Playwright', async () => {
+    const { hybrid, rest, playwright } = provider();
+
+    await hybrid.getAnnouncements(undefined, 5);
+
+    expect(rest.getForums).not.toHaveBeenCalled();
+    expect(playwright.getAnnouncements).toHaveBeenCalledWith(undefined, 5);
+  });
+
+  it('builds the assignment index with read-only submission status', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getSubmissionStatus
+      .mockResolvedValueOnce(
+        MoodleRestSubmissionStatusSchema.parse(submissionStatusFixture)
+      )
+      .mockRejectedValueOnce(new MoodleApiError({ category: 'upstream' }));
+    const { hybrid, playwright } = provider({ restClient: rest });
+
+    const items = await hybrid.getAllAssignmentDeadlines();
+
+    expect(rest.getAssignments).toHaveBeenCalledWith(['101', '202']);
+    expect(rest.getSubmissionStatus).toHaveBeenCalledTimes(2);
+    expect(playwright.getAllAssignmentDeadlines).not.toHaveBeenCalled();
+    expect(items).toEqual([
+      expect.objectContaining({
+        id: '12',
+        name: 'Sample assignment',
+        dueDate: '2026-01-01T00:00:00.000Z',
+        status: 'Submitted for grading',
+        submission: 'Submitted for grading',
+        grade: '8.00 / 10.00',
+        type: 'assign',
+        courseId: '101',
+        courseCode: 'TEST1001',
+        url: `${ORIGIN}/mod/assign/view.php?id=12`,
+      }),
+      expect.objectContaining({
+        id: '15',
+        dueDate: '',
+        status: 'No submission',
+        grade: '-',
+      }),
+    ]);
+  });
+
+  it('fails the assignment index on a rate limit instead of hiding it', async () => {
+    const rest = restReader();
+    rest.getSubmissionStatus.mockRejectedValue(
+      new MoodleApiError({ category: 'rate_limited', status: 429 })
+    );
+    const { hybrid, playwright } = provider({ restClient: rest });
+
+    await expect(hybrid.getAllAssignmentDeadlines('101')).rejects.toMatchObject(
+      { category: 'rate_limited' }
+    );
+    expect(playwright.getAllAssignmentDeadlines).not.toHaveBeenCalled();
+  });
+
+  it('keeps course lists and deadlines on AJAX, using REST only when AJAX fails', async () => {
+    quietLogs();
+    const calendar = MoodleAjaxResponseSchema.parse(calendarFixture)[0];
+    const apiClient = {
+      getEnrolledCourses: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'session_invalid' });
+      }),
+      getCourseFormatState: vi.fn(),
+      getCalendarUpcoming: vi.fn(async () =>
+        MoodleCalendarDataSchema.parse(calendar?.data)
+      ),
+      getCalendarActionEventsByTimesort: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'session_invalid' });
+      }),
+    };
+    const { hybrid, rest, playwright } = provider({ apiClient });
+
+    const courses = await hybrid.getCourses();
+    const upcoming = await hybrid.getDeadlines('101');
+    const deadlines = await hybrid.getDeadlines();
+
+    expect(courses.map((course) => course.id)).toEqual(['101', '202']);
+    expect(rest.getUserCourses).toHaveBeenCalledTimes(1);
+    expect(apiClient.getCalendarUpcoming).toHaveBeenCalledWith('101');
+    expect(upcoming[0]?.id).toBe('7001');
+    expect(rest.getActionEventsByTimesort).toHaveBeenCalledTimes(1);
+    expect(deadlines[0]?.id).toBe('7001');
+    expect(playwright.getCourses).not.toHaveBeenCalled();
+  });
+
+  it('reports the AJAX error when the REST fallback also fails', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getUserCourses.mockRejectedValue(
+      new MoodleApiError({ category: 'mobile_token_invalid' })
+    );
+    const apiClient = {
+      getEnrolledCourses: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'session_invalid' });
+      }),
+      getCourseFormatState: vi.fn(),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid, playwright } = provider({ restClient: rest, apiClient });
+
+    await expect(hybrid.getCourses()).rejects.toMatchObject({
+      category: 'session_invalid',
+    });
+    expect(playwright.getCourses).not.toHaveBeenCalled();
+  });
+
+  it('does not add REST traffic after an AJAX rate limit', async () => {
+    const apiClient = {
+      getEnrolledCourses: vi.fn(async () => {
+        throw new MoodleApiError({ category: 'rate_limited', status: 429 });
+      }),
+      getCourseFormatState: vi.fn(),
+      getCalendarUpcoming: vi.fn(),
+      getCalendarActionEventsByTimesort: vi.fn(),
+    };
+    const { hybrid, rest } = provider({ apiClient });
+
+    await expect(hybrid.getCourses()).rejects.toMatchObject({
+      category: 'rate_limited',
+    });
+    expect(rest.getUserCourses).not.toHaveBeenCalled();
+  });
+});

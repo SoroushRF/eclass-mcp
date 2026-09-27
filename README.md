@@ -91,8 +91,10 @@ flowchart LR
     F --> G
     G --> H1[Playwright HTML\nsafe default / fallback]
     G --> H2[Moodle AJAX\nsession JSON]
+    G --> H3[Moodle REST\nmobile token]
     H1 -- cookies --> H[eclass.yorku.ca]
     H2 -- BrowserContext.request + sesskey --> H
+    H3 -- fetch + wstoken --> H
     G -- cookies --> S[sis.yorku.ca]
     E --> I[PDF Analyzer\npdfjs-dist + @napi-rs/canvas]
     E --> J[DOCX / PPTX Parsers]
@@ -104,19 +106,27 @@ flowchart LR
 ### Hybrid eClass data access
 
 The eClass provider keeps the visible browser for Passport York / Shibboleth
-authentication and HTML-only reads, while proven read-only Moodle AJAX calls
-use the authenticated `BrowserContext.request` transport:
+authentication and HTML-only reads. Two read-only JSON gateways sit beside it:
+session AJAX (`BrowserContext.request` + `sesskey`) and, when a Moodle mobile
+token is stored, token REST (`/webservice/rest/server.php`, ADR 0011).
 
-- `list_courses` uses the enrolled-course AJAX function.
-- Course outlines use Moodle course-format state.
-- Deadline reads use the proven calendar functions.
+| Tool                                  | `api` / `shadow` source order                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------------- |
+| `list_courses`                        | AJAX → REST `core_enrol_get_users_courses` → Playwright                         |
+| `get_deadlines`                       | AJAX calendar → REST `core_calendar_get_action_events_by_timesort` → Playwright |
+| `get_course_content`                  | REST `core_course_get_contents` → AJAX course state → Playwright                |
+| `get_grades`                          | REST grade reports → Playwright                                                 |
+| `get_announcements` (`courseId`)      | REST news forum discussions → Playwright                                        |
+| `get_assignments` (eClass index)      | REST assignments + read-only submission status → Playwright                     |
+| `get_file_text` downloads             | Token `/webservice/pluginfile.php` → Playwright (every mode)                    |
+| Section text, item details, preflight | Playwright                                                                      |
+
 - `shadow` runs both paths but returns Playwright data and records only
   shape-level mismatch categories.
 - `api` uses one bounded Playwright fallback for eligible read failures.
-- Grades, forums, assignment details, submission preflight, and plugin-file
-  reads remain Playwright-backed. The mobile launch and capability-gated REST
-  client are not exposed as REST-backed MCP tools until each function has
-  account-owner live proof.
+- REST is skipped, not failed, when no mobile token is stored, and every REST
+  function is capability-gated against the token's service function list.
+- No REST write function is used.
 
 The safe default is Playwright mode. Configure the optional rollout locally:
 
@@ -147,7 +157,7 @@ future account-owner flow, remain in the encrypted session envelope only.
 | `get_course_content`             | Sections, files, assignments for one course                                                                                                                                                      | `courseId`                                                                                                                                                                                                                                                   |
 | `get_section_text`               | Section page text, links, and tabbed content                                                                                                                                                     | `url`                                                                                                                                                                                                                                                        |
 | `get_assignments`                | Canonical cross-platform resolver for eClass + Cengage/WebAssign assignments                                                                                                                     | `courseId?`, `courseCode?`, `courseQuery?`, `scope?`, `month?`, `year?`, `from?`, `to?`, `includeExternal?`, `platformSelection?`                                                                                                                            |
-| `prepare_assignment_submission`  | Read-only T37 preflight for future assignment writes; resolves eClass/Moodle upload state or Cengage/WebAssign assignment facts and signs an exact `preflightRef`                                | `platform?`, `assignmentUrl?`, `courseId?`, `courseCode?`, `courseQuery?`, `assignmentId?`, `assignmentQuery?`, `entryUrl?`, `ssoUrl?`, `courseKey?`, `intendedFiles?`                                                                                        |
+| `prepare_assignment_submission`  | Read-only T37 preflight for future assignment writes; resolves eClass/Moodle upload state or Cengage/WebAssign assignment facts and signs an exact `preflightRef`                                | `platform?`, `assignmentUrl?`, `courseId?`, `courseCode?`, `courseQuery?`, `assignmentId?`, `assignmentQuery?`, `entryUrl?`, `ssoUrl?`, `courseKey?`, `intendedFiles?`                                                                                       |
 | `get_upcoming_deadlines`         | eClass-only assignments due in the next N days; use `get_assignments` for external-platform coverage                                                                                             | `daysAhead?`, `courseId?`                                                                                                                                                                                                                                    |
 | `get_deadlines`                  | eClass-only deadlines by scope: upcoming / month / range                                                                                                                                         | `scope`, `month?`, `year?`, `from?`, `to?`, `includeDetails?`, `maxDetails?`                                                                                                                                                                                 |
 | `get_item_details`               | Full instructions + status + grade for one assignment or quiz URL                                                                                                                                | `url`, `includeImages?`, `maxImages?`, `imageOffset?`, `maxTotalImageBytes?`, `includeCsv?`, `csvMode?`, `maxCsvBytes?`, `csvPreviewLines?`, `maxCsvAttachments?`                                                                                            |
