@@ -203,13 +203,13 @@ describe('capability-gated Moodle REST client', () => {
     expect(postRest).toHaveBeenNthCalledWith(
       5,
       MOODLE_REST_CAPABILITIES.gradeItems,
-      { courseid: 101 },
+      { courseid: 101, userid: 42 },
       'token-one'
     );
     expect(postRest).toHaveBeenNthCalledWith(
       6,
       MOODLE_REST_CAPABILITIES.gradeItems,
-      {},
+      { userid: 42 },
       'token-one'
     );
   });

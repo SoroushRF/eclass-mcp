@@ -9,6 +9,7 @@ import {
   MoodleCalendarDataSchema,
   MoodleCourseFormatStateSchema,
   MoodleEnrolledCoursesDataSchema,
+  MoodleRestOverviewGradesSchema,
 } from '../src/scraper/eclass/api/types';
 
 describe('typed Moodle wire contracts', () => {
@@ -51,5 +52,21 @@ describe('typed Moodle wire contracts', () => {
     expect(() =>
       MoodleEnrolledCoursesDataSchema.parse({ courses: [{ fullname: 'bad' }] })
     ).toThrow();
+  });
+
+  it('accepts numeric and null raw grades in the overview report', () => {
+    const parsed = MoodleRestOverviewGradesSchema.parse({
+      grades: [
+        { courseid: 101, grade: '85.00', rawgrade: '85.00000' },
+        { courseid: 102, grade: '72.50', rawgrade: 72.5 },
+        { courseid: 103, grade: '-', rawgrade: null },
+      ],
+    });
+
+    expect(parsed.grades.map((entry) => entry.rawgrade)).toEqual([
+      '85.00000',
+      72.5,
+      null,
+    ]);
   });
 });

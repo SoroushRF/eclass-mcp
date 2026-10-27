@@ -478,9 +478,15 @@ export class MoodleRestClient {
   async getGradeItems(
     courseId?: string | number
   ): Promise<MoodleRestGradeItemsData> {
+    // Without a userid Moodle reads every user's grades, which needs
+    // moodle/grade:viewall; a student token gets `nopermissions`.
+    const { userId } = await this.boundIdentity();
     return this.callParsed(
       MOODLE_REST_CAPABILITIES.gradeItems,
-      courseId === undefined ? {} : { courseid: Number(courseId) },
+      {
+        ...(courseId === undefined ? {} : { courseid: Number(courseId) }),
+        ...(userId === null ? {} : { userid: userId }),
+      },
       MoodleRestGradeItemsDataSchema
     );
   }

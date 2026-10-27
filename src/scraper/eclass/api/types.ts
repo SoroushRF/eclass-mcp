@@ -348,7 +348,8 @@ export const MoodleRestOverviewGradesSchema = z
           .object({
             courseid: MoodleId,
             grade: z.string().optional(),
-            rawgrade: z.string().nullable().optional(),
+            // Declared PARAM_RAW, but York returns a number for some courses.
+            rawgrade: z.union([z.string(), z.number()]).nullable().optional(),
           })
           .passthrough()
       )
