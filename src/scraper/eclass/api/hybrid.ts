@@ -34,7 +34,12 @@ import {
   mapRestUserCourses,
 } from './rest-mappers';
 import { MOODLE_REST_CAPABILITIES, type MoodleRestClient } from './rest';
-import { mapRestAssignmentDetails, mapRestQuizDetails } from './rest-items';
+import {
+  mapRestAssignmentDetails,
+  mapRestQuizDetails,
+  mapRestSectionText,
+} from './rest-items';
+import { sanitizeHttpUrlQueryParams } from '../helpers';
 import type {
   MoodleCalendarData,
   MoodleCalendarEvent,
@@ -216,6 +221,28 @@ export function itemViewCmid(itemUrl: string): string | null {
   }
   const id = url.searchParams.get('id') ?? '';
   return /^[1-9][0-9]*$/.test(id) ? id : null;
+}
+
+/**
+ * The course and section of a `/course/view.php?id=C&section=N` URL, else
+ * null. A `#section-N` fragment never arrives: the URL policy drops it.
+ */
+export function sectionRef(
+  sectionUrl: string
+): { courseId: string; section: number } | null {
+  let url: URL;
+  try {
+    url = new URL(sectionUrl.trim());
+  } catch {
+    return null;
+  }
+  if (url.pathname.toLowerCase() !== '/course/view.php') return null;
+  const courseId = url.searchParams.get('id')?.trim() ?? '';
+  const section = url.searchParams.get('section')?.trim() ?? '';
+  if (!/^[1-9][0-9]*$/.test(courseId) || !/^(0|[1-9][0-9]*)$/.test(section)) {
+    return null;
+  }
+  return { courseId, section: Number(section) };
 }
 
 /** The course module id of a `/mod/resource/view.php?id=` URL, else null. */
@@ -496,8 +523,39 @@ export class EclassHybridProvider implements EclassScraperDependency {
     return mainFile;
   }
 
-  getSectionText(url: string): Promise<SectionTextData> {
-    return this.playwright.getSectionText(url);
+  /**
+   * In `api` mode with a mobile token, a course page URL naming a section
+   * (`section=N`) is read through REST (ADR 0011), falling back to
+   * Playwright. Shadow mode keeps Playwright.
+   */
+  async getSectionText(url: string): Promise<SectionTextData> {
+    const target = sectionRef(url);
+    if (this.mode !== 'api' || !this.restUsable() || !target) {
+      return this.playwright.getSectionText(url);
+    }
+    // Same host and path policy the Playwright read enforces.
+    const safeUrl = validateUrlForPolicy(
+      sanitizeHttpUrlQueryParams(url),
+      'eclass_section'
+    );
+    return this.runApiPrimary(
+      'section_text',
+      async () => {
+        const sections = await this.restClient!.getCourseContents(
+          target.courseId,
+          [{ name: 'sectionnumber', value: target.section }]
+        );
+        const result = mapRestSectionText(sections, target.section, safeUrl);
+        if (!result) {
+          throw new MoodleApiError({
+            category: 'malformed_response',
+            upstreamCode: 'section_missing',
+          });
+        }
+        return result;
+      },
+      () => this.playwright.getSectionText(url)
+    );
   }
 
   async close(): Promise<void> {

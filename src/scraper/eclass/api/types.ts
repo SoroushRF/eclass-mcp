@@ -193,6 +193,8 @@ export const MoodleRestCourseModuleSchema = z
     url: z.string().optional(),
     visible: z.union([z.boolean(), z.number()]).optional(),
     uservisible: z.union([z.boolean(), z.number()]).optional(),
+    /** Formatted HTML for modules shown inline, such as labels. */
+    description: z.string().optional(),
     contents: z.array(MoodleRestModuleContentSchema).optional(),
   })
   .passthrough();
@@ -202,6 +204,8 @@ export const MoodleRestCourseSectionSchema = z
     id: z.union([z.number(), z.string()]),
     name: z.string().optional(),
     section: z.number().optional(),
+    /** Formatted section summary HTML. */
+    summary: z.string().optional(),
     hidden: z.union([z.boolean(), z.number()]).optional(),
     visible: z.union([z.boolean(), z.number()]).optional(),
     uservisible: z.union([z.boolean(), z.number()]).optional(),
