@@ -94,6 +94,12 @@ function restReader() {
     getCourseContents: vi.fn(async () =>
       MoodleRestCourseContentsSchema.parse(courseContentsFixture)
     ),
+    getCourseModule: vi.fn(async (cmid: string | number) => ({
+      id: Number(cmid),
+      course: 101,
+      modname: 'resource',
+      instance: 77,
+    })),
     getUserCourses: vi.fn(async () =>
       MoodleRestUserCoursesSchema.parse(userCoursesFixture)
     ),
@@ -653,6 +659,146 @@ describe('EclassHybridProvider REST routing', () => {
       category: 'rate_limited',
     });
     expect(playwright.getCourseContent).not.toHaveBeenCalled();
+  });
+});
+
+describe('resource file downloads', () => {
+  const VIEW_URL = `${ORIGIN}/mod/resource/view.php?id=900`;
+  const FILE_URL = `${ORIGIN}/webservice/pluginfile.php/5/mod_resource/content/1/notes.pdf`;
+
+  function resourceContents(
+    contents: Array<Record<string, unknown>> = [
+      {
+        type: 'file',
+        filename: 'extra.png',
+        fileurl: `${ORIGIN}/webservice/pluginfile.php/5/mod_resource/content/1/extra.png`,
+        sortorder: 0,
+      },
+      { type: 'file', filename: 'notes.pdf', fileurl: FILE_URL, sortorder: 1 },
+    ]
+  ) {
+    return MoodleRestCourseContentsSchema.parse([
+      { id: 1, modules: [{ id: 900, modname: 'resource', contents }] },
+    ]);
+  }
+
+  function withTokenFiles(rest = restReader()) {
+    const download = vi.fn(async (url: string) =>
+      url.includes('pluginfile.php')
+        ? {
+            buffer: Buffer.from('pdf'),
+            filename: 'notes.pdf',
+            mimeType: 'application/pdf',
+          }
+        : null
+    );
+    const built = provider({ restClient: rest, tokenFiles: { download } });
+    return { ...built, download };
+  }
+
+  it('resolves a resource page to its main file and downloads it with the token', async () => {
+    const rest = restReader();
+    rest.getCourseContents.mockResolvedValue(resourceContents());
+    const { hybrid, playwright, download } = withTokenFiles(rest);
+
+    await expect(hybrid.downloadFile(VIEW_URL)).resolves.toMatchObject({
+      filename: 'notes.pdf',
+    });
+
+    expect(rest.getCourseModule).toHaveBeenCalledWith('900');
+    expect(rest.getCourseContents).toHaveBeenCalledWith(101, [
+      { name: 'cmid', value: '900' },
+    ]);
+    expect(download).toHaveBeenCalledWith(FILE_URL);
+    expect(playwright.downloadFile).not.toHaveBeenCalled();
+  });
+
+  it('accepts the null sort order URL modules send', () => {
+    const parsed = MoodleRestCourseContentsSchema.parse([
+      {
+        id: 1,
+        modules: [
+          {
+            id: 5,
+            modname: 'url',
+            contents: [
+              {
+                type: 'url',
+                fileurl: 'https://example.com',
+                filesize: 0,
+                sortorder: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(parsed[0]?.modules[0]?.contents?.[0]?.sortorder).toBeNull();
+  });
+
+  it('leaves non-resource modules to Playwright', async () => {
+    const rest = restReader();
+    rest.getCourseModule.mockResolvedValue({
+      id: 900,
+      course: 101,
+      modname: 'folder',
+      instance: 3,
+    });
+    const { hybrid, playwright, download } = withTokenFiles(rest);
+
+    await hybrid.downloadFile(VIEW_URL);
+
+    expect(rest.getCourseContents).not.toHaveBeenCalled();
+    expect(download).toHaveBeenCalledWith(VIEW_URL);
+    expect(playwright.downloadFile).toHaveBeenCalledWith(VIEW_URL);
+  });
+
+  it('falls back to Playwright when the resource lists no file', async () => {
+    quietLogs();
+    const rest = restReader();
+    rest.getCourseContents.mockResolvedValue(
+      resourceContents([{ type: 'url', fileurl: 'https://example.com' }])
+    );
+    const { hybrid, playwright, download } = withTokenFiles(rest);
+
+    await hybrid.downloadFile(VIEW_URL);
+
+    expect(download).not.toHaveBeenCalled();
+    expect(playwright.downloadFile).toHaveBeenCalledWith(VIEW_URL);
+  });
+
+  it('surfaces a rate limit from the lookup instead of falling back', async () => {
+    const rest = restReader();
+    rest.getCourseModule.mockRejectedValue(
+      new MoodleApiError({ category: 'rate_limited', status: 429 })
+    );
+    const { hybrid, playwright } = withTokenFiles(rest);
+
+    await expect(hybrid.downloadFile(VIEW_URL)).rejects.toMatchObject({
+      category: 'rate_limited',
+    });
+    expect(playwright.downloadFile).not.toHaveBeenCalled();
+  });
+
+  it('skips the lookup without a mobile credential or in playwright mode', async () => {
+    const rest = restReader();
+    const download = vi.fn(async () => null);
+    const noCredential = provider({
+      restClient: rest,
+      tokenFiles: { download },
+      hasMobileCredential: () => false,
+    });
+    await noCredential.hybrid.downloadFile(VIEW_URL);
+    const cookieOnly = provider({
+      restClient: rest,
+      tokenFiles: { download },
+      mode: 'playwright',
+    });
+    await cookieOnly.hybrid.downloadFile(VIEW_URL);
+
+    expect(rest.getCourseModule).not.toHaveBeenCalled();
+    expect(noCredential.playwright.downloadFile).toHaveBeenCalledTimes(1);
+    expect(cookieOnly.playwright.downloadFile).toHaveBeenCalledTimes(1);
   });
 });
 

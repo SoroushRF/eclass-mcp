@@ -67,6 +67,7 @@ type ApiReader = Pick<
 export type RestReader = Pick<
   MoodleRestClient,
   | 'getCourseContents'
+  | 'getCourseModule'
   | 'getUserCourses'
   | 'getActionEventsByTimesort'
   | 'getActionEventsByCourse'
@@ -162,6 +163,39 @@ function selectReportedError(primary: unknown, fallback: unknown): unknown {
   if (isTerminalApiError(fallback)) return fallback;
   if (isUnusableRestError(primary)) return fallback;
   return primary;
+}
+
+/** The course module id of a `/mod/resource/view.php?id=` URL, else null. */
+export function resourceViewCmid(fileUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(fileUrl);
+  } catch {
+    return null;
+  }
+  if (url.pathname.toLowerCase() !== '/mod/resource/view.php') return null;
+  const id = url.searchParams.get('id') ?? '';
+  return /^[1-9][0-9]*$/.test(id) ? id : null;
+}
+
+/**
+ * The file a resource opens: Moodle marks its main file with the highest
+ * `sortorder` (1); the others are 0.
+ */
+function mainResourceFile(
+  contents: ReadonlyArray<{
+    type?: string | null;
+    fileurl?: string | null;
+    sortorder?: number | null;
+  }>
+): string | undefined {
+  const files = contents.filter(
+    (entry) => entry.type === 'file' && entry.fileurl
+  );
+  const [main] = [...files].sort(
+    (a, b) => (b.sortorder ?? 0) - (a.sortorder ?? 0)
+  );
+  return main?.fileurl ?? undefined;
 }
 
 function apiFailureReason(error: unknown): string {
@@ -348,15 +382,17 @@ export class EclassHybridProvider implements EclassScraperDependency {
 
   /**
    * Outside `playwright` mode, a token download is tried first when a mobile
-   * credential exists and the URL is a pluginfile (ADR 0011). Rate limits and
-   * size caps are surfaced; other failures fall back to the Playwright
-   * download, which also handles wrapper pages such as
-   * `/mod/resource/view.php`. `playwright` mode sends no token traffic.
+   * credential exists (ADR 0011). A pluginfile URL is downloaded as is; a
+   * `/mod/resource/view.php` wrapper page is first resolved to the resource's
+   * main file through REST. Rate limits and size caps are surfaced; other
+   * failures fall back to the Playwright download. `playwright` mode sends no
+   * token traffic.
    */
   async downloadFile(fileUrl: string): Promise<DownloadedFile> {
     if (this.tokenFiles && this.mode !== 'playwright') {
       try {
-        const file = await this.tokenFiles.download(fileUrl);
+        const target = await this.resolveTokenFileUrl(fileUrl);
+        const file = await this.tokenFiles.download(target);
         if (file) return file;
       } catch (error) {
         if (isTerminalApiError(error)) throw error;
@@ -364,6 +400,32 @@ export class EclassHybridProvider implements EclassScraperDependency {
       }
     }
     return this.playwright.downloadFile(fileUrl);
+  }
+
+  /**
+   * Maps a resource wrapper page to its main file's pluginfile URL. Any other
+   * URL, or a wrapper when REST is unusable, is returned unchanged so the
+   * token source decides whether it applies.
+   */
+  private async resolveTokenFileUrl(fileUrl: string): Promise<string> {
+    const cmid = resourceViewCmid(fileUrl);
+    if (cmid === null || !this.restUsable()) return fileUrl;
+    const cm = await this.restClient!.getCourseModule(cmid);
+    if (cm.modname !== 'resource') return fileUrl;
+    const sections = await this.restClient!.getCourseContents(cm.course, [
+      { name: 'cmid', value: cmid },
+    ]);
+    const module = sections
+      .flatMap((section) => section.modules)
+      .find((candidate) => String(candidate.id) === cmid);
+    const mainFile = mainResourceFile(module?.contents ?? []);
+    if (!mainFile) {
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        upstreamCode: 'resource_file_missing',
+      });
+    }
+    return mainFile;
   }
 
   getSectionText(url: string): Promise<SectionTextData> {
