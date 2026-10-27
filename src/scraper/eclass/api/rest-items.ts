@@ -5,10 +5,12 @@ import {
 import { classifyDescriptionExternalLinks } from '../item-details';
 import type {
   AssignmentDetails,
+  AssignmentSubmissionPreflightData,
   Attachment,
   AttachmentKind,
   QuizDetails,
   SectionTextData,
+  SubmissionUploadSlot,
 } from '../types';
 import {
   effectiveDueSeconds,
@@ -385,4 +387,109 @@ export function mapRestSectionText(
   }
   if (platforms.length > 0) result.external_platforms = platforms;
   return result;
+}
+
+function assignConfig(
+  assignment: MoodleRestAssignment,
+  plugin: string,
+  name: string
+): string | undefined {
+  const entry = assignment.configs?.find(
+    (config) =>
+      config.subtype === 'assignsubmission' &&
+      config.plugin === plugin &&
+      config.name === name
+  );
+  return entry === undefined ? undefined : String(entry.value).trim();
+}
+
+function positiveInt(value: string | undefined): number | undefined {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function isoOrUndefined(seconds: number | undefined): string | undefined {
+  return seconds !== undefined && Number.isFinite(seconds) && seconds > 0
+    ? new Date(seconds * 1000).toISOString()
+    : undefined;
+}
+
+/**
+ * Builds the prepare_assignment_submission preflight for an eClass
+ * assignment from its settings (`configs`) and submission status. Read-only:
+ * nothing here starts or changes a submission. Returns null when the
+ * assignment lists no submission settings, so the caller can fall back.
+ */
+export function mapRestSubmissionPreflight(input: {
+  url: string;
+  courseId: string;
+  assignment: MoodleRestAssignment;
+  status: MoodleRestSubmissionStatus;
+}): AssignmentSubmissionPreflightData | null {
+  const { url, courseId, assignment, status } = input;
+  if (!assignment.configs?.length) return null;
+  const attempt = status.lastattempt;
+  const submission = attempt?.teamsubmission ?? attempt?.submission;
+  const canEdit = Boolean(attempt?.canedit);
+  const dueSeconds = effectiveDueSeconds(assignment.duedate, status);
+
+  const uploadSlots: SubmissionUploadSlot[] = [];
+  if (assignConfig(assignment, 'file', 'enabled') === '1') {
+    const accepts = (assignConfig(assignment, 'file', 'filetypeslist') ?? '')
+      .split(/[\s,;]+/)
+      .map((type) => type.trim())
+      .filter(Boolean);
+    const currentFiles = pluginFiles(submission?.plugins)
+      .filter((file) => file.filename && file.filename !== '.')
+      .map((file) => ({
+        name: file.filename!,
+        ...(file.filesize !== undefined ? { sizeBytes: file.filesize } : {}),
+        ...(file.mimetype ? { mimeType: file.mimetype } : {}),
+      }));
+    uploadSlots.push({
+      kind: 'file',
+      label: 'File submissions',
+      canUpload: canEdit,
+      // 0 means the course or site limit applies, which REST does not report.
+      maxBytes: positiveInt(
+        assignConfig(assignment, 'file', 'maxsubmissionsizebytes')
+      ),
+      maxFiles: positiveInt(
+        assignConfig(assignment, 'file', 'maxfilesubmissions')
+      ),
+      ...(accepts.length ? { accepts } : {}),
+      ...(currentFiles.length ? { currentFiles } : {}),
+    });
+  }
+  if (assignConfig(assignment, 'onlinetext', 'enabled') === '1') {
+    uploadSlots.push({
+      kind: 'online_text',
+      label: 'Online text',
+      canUpload: canEdit,
+    });
+  }
+
+  const details = mapRestAssignmentDetails({
+    url,
+    courseId,
+    assignment,
+    status,
+  });
+  return {
+    kind: 'assign',
+    url,
+    courseId,
+    title: details.title,
+    cmId: String(assignment.cmid),
+    dueDate: details.fields?.['Due date'],
+    dueDateIso: isoOrUndefined(dueSeconds),
+    cutoffDate: details.fields?.['Cut-off date'],
+    submissionState: details.fields?.['Submission status'],
+    gradingState: details.fields?.['Grading status'],
+    isFinalized: submission?.status === 'submitted' && !canEdit,
+    canEditSubmission: canEdit,
+    canSubmitFinal: Boolean(attempt?.cansubmit),
+    fields: details.fields,
+    uploadSlots,
+  };
 }

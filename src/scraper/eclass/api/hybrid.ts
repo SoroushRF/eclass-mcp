@@ -38,6 +38,7 @@ import {
   mapRestAssignmentDetails,
   mapRestQuizDetails,
   mapRestSectionText,
+  mapRestSubmissionPreflight,
 } from './rest-items';
 import { sanitizeHttpUrlQueryParams } from '../helpers';
 import type {
@@ -444,10 +445,31 @@ export class EclassHybridProvider implements EclassScraperDependency {
     );
   }
 
-  getAssignmentSubmissionPreflight(
+  /**
+   * In `api` mode with a mobile token, the eClass preflight for an
+   * assignment page is read through REST (ADR 0011). It stays read-only: only
+   * settings and status are read. If the status cannot be read, the preflight
+   * falls back to Playwright rather than guess the edit state.
+   */
+  async getAssignmentSubmissionPreflight(
     url: string
   ): Promise<AssignmentSubmissionPreflightData> {
-    return this.playwright.getAssignmentSubmissionPreflight(url);
+    const cmid = itemViewCmid(url);
+    if (
+      this.mode !== 'api' ||
+      !this.restUsable() ||
+      !cmid ||
+      !new URL(url).pathname.toLowerCase().startsWith('/mod/assign/')
+    ) {
+      return this.playwright.getAssignmentSubmissionPreflight(url);
+    }
+    // Same host and path policy the Playwright read enforces.
+    const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+    return this.runApiPrimary(
+      'submission_preflight',
+      () => this.restSubmissionPreflight(safeUrl, cmid),
+      () => this.playwright.getAssignmentSubmissionPreflight(url)
+    );
   }
 
   async getGrades(courseId?: string): Promise<Grade[]> {
@@ -900,6 +922,34 @@ export class EclassHybridProvider implements EclassScraperDependency {
       category: 'capability_unavailable',
       upstreamCode: `unsupported_module_${cm.modname}`,
     });
+  }
+
+  private async restSubmissionPreflight(
+    url: string,
+    cmid: string
+  ): Promise<AssignmentSubmissionPreflightData> {
+    const cm = await this.restClient!.getCourseModule(cmid);
+    if (cm.modname !== 'assign') throw missingInstance('assign');
+    const courseId = String(cm.course);
+    const data = await this.restClient!.getAssignments([courseId]);
+    const assignment = data.courses
+      .flatMap((course) => course.assignments)
+      .find((candidate) => String(candidate.cmid) === cmid);
+    if (!assignment) throw missingInstance('assign');
+    const status = await this.restClient!.getSubmissionStatus(assignment.id);
+    const preflight = mapRestSubmissionPreflight({
+      url,
+      courseId,
+      assignment,
+      status,
+    });
+    if (!preflight) {
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        upstreamCode: 'assign_configs_missing',
+      });
+    }
+    return preflight;
   }
 
   private async runRead<T>(

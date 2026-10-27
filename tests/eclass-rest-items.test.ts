@@ -12,6 +12,7 @@ import {
   mapRestAssignmentDetails,
   mapRestQuizDetails,
   mapRestSectionText,
+  mapRestSubmissionPreflight,
 } from '../src/scraper/eclass/api/rest-items';
 import {
   MoodleRestAssignmentsDataSchema,
@@ -462,5 +463,167 @@ describe('REST section text', () => {
     await build('api').getSectionText(`${ORIGIN}/course/view.php?id=101`);
     expect(getCourseContents).not.toHaveBeenCalled();
     expect(html.getSectionText).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('REST submission preflight', () => {
+  function configured(
+    configs: Array<{ plugin: string; name: string; value: string }>
+  ) {
+    const [assignment] = assignments().courses[0]!.assignments;
+    return {
+      ...assignment!,
+      configs: configs.map((config) => ({
+        ...config,
+        subtype: 'assignsubmission',
+      })),
+    };
+  }
+
+  const FILE_CONFIGS = [
+    { plugin: 'file', name: 'enabled', value: '1' },
+    { plugin: 'file', name: 'maxfilesubmissions', value: '2' },
+    { plugin: 'file', name: 'maxsubmissionsizebytes', value: '0' },
+    { plugin: 'file', name: 'filetypeslist', value: '.pdf, .zip' },
+    { plugin: 'onlinetext', name: 'enabled', value: '0' },
+    { plugin: 'comments', name: 'enabled', value: '1' },
+  ];
+
+  function status(submission: string, canedit: boolean) {
+    const base = submittedStatus();
+    return MoodleRestSubmissionStatusSchema.parse({
+      ...base,
+      lastattempt: {
+        ...base.lastattempt,
+        submission: { ...base.lastattempt!.submission, status: submission },
+        canedit,
+        cansubmit: !canedit,
+      },
+    });
+  }
+
+  it('builds upload slots from the assignment settings', () => {
+    const preflight = mapRestSubmissionPreflight({
+      url: ASSIGN_URL,
+      courseId: '101',
+      assignment: configured(
+        FILE_CONFIGS.map((config) =>
+          config.plugin === 'onlinetext' ? { ...config, value: '1' } : config
+        )
+      ),
+      status: status('draft', true),
+    });
+
+    expect(preflight).toMatchObject({
+      kind: 'assign',
+      cmId: '12',
+      courseId: '101',
+      title: 'Lab 1',
+      dueDate: 'Wednesday, 31 December 2025, 11:59 PM',
+      dueDateIso: '2026-01-01T04:59:00.000Z',
+      submissionState: 'Draft (not submitted)',
+      isFinalized: false,
+      canEditSubmission: true,
+      canSubmitFinal: false,
+    });
+    expect(preflight?.uploadSlots).toEqual([
+      {
+        kind: 'file',
+        label: 'File submissions',
+        canUpload: true,
+        maxBytes: undefined,
+        maxFiles: 2,
+        accepts: ['.pdf', '.zip'],
+        currentFiles: [{ name: 'lab1.zip' }],
+      },
+      { kind: 'online_text', label: 'Online text', canUpload: true },
+    ]);
+  });
+
+  it('marks a submitted, locked assignment as finalized with no upload', () => {
+    const preflight = mapRestSubmissionPreflight({
+      url: ASSIGN_URL,
+      courseId: '101',
+      assignment: configured(FILE_CONFIGS),
+      status: status('submitted', false),
+    });
+
+    expect(preflight).toMatchObject({
+      isFinalized: true,
+      canEditSubmission: false,
+      uploadSlots: [{ kind: 'file', canUpload: false }],
+    });
+  });
+
+  it('returns null without submission settings', () => {
+    const [assignment] = assignments().courses[0]!.assignments;
+    expect(
+      mapRestSubmissionPreflight({
+        url: ASSIGN_URL,
+        courseId: '101',
+        assignment: assignment!,
+        status: status('new', true),
+      })
+    ).toBeNull();
+  });
+
+  it('routes the preflight through REST and falls back when status is unreadable', async () => {
+    vi.spyOn(rootLogger, 'warn').mockImplementation((() => undefined) as never);
+    const data = MoodleRestAssignmentsDataSchema.parse({
+      courses: [{ id: 101, assignments: [configured(FILE_CONFIGS)] }],
+    });
+    const client = {
+      getCourseModule: vi.fn(async () => ({
+        id: 12,
+        course: 101,
+        modname: 'assign',
+        instance: 301,
+      })),
+      getAssignments: vi.fn(async () => data),
+      getSubmissionStatus: vi.fn(async () => status('new', true)),
+    };
+    const html = {
+      getAssignmentSubmissionPreflight: vi.fn(async (url: string) => ({
+        kind: 'assign' as const,
+        url,
+        title: 'HTML',
+        uploadSlots: [],
+      })),
+    } as unknown as EclassScraperDependency & {
+      getAssignmentSubmissionPreflight: ReturnType<typeof vi.fn>;
+    };
+    const build = (mode: 'api' | 'shadow' = 'api') =>
+      new EclassHybridProvider({
+        playwright: html,
+        restClient: client as unknown as RestReader,
+        hasMobileCredential: () => true,
+        mode,
+        origin: ORIGIN,
+      });
+
+    await expect(
+      build().getAssignmentSubmissionPreflight(ASSIGN_URL)
+    ).resolves.toMatchObject({ title: 'Lab 1', canEditSubmission: true });
+    expect(html.getAssignmentSubmissionPreflight).not.toHaveBeenCalled();
+
+    client.getSubmissionStatus.mockRejectedValueOnce(
+      new MoodleApiError({ category: 'invalid_parameter', upstreamCode: 'x' })
+    );
+    await expect(
+      build().getAssignmentSubmissionPreflight(ASSIGN_URL)
+    ).rejects.toMatchObject({ category: 'invalid_parameter' });
+
+    client.getSubmissionStatus.mockRejectedValueOnce(
+      new MoodleApiError({ category: 'upstream' })
+    );
+    await expect(
+      build().getAssignmentSubmissionPreflight(ASSIGN_URL)
+    ).resolves.toMatchObject({ title: 'HTML' });
+
+    client.getCourseModule.mockClear();
+    await build('shadow').getAssignmentSubmissionPreflight(ASSIGN_URL);
+    await build().getAssignmentSubmissionPreflight(QUIZ_URL);
+    expect(client.getCourseModule).not.toHaveBeenCalled();
+    expect(html.getAssignmentSubmissionPreflight).toHaveBeenCalledTimes(3);
   });
 });
