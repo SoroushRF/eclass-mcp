@@ -164,8 +164,8 @@ API-primary can be disabled without rebuilding by setting
 is a full kill switch: no REST reads, no token file downloads, and no mint
 after login. Do not put
 tokens, `sesskey` values, cookies, or launch redirect locations in `.env`,
-cache files, logs, or tool output. Mobile credentials, when minted by a
-future account-owner flow, remain in the encrypted session envelope only.
+cache files, logs, or tool output. Mobile credentials minted by `/auth`
+or optional QR login remain in the encrypted session envelope only.
 
 ---
 
@@ -341,6 +341,13 @@ The first time Claude or Codex tries to use an eClass tool, you'll see:
 > _"eClass session not found. Please visit <http://localhost:3000/auth>"_
 
 Open that URL. A visible browser window opens — log in with your York credentials (including MFA if required). Once you land on the eClass dashboard, the session is saved automatically and the browser closes.
+
+#### Login options
+
+| Option                        | How                                                                                                                                                    | What it stores                       | Notes                                                                                                                                                                                                                                                                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Passport York (default)       | `http://localhost:3000/auth`                                                                                                                           | Cookie session + Moodle mobile token | Works for every tool.                                                                                                                                                                                                                                                                                                                                                                                |
+| QR login (optional, ADR 0012) | Set `ECLASS_MCP_ENABLE_QR_LOGIN=1`, open `http://localhost:3000/auth-qr`, and paste the text of the QR code from your eClass profile within 10 minutes | Moodle mobile token only             | Serves REST-routed reads in `api` mode (`shadow` also needs `/auth`). The token is checked against the QR account before it is saved; signing in as a different account replaces the previous account's session and caches. SIS, Cengage, section text, and item details still need `/auth`. Presents a Moodle app user agent to eClass; fails with a clear message if York does not allow QR login. |
 
 Cengage/WebAssign auth uses the same encrypted local session store. If a Cengage tool returns `auth_required`, open the returned `/auth-cengage` URL after `ECLASS_MCP_SESSION_SECRET` is configured.
 

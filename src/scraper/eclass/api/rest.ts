@@ -12,21 +12,32 @@ import {
   MoodleCalendarDataSchema,
   MoodleRestAssignmentsDataSchema,
   MoodleRestCourseContentsSchema,
+  MoodleRestCourseModuleInfoSchema,
   MoodleRestErrorEnvelopeSchema,
   MoodleRestForumDiscussionsSchema,
   MoodleRestForumsDataSchema,
   MoodleRestGradeItemsDataSchema,
   MoodleRestOverviewGradesSchema,
+  MoodleRestQuizAttemptsSchema,
+  MoodleRestQuizBestGradeSchema,
+  MoodleRestQuizFeedbackSchema,
+  MoodleRestQuizzesDataSchema,
   MoodleRestSiteInfoSchema,
   MoodleRestSubmissionStatusSchema,
   MoodleRestUserCoursesSchema,
   type MoodleCalendarData,
   type MoodleRestAssignmentsData,
   type MoodleRestCourseContents,
+  type MoodleRestCourseContentsOption,
+  type MoodleRestCourseModuleInfo,
   type MoodleRestForumDiscussions,
   type MoodleRestForumsData,
   type MoodleRestGradeItemsData,
   type MoodleRestOverviewGrades,
+  type MoodleRestQuizAttempts,
+  type MoodleRestQuizBestGrade,
+  type MoodleRestQuizFeedback,
+  type MoodleRestQuizzesData,
   type MoodleRestSubmissionStatus,
   type MoodleRestUserCourses,
 } from './types';
@@ -34,6 +45,7 @@ import {
 export const MOODLE_REST_CAPABILITIES = {
   siteInfo: 'core_webservice_get_site_info',
   courseContents: 'core_course_get_contents',
+  courseModule: 'core_course_get_course_module',
   assignments: 'mod_assign_get_assignments',
   forums: 'mod_forum_get_forums_by_courses',
   forumDiscussions: 'mod_forum_get_forum_discussions',
@@ -42,6 +54,10 @@ export const MOODLE_REST_CAPABILITIES = {
   gradeItems: 'gradereport_user_get_grade_items',
   overviewGrades: 'gradereport_overview_get_course_grades',
   submissionStatus: 'mod_assign_get_submission_status',
+  quizzes: 'mod_quiz_get_quizzes_by_courses',
+  quizBestGrade: 'mod_quiz_get_user_best_grade',
+  quizAttempts: 'mod_quiz_get_user_attempts',
+  quizFeedback: 'mod_quiz_get_quiz_feedback_for_grade',
   userCourses: 'core_enrol_get_users_courses',
   pluginFiles: 'core_files_get_files',
 } as const;
@@ -52,6 +68,7 @@ export const MOODLE_REST_CAPABILITIES = {
  */
 export const MOODLE_REST_ROUTING_FUNCTIONS = [
   'core_course_get_contents',
+  'core_course_get_course_module',
   'mod_page_get_pages_by_courses',
   'mod_label_get_labels_by_courses',
   'mod_resource_get_resources_by_courses',
@@ -67,6 +84,8 @@ export const MOODLE_REST_ROUTING_FUNCTIONS = [
   'mod_assign_get_submission_status',
   'mod_quiz_get_quizzes_by_courses',
   'mod_quiz_get_user_attempts',
+  'mod_quiz_get_user_best_grade',
+  'mod_quiz_get_quiz_feedback_for_grade',
   'core_calendar_get_action_events_by_timesort',
   'core_calendar_get_action_events_by_course',
   'core_enrol_get_users_courses',
@@ -356,13 +375,28 @@ export class MoodleRestClient {
   }
 
   async getCourseContents(
-    courseId: string | number
+    courseId: string | number,
+    options?: MoodleRestCourseContentsOption[]
   ): Promise<MoodleRestCourseContents> {
     return this.callParsed(
       MOODLE_REST_CAPABILITIES.courseContents,
-      { courseid: Number(courseId) },
+      options?.length
+        ? { courseid: Number(courseId), options }
+        : { courseid: Number(courseId) },
       MoodleRestCourseContentsSchema
     );
+  }
+
+  /** Resolves a course module id (`view.php?id=`) to its course and instance. */
+  async getCourseModule(
+    cmid: string | number
+  ): Promise<MoodleRestCourseModuleInfo> {
+    const data = await this.callParsed(
+      MOODLE_REST_CAPABILITIES.courseModule,
+      { cmid: Number(cmid) },
+      MoodleRestCourseModuleInfoSchema
+    );
+    return data.cm;
   }
 
   /**
@@ -454,6 +488,48 @@ export class MoodleRestClient {
     );
   }
 
+  async getQuizzes(
+    courseIds: readonly (string | number)[]
+  ): Promise<MoodleRestQuizzesData> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizzes,
+      { courseids: courseIds.map(Number) },
+      MoodleRestQuizzesDataSchema
+    );
+  }
+
+  async getQuizBestGrade(
+    quizId: string | number
+  ): Promise<MoodleRestQuizBestGrade> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizBestGrade,
+      { quizid: Number(quizId) },
+      MoodleRestQuizBestGradeSchema
+    );
+  }
+
+  /** The caller's attempts in every state, previews excluded. */
+  async getQuizAttempts(
+    quizId: string | number
+  ): Promise<MoodleRestQuizAttempts> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizAttempts,
+      { quizid: Number(quizId), status: 'all' },
+      MoodleRestQuizAttemptsSchema
+    );
+  }
+
+  async getQuizFeedback(
+    quizId: string | number,
+    grade: number
+  ): Promise<MoodleRestQuizFeedback> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizFeedback,
+      { quizid: Number(quizId), grade },
+      MoodleRestQuizFeedbackSchema
+    );
+  }
+
   async getForums(
     courseIds: readonly (string | number)[]
   ): Promise<MoodleRestForumsData> {
@@ -478,9 +554,15 @@ export class MoodleRestClient {
   async getGradeItems(
     courseId?: string | number
   ): Promise<MoodleRestGradeItemsData> {
+    // Without a userid Moodle reads every user's grades, which needs
+    // moodle/grade:viewall; a student token gets `nopermissions`.
+    const { userId } = await this.boundIdentity();
     return this.callParsed(
       MOODLE_REST_CAPABILITIES.gradeItems,
-      courseId === undefined ? {} : { courseid: Number(courseId) },
+      {
+        ...(courseId === undefined ? {} : { courseid: Number(courseId) }),
+        ...(userId === null ? {} : { userid: userId }),
+      },
       MoodleRestGradeItemsDataSchema
     );
   }

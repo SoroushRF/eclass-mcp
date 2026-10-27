@@ -41,6 +41,7 @@ afterEach(() => {
     'vitest-session-delete.json',
     'vitest-session-save-error.json',
     'vitest-session-mobile.json',
+    'vitest-session-token-only.json',
   ];
   for (const fileName of files) {
     cleanupSessionFile(fileName);
@@ -208,6 +209,26 @@ describe('session file behavior', () => {
     clearMobileCredential(fileName);
   });
 
+  it('stores a token without a cookie session and never marks cookies fresh', () => {
+    const fileName = 'vitest-session-mobile.json';
+    cleanupSessionFile(fileName);
+    const credential = {
+      service: 'moodle_mobile_app' as const,
+      token: 'a'.repeat(32),
+      issuedAt: new Date().toISOString(),
+    };
+
+    saveMobileCredential(credential, fileName);
+
+    expect(loadMobileCredential(fileName)).toEqual(credential);
+    expect(isSessionValid(fileName)).toBe(false);
+    expect(loadSession(fileName)).toBeNull();
+    expect(loadSessionDataForTests(fileName)).toMatchObject({
+      cookies: [],
+      saved_at: new Date(0).toISOString(),
+    });
+  });
+
   it('loads schema-version-one cookie sessions without a mobile credential', () => {
     const fileName = 'vitest-session-mobile.json';
     writeSecureJsonFile(getSessionFilePath(fileName), {
@@ -334,5 +355,25 @@ describe('session file behavior', () => {
     } finally {
       process.env.ECLASS_MCP_SESSION_SECRET = original;
     }
+  });
+});
+
+describe('token-only sessions', () => {
+  it('never count as a fresh cookie session', () => {
+    const fileName = 'vitest-session-token-only.json';
+    saveSession([], fileName, {
+      service: 'moodle_mobile_app',
+      token: 'fake-token-only',
+      issuedAt: '2026-09-27T00:00:00.000Z',
+    });
+
+    expect(isSessionValid(fileName)).toBe(false);
+    expect(loadSession(fileName)).toBeNull();
+    expect(loadMobileCredential(fileName)).toMatchObject({
+      token: 'fake-token-only',
+    });
+    expect(loadSessionDataForTests(fileName)?.saved_at).toBe(
+      new Date(0).toISOString()
+    );
   });
 });

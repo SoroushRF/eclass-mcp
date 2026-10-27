@@ -15,3 +15,4 @@ This directory records durable engineering decisions for the local-first eClass 
 - [0009: Read-Only Cache Observability](./0009-cache-observability.md)
 - [0010: Hybrid eClass Data Access (session JSON + optional mobile handshake)](./0010-hybrid-eclass-data-access.md) — Accepted (behind the `playwright` default); investigation in [`docs/investigations/eclass-official-api-feasibility.md`](../investigations/eclass-official-api-feasibility.md)
 - [0011: Moodle Mobile Token REST Access](./0011-mobile-token-rest-access.md) — Proposed; findings in [`docs/investigations/eclass-mobile-token-findings.md`](../investigations/eclass-mobile-token-findings.md)
+- [0012: Optional eClass QR Login](./0012-optional-qr-login.md) — Proposed; off by default (`ECLASS_MCP_ENABLE_QR_LOGIN=1`)

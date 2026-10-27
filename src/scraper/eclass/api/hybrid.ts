@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import { getLogger } from '../../../logging/context';
+import { validateUrlForPolicy } from '../../../security/url-policy';
 import {
   createSafeApiLogFields,
   serializeApiErrorForLog,
@@ -33,6 +34,13 @@ import {
   mapRestUserCourses,
 } from './rest-mappers';
 import { MOODLE_REST_CAPABILITIES, type MoodleRestClient } from './rest';
+import {
+  mapRestAssignmentDetails,
+  mapRestQuizDetails,
+  mapRestSectionText,
+  mapRestSubmissionPreflight,
+} from './rest-items';
+import { sanitizeHttpUrlQueryParams } from '../helpers';
 import type {
   MoodleCalendarData,
   MoodleCalendarEvent,
@@ -67,6 +75,11 @@ type ApiReader = Pick<
 export type RestReader = Pick<
   MoodleRestClient,
   | 'getCourseContents'
+  | 'getCourseModule'
+  | 'getQuizzes'
+  | 'getQuizBestGrade'
+  | 'getQuizAttempts'
+  | 'getQuizFeedback'
   | 'getUserCourses'
   | 'getActionEventsByTimesort'
   | 'getActionEventsByCourse'
@@ -162,6 +175,108 @@ function selectReportedError(primary: unknown, fallback: unknown): unknown {
   if (isTerminalApiError(fallback)) return fallback;
   if (isUnusableRestError(primary)) return fallback;
   return primary;
+}
+
+/**
+ * A secondary REST read whose failure degrades the result (an unknown status,
+ * no grade) instead of failing it. Rate limits, an expired session and an
+ * account switch still fail the read.
+ */
+async function optionalRestRead<T>(read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read();
+  } catch (error) {
+    if (
+      isMoodleApiError(error) &&
+      (error.category === 'rate_limited' ||
+        error.category === 'session_invalid' ||
+        error.upstreamCode === CREDENTIAL_CHANGED)
+    ) {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function missingInstance(modname: string): MoodleApiError {
+  return new MoodleApiError({
+    category: 'malformed_response',
+    upstreamCode: `${modname}_instance_missing`,
+  });
+}
+
+/**
+ * The course module id of an assignment or quiz `view.php?id=` URL, else
+ * null (other pages such as quiz reviews stay on Playwright).
+ */
+export function itemViewCmid(itemUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(itemUrl);
+  } catch {
+    return null;
+  }
+  const path = url.pathname.toLowerCase();
+  if (path !== '/mod/assign/view.php' && path !== '/mod/quiz/view.php') {
+    return null;
+  }
+  const id = url.searchParams.get('id') ?? '';
+  return /^[1-9][0-9]*$/.test(id) ? id : null;
+}
+
+/**
+ * The course and section of a `/course/view.php?id=C&section=N` URL, else
+ * null. A `#section-N` fragment never arrives: the URL policy drops it.
+ */
+export function sectionRef(
+  sectionUrl: string
+): { courseId: string; section: number } | null {
+  let url: URL;
+  try {
+    url = new URL(sectionUrl.trim());
+  } catch {
+    return null;
+  }
+  if (url.pathname.toLowerCase() !== '/course/view.php') return null;
+  const courseId = url.searchParams.get('id')?.trim() ?? '';
+  const section = url.searchParams.get('section')?.trim() ?? '';
+  if (!/^[1-9][0-9]*$/.test(courseId) || !/^(0|[1-9][0-9]*)$/.test(section)) {
+    return null;
+  }
+  return { courseId, section: Number(section) };
+}
+
+/** The course module id of a `/mod/resource/view.php?id=` URL, else null. */
+export function resourceViewCmid(fileUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(fileUrl);
+  } catch {
+    return null;
+  }
+  if (url.pathname.toLowerCase() !== '/mod/resource/view.php') return null;
+  const id = url.searchParams.get('id') ?? '';
+  return /^[1-9][0-9]*$/.test(id) ? id : null;
+}
+
+/**
+ * The file a resource opens: Moodle marks its main file with the highest
+ * `sortorder` (1); the others are 0.
+ */
+function mainResourceFile(
+  contents: ReadonlyArray<{
+    type?: string | null;
+    fileurl?: string | null;
+    sortorder?: number | null;
+  }>
+): string | undefined {
+  const files = contents.filter(
+    (entry) => entry.type === 'file' && entry.fileurl
+  );
+  const [main] = [...files].sort(
+    (a, b) => (b.sortorder ?? 0) - (a.sortorder ?? 0)
+  );
+  return main?.fileurl ?? undefined;
 }
 
 function apiFailureReason(error: unknown): string {
@@ -311,14 +426,50 @@ export class EclassHybridProvider implements EclassScraperDependency {
     );
   }
 
-  getItemDetails(url: string): Promise<ItemDetails> {
-    return this.playwright.getItemDetails(url);
+  /**
+   * In `api` mode with a mobile token, assignment and quiz pages are read
+   * through REST (ADR 0011), falling back to Playwright. Shadow mode keeps
+   * Playwright: item pages have no canary comparator yet.
+   */
+  async getItemDetails(url: string): Promise<ItemDetails> {
+    const cmid = itemViewCmid(url);
+    if (this.mode !== 'api' || !this.restUsable() || !cmid) {
+      return this.playwright.getItemDetails(url);
+    }
+    // Same host and path policy the Playwright read enforces.
+    const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+    return this.runApiPrimary(
+      'item_details',
+      () => this.restItemDetails(safeUrl, cmid),
+      () => this.playwright.getItemDetails(url)
+    );
   }
 
-  getAssignmentSubmissionPreflight(
+  /**
+   * In `api` mode with a mobile token, the eClass preflight for an
+   * assignment page is read through REST (ADR 0011). It stays read-only: only
+   * settings and status are read. If the status cannot be read, the preflight
+   * falls back to Playwright rather than guess the edit state.
+   */
+  async getAssignmentSubmissionPreflight(
     url: string
   ): Promise<AssignmentSubmissionPreflightData> {
-    return this.playwright.getAssignmentSubmissionPreflight(url);
+    const cmid = itemViewCmid(url);
+    if (
+      this.mode !== 'api' ||
+      !this.restUsable() ||
+      !cmid ||
+      !new URL(url).pathname.toLowerCase().startsWith('/mod/assign/')
+    ) {
+      return this.playwright.getAssignmentSubmissionPreflight(url);
+    }
+    // Same host and path policy the Playwright read enforces.
+    const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+    return this.runApiPrimary(
+      'submission_preflight',
+      () => this.restSubmissionPreflight(safeUrl, cmid),
+      () => this.playwright.getAssignmentSubmissionPreflight(url)
+    );
   }
 
   async getGrades(courseId?: string): Promise<Grade[]> {
@@ -348,15 +499,17 @@ export class EclassHybridProvider implements EclassScraperDependency {
 
   /**
    * Outside `playwright` mode, a token download is tried first when a mobile
-   * credential exists and the URL is a pluginfile (ADR 0011). Rate limits and
-   * size caps are surfaced; other failures fall back to the Playwright
-   * download, which also handles wrapper pages such as
-   * `/mod/resource/view.php`. `playwright` mode sends no token traffic.
+   * credential exists (ADR 0011). A pluginfile URL is downloaded as is; a
+   * `/mod/resource/view.php` wrapper page is first resolved to the resource's
+   * main file through REST. Rate limits and size caps are surfaced; other
+   * failures fall back to the Playwright download. `playwright` mode sends no
+   * token traffic.
    */
   async downloadFile(fileUrl: string): Promise<DownloadedFile> {
     if (this.tokenFiles && this.mode !== 'playwright') {
       try {
-        const file = await this.tokenFiles.download(fileUrl);
+        const target = await this.resolveTokenFileUrl(fileUrl);
+        const file = await this.tokenFiles.download(target);
         if (file) return file;
       } catch (error) {
         if (isTerminalApiError(error)) throw error;
@@ -366,8 +519,65 @@ export class EclassHybridProvider implements EclassScraperDependency {
     return this.playwright.downloadFile(fileUrl);
   }
 
-  getSectionText(url: string): Promise<SectionTextData> {
-    return this.playwright.getSectionText(url);
+  /**
+   * Maps a resource wrapper page to its main file's pluginfile URL. Any other
+   * URL, or a wrapper when REST is unusable, is returned unchanged so the
+   * token source decides whether it applies.
+   */
+  private async resolveTokenFileUrl(fileUrl: string): Promise<string> {
+    const cmid = resourceViewCmid(fileUrl);
+    if (cmid === null || !this.restUsable()) return fileUrl;
+    const cm = await this.restClient!.getCourseModule(cmid);
+    if (cm.modname !== 'resource') return fileUrl;
+    const sections = await this.restClient!.getCourseContents(cm.course, [
+      { name: 'cmid', value: cmid },
+    ]);
+    const module = sections
+      .flatMap((section) => section.modules)
+      .find((candidate) => String(candidate.id) === cmid);
+    const mainFile = mainResourceFile(module?.contents ?? []);
+    if (!mainFile) {
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        upstreamCode: 'resource_file_missing',
+      });
+    }
+    return mainFile;
+  }
+
+  /**
+   * In `api` mode with a mobile token, a course page URL naming a section
+   * (`section=N`) is read through REST (ADR 0011), falling back to
+   * Playwright. Shadow mode keeps Playwright.
+   */
+  async getSectionText(url: string): Promise<SectionTextData> {
+    const target = sectionRef(url);
+    if (this.mode !== 'api' || !this.restUsable() || !target) {
+      return this.playwright.getSectionText(url);
+    }
+    // Same host and path policy the Playwright read enforces.
+    const safeUrl = validateUrlForPolicy(
+      sanitizeHttpUrlQueryParams(url),
+      'eclass_section'
+    );
+    return this.runApiPrimary(
+      'section_text',
+      async () => {
+        const sections = await this.restClient!.getCourseContents(
+          target.courseId,
+          [{ name: 'sectionnumber', value: target.section }]
+        );
+        const result = mapRestSectionText(sections, target.section, safeUrl);
+        if (!result) {
+          throw new MoodleApiError({
+            category: 'malformed_response',
+            upstreamCode: 'section_missing',
+          });
+        }
+        return result;
+      },
+      () => this.playwright.getSectionText(url)
+    );
   }
 
   async close(): Promise<void> {
@@ -661,6 +871,85 @@ export class EclassHybridProvider implements EclassScraperDependency {
       limit
     );
     return mapRestForumDiscussions(discussions, this.origin, limit);
+  }
+
+  private async restItemDetails(
+    url: string,
+    cmid: string
+  ): Promise<ItemDetails> {
+    const cm = await this.restClient!.getCourseModule(cmid);
+    const courseId = String(cm.course);
+    if (cm.modname === 'assign') {
+      const data = await this.restClient!.getAssignments([courseId]);
+      const assignment = data.courses
+        .flatMap((course) => course.assignments)
+        .find((candidate) => String(candidate.cmid) === cmid);
+      if (!assignment) throw missingInstance('assign');
+      const status = await optionalRestRead(() =>
+        this.restClient!.getSubmissionStatus(assignment.id)
+      );
+      return mapRestAssignmentDetails({ url, courseId, assignment, status });
+    }
+    if (cm.modname === 'quiz') {
+      const data = await this.restClient!.getQuizzes([courseId]);
+      const quiz = data.quizzes.find(
+        (candidate) => String(candidate.coursemodule) === cmid
+      );
+      if (!quiz) throw missingInstance('quiz');
+      const [bestGrade, attempts] = await Promise.all([
+        optionalRestRead(() => this.restClient!.getQuizBestGrade(quiz.id)),
+        optionalRestRead(() => this.restClient!.getQuizAttempts(quiz.id)),
+      ]);
+      const feedback =
+        quiz.hasfeedback &&
+        bestGrade?.hasgrade &&
+        typeof bestGrade.grade === 'number'
+          ? await optionalRestRead(() =>
+              this.restClient!.getQuizFeedback(quiz.id, bestGrade.grade!)
+            )
+          : null;
+      return mapRestQuizDetails({
+        url,
+        courseId,
+        quiz,
+        bestGrade,
+        attempts,
+        feedback,
+      });
+    }
+    // Another module type: the Playwright path decides what to do with it.
+    throw new MoodleApiError({
+      category: 'capability_unavailable',
+      upstreamCode: `unsupported_module_${cm.modname}`,
+    });
+  }
+
+  private async restSubmissionPreflight(
+    url: string,
+    cmid: string
+  ): Promise<AssignmentSubmissionPreflightData> {
+    const cm = await this.restClient!.getCourseModule(cmid);
+    if (cm.modname !== 'assign') throw missingInstance('assign');
+    const courseId = String(cm.course);
+    const data = await this.restClient!.getAssignments([courseId]);
+    const assignment = data.courses
+      .flatMap((course) => course.assignments)
+      .find((candidate) => String(candidate.cmid) === cmid);
+    if (!assignment) throw missingInstance('assign');
+    const status = await this.restClient!.getSubmissionStatus(assignment.id);
+    const preflight = mapRestSubmissionPreflight({
+      url,
+      courseId,
+      assignment,
+      status,
+    });
+    if (!preflight) {
+      throw new MoodleApiError({
+        category: 'malformed_response',
+        upstreamCode: 'assign_configs_missing',
+      });
+    }
+    return preflight;
   }
 
   private async runRead<T>(

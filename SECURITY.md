@@ -32,6 +32,8 @@ When a Moodle mobile token is minted (ADR 0011), it is stored only inside the sa
 
 The token's lifetime at York is not yet observed; see ADR 0011. The server uses the token for read-only REST functions only, and sends no token traffic in `playwright` mode.
 
+Optional QR login (ADR 0012, `ECLASS_MCP_ENABLE_QR_LOGIN=1`) exchanges a single-use key from the owner's eClass profile QR code for the same mobile token. The route is localhost-only, CSRF-protected, and returns 404 when the flag is unset. The pasted key, the token, and the private token are never logged or echoed; only an outcome code is logged. The exchange presents a Moodle app user agent, which is why the feature is opt-in.
+
 The local `/logout` route performs best-effort auth-session deletion and overwrite before unlinking. Secure wipe cannot be guaranteed on SSDs, journaling filesystems, OneDrive/cloud sync, backups, or other copy-on-write storage.
 
 ## Remote URL boundary
