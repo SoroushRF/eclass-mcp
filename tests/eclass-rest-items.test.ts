@@ -4,15 +4,18 @@ import { MoodleApiError } from '../src/scraper/eclass/api/errors';
 import {
   EclassHybridProvider,
   itemViewCmid,
+  sectionRef,
   type RestReader,
 } from '../src/scraper/eclass/api/hybrid';
 import {
   formatMoodleDate,
   mapRestAssignmentDetails,
   mapRestQuizDetails,
+  mapRestSectionText,
 } from '../src/scraper/eclass/api/rest-items';
 import {
   MoodleRestAssignmentsDataSchema,
+  MoodleRestCourseContentsSchema,
   MoodleRestQuizzesDataSchema,
   MoodleRestSubmissionStatusSchema,
 } from '../src/scraper/eclass/api/types';
@@ -357,5 +360,107 @@ describe('EclassHybridProvider item details', () => {
       )
     ).rejects.toThrow();
     expect(client.getCourseModule).not.toHaveBeenCalled();
+  });
+});
+
+describe('REST section text', () => {
+  const SECTION_URL = `${ORIGIN}/course/view.php?id=101&section=1`;
+
+  function contents() {
+    return MoodleRestCourseContentsSchema.parse([
+      {
+        id: 11,
+        section: 1,
+        name: 'Week 1',
+        summary: `<p>Outcomes</p><p>See <a href="/mod/page/view.php?id=3">notes</a> and <a href="https://www.webassign.net/web/Student">WebAssign</a>.</p>`,
+        modules: [
+          {
+            id: 20,
+            modname: 'label',
+            description: `<p>Lab rules</p><img src="${ORIGIN}/webservice/pluginfile.php/1/mod_label/intro/x.png">`,
+          },
+          {
+            id: 21,
+            modname: 'label',
+            visible: 0,
+            description: '<p>Hidden</p>',
+          },
+          { id: 22, modname: 'resource', name: 'Slides' },
+        ],
+      },
+    ]);
+  }
+
+  it('reads the summary and visible labels, with absolute links', () => {
+    const result = mapRestSectionText(contents(), 1, SECTION_URL);
+
+    expect(result).toMatchObject({
+      url: SECTION_URL,
+      title: 'Week 1',
+      mainText: 'Outcomes\nSee notes and WebAssign.\nLab rules',
+      mainLinks: [
+        { name: 'notes', url: `${ORIGIN}/mod/page/view.php?id=3` },
+        { name: 'WebAssign', url: 'https://www.webassign.net/web/Student' },
+      ],
+      tabs: [],
+    });
+    expect(result?.external_platforms?.map((p) => p.url)).toContain(
+      'https://www.webassign.net/web/Student'
+    );
+    expect(mapRestSectionText(contents(), 2, SECTION_URL)).toBeNull();
+  });
+
+  it('parses only course pages that name a section', () => {
+    expect(sectionRef(SECTION_URL)).toEqual({ courseId: '101', section: 1 });
+    expect(sectionRef(`${ORIGIN}/course/view.php?id=101&section=0`)).toEqual({
+      courseId: '101',
+      section: 0,
+    });
+    expect(sectionRef(`${ORIGIN}/course/view.php?id=101`)).toBeNull();
+    expect(sectionRef(`${ORIGIN}/course/view.php?id=101&section=x`)).toBeNull();
+    expect(sectionRef(`${ORIGIN}/mod/page/view.php?id=1&section=1`)).toBeNull();
+  });
+
+  it('routes section text through REST in api mode and falls back when the section is missing', async () => {
+    vi.spyOn(rootLogger, 'warn').mockImplementation((() => undefined) as never);
+    const getCourseContents = vi.fn(async () => contents());
+    const html = {
+      getSectionText: vi.fn(async (url: string) => ({
+        url,
+        title: 'HTML',
+        mainText: '',
+        mainLinks: [],
+        tabs: [],
+      })),
+    } as unknown as EclassScraperDependency & {
+      getSectionText: ReturnType<typeof vi.fn>;
+    };
+    const build = (mode: 'api' | 'shadow') =>
+      new EclassHybridProvider({
+        playwright: html,
+        restClient: { getCourseContents } as unknown as RestReader,
+        hasMobileCredential: () => true,
+        mode,
+        origin: ORIGIN,
+      });
+
+    await expect(
+      build('api').getSectionText(SECTION_URL)
+    ).resolves.toMatchObject({ title: 'Week 1' });
+    expect(getCourseContents).toHaveBeenCalledWith('101', [
+      { name: 'sectionnumber', value: 1 },
+    ]);
+    expect(html.getSectionText).not.toHaveBeenCalled();
+
+    await build('api').getSectionText(
+      `${ORIGIN}/course/view.php?id=101&section=2`
+    );
+    expect(html.getSectionText).toHaveBeenCalledTimes(1);
+
+    getCourseContents.mockClear();
+    await build('shadow').getSectionText(SECTION_URL);
+    await build('api').getSectionText(`${ORIGIN}/course/view.php?id=101`);
+    expect(getCourseContents).not.toHaveBeenCalled();
+    expect(html.getSectionText).toHaveBeenCalledTimes(3);
   });
 });

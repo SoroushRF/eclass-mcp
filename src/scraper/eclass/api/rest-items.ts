@@ -1,9 +1,14 @@
+import {
+  classifyExternalPlatformCandidate,
+  type ExternalPlatformMatch,
+} from '../external-platforms';
 import { classifyDescriptionExternalLinks } from '../item-details';
 import type {
   AssignmentDetails,
   Attachment,
   AttachmentKind,
   QuizDetails,
+  SectionTextData,
 } from '../types';
 import {
   effectiveDueSeconds,
@@ -13,6 +18,7 @@ import {
 } from './rest-mappers';
 import type {
   MoodleRestAssignment,
+  MoodleRestCourseContents,
   MoodleRestAssignPlugin,
   MoodleRestFile,
   MoodleRestQuiz,
@@ -310,4 +316,73 @@ export function mapRestQuizDetails(input: {
     grade,
     feedbackText: feedbackText || undefined,
   };
+}
+
+function absoluteLinks(html: string, baseUrl: string) {
+  const links: Array<{ name: string; url: string }> = [];
+  for (const link of extractHtmlLinks(html)) {
+    let url: string;
+    try {
+      url = new URL(link.url, baseUrl).href;
+    } catch {
+      continue;
+    }
+    if (url.startsWith('javascript:')) continue;
+    links.push({ name: link.name || url, url });
+  }
+  return links;
+}
+
+/**
+ * Builds get_section_text output from `core_course_get_contents` filtered to
+ * one section: the section summary, then any labels shown inline in it.
+ * Tabs inside the summary are not split out, so their text is in `mainText`.
+ */
+export function mapRestSectionText(
+  sections: MoodleRestCourseContents,
+  sectionNumber: number,
+  url: string
+): SectionTextData | null {
+  const section = sections.find(
+    (candidate) => candidate.section === sectionNumber
+  );
+  if (!section) return null;
+  const blocks = [
+    section.summary,
+    ...section.modules
+      .filter(
+        (module) =>
+          module.modname === 'label' &&
+          module.visible !== 0 &&
+          module.uservisible !== false
+      )
+      .map((module) => module.description),
+  ]
+    .map((html) => browserPluginfileHtml(html).trim())
+    .filter(Boolean);
+
+  const mainLinks = blocks.flatMap((html) => absoluteLinks(html, url));
+  const result: SectionTextData = {
+    url,
+    title: (section.name ?? '').trim() || 'Section Details',
+    mainText: blocks
+      .map((html) => htmlToPlainText(html))
+      .filter(Boolean)
+      .join('\n'),
+    mainLinks,
+    tabs: [],
+  };
+
+  const platforms: ExternalPlatformMatch[] = [];
+  const seen = new Set<string>();
+  for (const link of mainLinks) {
+    const match = classifyExternalPlatformCandidate(link);
+    if (!match) continue;
+    const identity = `${match.name}|${match.url}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    platforms.push(match);
+  }
+  if (platforms.length > 0) result.external_platforms = platforms;
+  return result;
 }
