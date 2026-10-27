@@ -713,6 +713,29 @@ describe('resource file downloads', () => {
     expect(playwright.downloadFile).not.toHaveBeenCalled();
   });
 
+  it('accepts the null sort order URL modules send', () => {
+    const parsed = MoodleRestCourseContentsSchema.parse([
+      {
+        id: 1,
+        modules: [
+          {
+            id: 5,
+            modname: 'url',
+            contents: [
+              {
+                type: 'url',
+                fileurl: 'https://example.com',
+                filesize: 0,
+                sortorder: null,
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+    expect(parsed[0]?.modules[0]?.contents?.[0]?.sortorder).toBeNull();
+  });
+
   it('leaves non-resource modules to Playwright', async () => {
     const rest = restReader();
     rest.getCourseModule.mockResolvedValue({

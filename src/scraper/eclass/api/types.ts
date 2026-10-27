@@ -170,15 +170,18 @@ export type MoodleRestErrorEnvelope = z.infer<
   typeof MoodleRestErrorEnvelopeSchema
 >;
 
-/** A file listed in a module's `contents` (resource, folder, page files). */
+/**
+ * A file listed in a module's `contents` (resource, folder, page files).
+ * Fields are nullable: URL modules send `sortorder: null`.
+ */
 export const MoodleRestModuleContentSchema = z
   .object({
-    type: z.string().optional(),
-    filename: z.string().optional(),
-    fileurl: z.string().optional(),
-    filesize: z.number().optional(),
-    mimetype: z.string().optional(),
-    sortorder: z.number().optional(),
+    type: z.string().nullable().optional(),
+    filename: z.string().nullable().optional(),
+    fileurl: z.string().nullable().optional(),
+    filesize: z.number().nullable().optional(),
+    mimetype: z.string().nullable().optional(),
+    sortorder: z.number().nullable().optional(),
   })
   .passthrough();
 

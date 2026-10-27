@@ -184,9 +184,9 @@ export function resourceViewCmid(fileUrl: string): string | null {
  */
 function mainResourceFile(
   contents: ReadonlyArray<{
-    type?: string;
-    fileurl?: string;
-    sortorder?: number;
+    type?: string | null;
+    fileurl?: string | null;
+    sortorder?: number | null;
   }>
 ): string | undefined {
   const files = contents.filter(
@@ -195,7 +195,7 @@ function mainResourceFile(
   const [main] = [...files].sort(
     (a, b) => (b.sortorder ?? 0) - (a.sortorder ?? 0)
   );
-  return main?.fileurl;
+  return main?.fileurl ?? undefined;
 }
 
 function apiFailureReason(error: unknown): string {
