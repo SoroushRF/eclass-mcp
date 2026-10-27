@@ -125,6 +125,10 @@ function restReader() {
     getSubmissionStatus: vi.fn(async () =>
       MoodleRestSubmissionStatusSchema.parse(submissionStatusFixture)
     ),
+    getQuizzes: vi.fn(async () => ({ quizzes: [] })),
+    getQuizBestGrade: vi.fn(async () => ({ hasgrade: false })),
+    getQuizAttempts: vi.fn(async () => ({ attempts: [] })),
+    getQuizFeedback: vi.fn(async () => ({})),
     getForums: vi.fn(async () =>
       MoodleRestForumsDataSchema.parse(forumsFixture)
     ),

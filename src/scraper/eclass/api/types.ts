@@ -245,6 +245,19 @@ export type MoodleRestCourseModuleInfo = z.infer<
 const MoodleId = z.union([z.number(), z.string()]);
 const MoodleFlag = z.union([z.boolean(), z.number()]);
 
+/** A stored file as external functions return it (intro files, submissions). */
+export const MoodleRestFileSchema = z
+  .object({
+    filename: z.string().optional(),
+    filepath: z.string().optional(),
+    fileurl: z.string().optional(),
+    filesize: z.number().optional(),
+    mimetype: z.string().optional(),
+  })
+  .passthrough();
+
+export type MoodleRestFile = z.infer<typeof MoodleRestFileSchema>;
+
 export const MoodleRestAssignmentSchema = z
   .object({
     id: MoodleId,
@@ -255,8 +268,25 @@ export const MoodleRestAssignmentSchema = z
     cutoffdate: z.number().optional(),
     allowsubmissionsfromdate: z.number().optional(),
     intro: z.string().optional(),
+    introfiles: z.array(MoodleRestFileSchema).optional(),
+    introattachments: z.array(MoodleRestFileSchema).optional(),
+    /** Plugin settings, e.g. assignsubmission/file/maxfilesubmissions. */
+    configs: z
+      .array(
+        z
+          .object({
+            plugin: z.string(),
+            subtype: z.string(),
+            name: z.string(),
+            value: z.union([z.string(), z.number()]),
+          })
+          .passthrough()
+      )
+      .optional(),
   })
   .passthrough();
+
+export type MoodleRestAssignment = z.infer<typeof MoodleRestAssignmentSchema>;
 
 export const MoodleRestAssignmentsDataSchema = z
   .object({
@@ -279,26 +309,68 @@ export type MoodleRestAssignmentsData = z.infer<
   typeof MoodleRestAssignmentsDataSchema
 >;
 
+/** A submission or feedback plugin: its files and editor text. */
+export const MoodleRestAssignPluginSchema = z
+  .object({
+    type: z.string(),
+    name: z.string().optional(),
+    fileareas: z
+      .array(
+        z
+          .object({
+            area: z.string().optional(),
+            files: z.array(MoodleRestFileSchema).optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+    editorfields: z
+      .array(
+        z
+          .object({
+            name: z.string().optional(),
+            text: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+  })
+  .passthrough();
+
+export type MoodleRestAssignPlugin = z.infer<
+  typeof MoodleRestAssignPluginSchema
+>;
+
+const MoodleRestSubmissionRecordSchema = z
+  .object({
+    status: z.string().optional(),
+    timemodified: z.number().optional(),
+    plugins: z.array(MoodleRestAssignPluginSchema).optional(),
+  })
+  .passthrough();
+
 export const MoodleRestSubmissionStatusSchema = z
   .object({
     lastattempt: z
       .object({
-        submission: z
-          .object({ status: z.string().optional() })
-          .passthrough()
-          .optional(),
-        teamsubmission: z
-          .object({ status: z.string().optional() })
-          .passthrough()
-          .optional(),
+        submission: MoodleRestSubmissionRecordSchema.optional(),
+        teamsubmission: MoodleRestSubmissionRecordSchema.optional(),
         gradingstatus: z.string().optional(),
         /** Per-student extension (Unix seconds); 0 or absent means none. */
         extensionduedate: z.number().nullable().optional(),
+        submissionsenabled: MoodleFlag.optional(),
+        locked: MoodleFlag.optional(),
+        graded: MoodleFlag.optional(),
+        canedit: MoodleFlag.optional(),
+        cansubmit: MoodleFlag.optional(),
       })
       .passthrough()
       .optional(),
     feedback: z
-      .object({ gradefordisplay: z.string().optional() })
+      .object({
+        gradefordisplay: z.string().optional(),
+        plugins: z.array(MoodleRestAssignPluginSchema).optional(),
+      })
       .passthrough()
       .optional(),
   })
@@ -306,6 +378,72 @@ export const MoodleRestSubmissionStatusSchema = z
 
 export type MoodleRestSubmissionStatus = z.infer<
   typeof MoodleRestSubmissionStatusSchema
+>;
+
+export const MoodleRestQuizSchema = z
+  .object({
+    id: MoodleId,
+    coursemodule: MoodleId,
+    course: MoodleId.optional(),
+    name: z.string().optional(),
+    intro: z.string().optional(),
+    introfiles: z.array(MoodleRestFileSchema).optional(),
+    timeopen: z.number().optional(),
+    timeclose: z.number().optional(),
+    /** Seconds; 0 means no limit. */
+    timelimit: z.number().optional(),
+    /** Attempts allowed; 0 means unlimited. */
+    attempts: z.number().optional(),
+    grade: z.number().optional(),
+    decimalpoints: z.number().optional(),
+    hasfeedback: MoodleFlag.optional(),
+  })
+  .passthrough();
+
+export type MoodleRestQuiz = z.infer<typeof MoodleRestQuizSchema>;
+
+export const MoodleRestQuizzesDataSchema = z
+  .object({ quizzes: z.array(MoodleRestQuizSchema).default([]) })
+  .passthrough();
+
+export type MoodleRestQuizzesData = z.infer<typeof MoodleRestQuizzesDataSchema>;
+
+export const MoodleRestQuizBestGradeSchema = z
+  .object({
+    hasgrade: z.boolean(),
+    grade: z.number().nullable().optional(),
+  })
+  .passthrough();
+
+export type MoodleRestQuizBestGrade = z.infer<
+  typeof MoodleRestQuizBestGradeSchema
+>;
+
+export const MoodleRestQuizAttemptsSchema = z
+  .object({
+    attempts: z
+      .array(
+        z
+          .object({
+            id: MoodleId,
+            state: z.string().optional(),
+          })
+          .passthrough()
+      )
+      .default([]),
+  })
+  .passthrough();
+
+export type MoodleRestQuizAttempts = z.infer<
+  typeof MoodleRestQuizAttemptsSchema
+>;
+
+export const MoodleRestQuizFeedbackSchema = z
+  .object({ feedbacktext: z.string().optional() })
+  .passthrough();
+
+export type MoodleRestQuizFeedback = z.infer<
+  typeof MoodleRestQuizFeedbackSchema
 >;
 
 /** `mod_forum_get_forums_by_courses` returns a bare array. */

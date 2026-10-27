@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from 'async_hooks';
 import { getLogger } from '../../../logging/context';
+import { validateUrlForPolicy } from '../../../security/url-policy';
 import {
   createSafeApiLogFields,
   serializeApiErrorForLog,
@@ -33,6 +34,7 @@ import {
   mapRestUserCourses,
 } from './rest-mappers';
 import { MOODLE_REST_CAPABILITIES, type MoodleRestClient } from './rest';
+import { mapRestAssignmentDetails, mapRestQuizDetails } from './rest-items';
 import type {
   MoodleCalendarData,
   MoodleCalendarEvent,
@@ -68,6 +70,10 @@ export type RestReader = Pick<
   MoodleRestClient,
   | 'getCourseContents'
   | 'getCourseModule'
+  | 'getQuizzes'
+  | 'getQuizBestGrade'
+  | 'getQuizAttempts'
+  | 'getQuizFeedback'
   | 'getUserCourses'
   | 'getActionEventsByTimesort'
   | 'getActionEventsByCourse'
@@ -163,6 +169,53 @@ function selectReportedError(primary: unknown, fallback: unknown): unknown {
   if (isTerminalApiError(fallback)) return fallback;
   if (isUnusableRestError(primary)) return fallback;
   return primary;
+}
+
+/**
+ * A secondary REST read whose failure degrades the result (an unknown status,
+ * no grade) instead of failing it. Rate limits, an expired session and an
+ * account switch still fail the read.
+ */
+async function optionalRestRead<T>(read: () => Promise<T>): Promise<T | null> {
+  try {
+    return await read();
+  } catch (error) {
+    if (
+      isMoodleApiError(error) &&
+      (error.category === 'rate_limited' ||
+        error.category === 'session_invalid' ||
+        error.upstreamCode === CREDENTIAL_CHANGED)
+    ) {
+      throw error;
+    }
+    return null;
+  }
+}
+
+function missingInstance(modname: string): MoodleApiError {
+  return new MoodleApiError({
+    category: 'malformed_response',
+    upstreamCode: `${modname}_instance_missing`,
+  });
+}
+
+/**
+ * The course module id of an assignment or quiz `view.php?id=` URL, else
+ * null (other pages such as quiz reviews stay on Playwright).
+ */
+export function itemViewCmid(itemUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(itemUrl);
+  } catch {
+    return null;
+  }
+  const path = url.pathname.toLowerCase();
+  if (path !== '/mod/assign/view.php' && path !== '/mod/quiz/view.php') {
+    return null;
+  }
+  const id = url.searchParams.get('id') ?? '';
+  return /^[1-9][0-9]*$/.test(id) ? id : null;
 }
 
 /** The course module id of a `/mod/resource/view.php?id=` URL, else null. */
@@ -345,8 +398,23 @@ export class EclassHybridProvider implements EclassScraperDependency {
     );
   }
 
-  getItemDetails(url: string): Promise<ItemDetails> {
-    return this.playwright.getItemDetails(url);
+  /**
+   * In `api` mode with a mobile token, assignment and quiz pages are read
+   * through REST (ADR 0011), falling back to Playwright. Shadow mode keeps
+   * Playwright: item pages have no canary comparator yet.
+   */
+  async getItemDetails(url: string): Promise<ItemDetails> {
+    const cmid = itemViewCmid(url);
+    if (this.mode !== 'api' || !this.restUsable() || !cmid) {
+      return this.playwright.getItemDetails(url);
+    }
+    // Same host and path policy the Playwright read enforces.
+    const safeUrl = validateUrlForPolicy(url, 'eclass_item');
+    return this.runApiPrimary(
+      'item_details',
+      () => this.restItemDetails(safeUrl, cmid),
+      () => this.playwright.getItemDetails(url)
+    );
   }
 
   getAssignmentSubmissionPreflight(
@@ -723,6 +791,57 @@ export class EclassHybridProvider implements EclassScraperDependency {
       limit
     );
     return mapRestForumDiscussions(discussions, this.origin, limit);
+  }
+
+  private async restItemDetails(
+    url: string,
+    cmid: string
+  ): Promise<ItemDetails> {
+    const cm = await this.restClient!.getCourseModule(cmid);
+    const courseId = String(cm.course);
+    if (cm.modname === 'assign') {
+      const data = await this.restClient!.getAssignments([courseId]);
+      const assignment = data.courses
+        .flatMap((course) => course.assignments)
+        .find((candidate) => String(candidate.cmid) === cmid);
+      if (!assignment) throw missingInstance('assign');
+      const status = await optionalRestRead(() =>
+        this.restClient!.getSubmissionStatus(assignment.id)
+      );
+      return mapRestAssignmentDetails({ url, courseId, assignment, status });
+    }
+    if (cm.modname === 'quiz') {
+      const data = await this.restClient!.getQuizzes([courseId]);
+      const quiz = data.quizzes.find(
+        (candidate) => String(candidate.coursemodule) === cmid
+      );
+      if (!quiz) throw missingInstance('quiz');
+      const [bestGrade, attempts] = await Promise.all([
+        optionalRestRead(() => this.restClient!.getQuizBestGrade(quiz.id)),
+        optionalRestRead(() => this.restClient!.getQuizAttempts(quiz.id)),
+      ]);
+      const feedback =
+        quiz.hasfeedback &&
+        bestGrade?.hasgrade &&
+        typeof bestGrade.grade === 'number'
+          ? await optionalRestRead(() =>
+              this.restClient!.getQuizFeedback(quiz.id, bestGrade.grade!)
+            )
+          : null;
+      return mapRestQuizDetails({
+        url,
+        courseId,
+        quiz,
+        bestGrade,
+        attempts,
+        feedback,
+      });
+    }
+    // Another module type: the Playwright path decides what to do with it.
+    throw new MoodleApiError({
+      category: 'capability_unavailable',
+      upstreamCode: `unsupported_module_${cm.modname}`,
+    });
   }
 
   private async runRead<T>(

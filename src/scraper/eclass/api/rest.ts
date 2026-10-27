@@ -18,6 +18,10 @@ import {
   MoodleRestForumsDataSchema,
   MoodleRestGradeItemsDataSchema,
   MoodleRestOverviewGradesSchema,
+  MoodleRestQuizAttemptsSchema,
+  MoodleRestQuizBestGradeSchema,
+  MoodleRestQuizFeedbackSchema,
+  MoodleRestQuizzesDataSchema,
   MoodleRestSiteInfoSchema,
   MoodleRestSubmissionStatusSchema,
   MoodleRestUserCoursesSchema,
@@ -30,6 +34,10 @@ import {
   type MoodleRestForumsData,
   type MoodleRestGradeItemsData,
   type MoodleRestOverviewGrades,
+  type MoodleRestQuizAttempts,
+  type MoodleRestQuizBestGrade,
+  type MoodleRestQuizFeedback,
+  type MoodleRestQuizzesData,
   type MoodleRestSubmissionStatus,
   type MoodleRestUserCourses,
 } from './types';
@@ -46,6 +54,10 @@ export const MOODLE_REST_CAPABILITIES = {
   gradeItems: 'gradereport_user_get_grade_items',
   overviewGrades: 'gradereport_overview_get_course_grades',
   submissionStatus: 'mod_assign_get_submission_status',
+  quizzes: 'mod_quiz_get_quizzes_by_courses',
+  quizBestGrade: 'mod_quiz_get_user_best_grade',
+  quizAttempts: 'mod_quiz_get_user_attempts',
+  quizFeedback: 'mod_quiz_get_quiz_feedback_for_grade',
   userCourses: 'core_enrol_get_users_courses',
   pluginFiles: 'core_files_get_files',
 } as const;
@@ -72,6 +84,8 @@ export const MOODLE_REST_ROUTING_FUNCTIONS = [
   'mod_assign_get_submission_status',
   'mod_quiz_get_quizzes_by_courses',
   'mod_quiz_get_user_attempts',
+  'mod_quiz_get_user_best_grade',
+  'mod_quiz_get_quiz_feedback_for_grade',
   'core_calendar_get_action_events_by_timesort',
   'core_calendar_get_action_events_by_course',
   'core_enrol_get_users_courses',
@@ -471,6 +485,48 @@ export class MoodleRestClient {
       MOODLE_REST_CAPABILITIES.submissionStatus,
       { assignid: Number(assignId) },
       MoodleRestSubmissionStatusSchema
+    );
+  }
+
+  async getQuizzes(
+    courseIds: readonly (string | number)[]
+  ): Promise<MoodleRestQuizzesData> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizzes,
+      { courseids: courseIds.map(Number) },
+      MoodleRestQuizzesDataSchema
+    );
+  }
+
+  async getQuizBestGrade(
+    quizId: string | number
+  ): Promise<MoodleRestQuizBestGrade> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizBestGrade,
+      { quizid: Number(quizId) },
+      MoodleRestQuizBestGradeSchema
+    );
+  }
+
+  /** The caller's attempts in every state, previews excluded. */
+  async getQuizAttempts(
+    quizId: string | number
+  ): Promise<MoodleRestQuizAttempts> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizAttempts,
+      { quizid: Number(quizId), status: 'all' },
+      MoodleRestQuizAttemptsSchema
+    );
+  }
+
+  async getQuizFeedback(
+    quizId: string | number,
+    grade: number
+  ): Promise<MoodleRestQuizFeedback> {
+    return this.callParsed(
+      MOODLE_REST_CAPABILITIES.quizFeedback,
+      { quizid: Number(quizId), grade },
+      MoodleRestQuizFeedbackSchema
     );
   }
 
