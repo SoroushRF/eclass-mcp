@@ -12,6 +12,7 @@ import {
   MoodleCalendarDataSchema,
   MoodleRestAssignmentsDataSchema,
   MoodleRestCourseContentsSchema,
+  MoodleRestCourseModuleInfoSchema,
   MoodleRestErrorEnvelopeSchema,
   MoodleRestForumDiscussionsSchema,
   MoodleRestForumsDataSchema,
@@ -23,6 +24,8 @@ import {
   type MoodleCalendarData,
   type MoodleRestAssignmentsData,
   type MoodleRestCourseContents,
+  type MoodleRestCourseContentsOption,
+  type MoodleRestCourseModuleInfo,
   type MoodleRestForumDiscussions,
   type MoodleRestForumsData,
   type MoodleRestGradeItemsData,
@@ -34,6 +37,7 @@ import {
 export const MOODLE_REST_CAPABILITIES = {
   siteInfo: 'core_webservice_get_site_info',
   courseContents: 'core_course_get_contents',
+  courseModule: 'core_course_get_course_module',
   assignments: 'mod_assign_get_assignments',
   forums: 'mod_forum_get_forums_by_courses',
   forumDiscussions: 'mod_forum_get_forum_discussions',
@@ -52,6 +56,7 @@ export const MOODLE_REST_CAPABILITIES = {
  */
 export const MOODLE_REST_ROUTING_FUNCTIONS = [
   'core_course_get_contents',
+  'core_course_get_course_module',
   'mod_page_get_pages_by_courses',
   'mod_label_get_labels_by_courses',
   'mod_resource_get_resources_by_courses',
@@ -356,13 +361,28 @@ export class MoodleRestClient {
   }
 
   async getCourseContents(
-    courseId: string | number
+    courseId: string | number,
+    options?: MoodleRestCourseContentsOption[]
   ): Promise<MoodleRestCourseContents> {
     return this.callParsed(
       MOODLE_REST_CAPABILITIES.courseContents,
-      { courseid: Number(courseId) },
+      options?.length
+        ? { courseid: Number(courseId), options }
+        : { courseid: Number(courseId) },
       MoodleRestCourseContentsSchema
     );
+  }
+
+  /** Resolves a course module id (`view.php?id=`) to its course and instance. */
+  async getCourseModule(
+    cmid: string | number
+  ): Promise<MoodleRestCourseModuleInfo> {
+    const data = await this.callParsed(
+      MOODLE_REST_CAPABILITIES.courseModule,
+      { cmid: Number(cmid) },
+      MoodleRestCourseModuleInfoSchema
+    );
+    return data.cm;
   }
 
   /**

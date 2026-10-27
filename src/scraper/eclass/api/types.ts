@@ -170,6 +170,18 @@ export type MoodleRestErrorEnvelope = z.infer<
   typeof MoodleRestErrorEnvelopeSchema
 >;
 
+/** A file listed in a module's `contents` (resource, folder, page files). */
+export const MoodleRestModuleContentSchema = z
+  .object({
+    type: z.string().optional(),
+    filename: z.string().optional(),
+    fileurl: z.string().optional(),
+    filesize: z.number().optional(),
+    mimetype: z.string().optional(),
+    sortorder: z.number().optional(),
+  })
+  .passthrough();
+
 export const MoodleRestCourseModuleSchema = z
   .object({
     id: z.union([z.number(), z.string()]),
@@ -178,6 +190,7 @@ export const MoodleRestCourseModuleSchema = z
     url: z.string().optional(),
     visible: z.union([z.boolean(), z.number()]).optional(),
     uservisible: z.union([z.boolean(), z.number()]).optional(),
+    contents: z.array(MoodleRestModuleContentSchema).optional(),
   })
   .passthrough();
 
@@ -200,6 +213,31 @@ export const MoodleRestCourseContentsSchema = z.array(
 export type MoodleRestCourseContents = z.infer<
   typeof MoodleRestCourseContentsSchema
 >;
+
+/** `core_course_get_contents` options such as `cmid` or `sectionnumber`. */
+export interface MoodleRestCourseContentsOption {
+  name: string;
+  value: string | number;
+}
+
+export const MoodleRestCourseModuleInfoSchema = z
+  .object({
+    cm: z
+      .object({
+        id: z.union([z.number(), z.string()]),
+        course: z.union([z.number(), z.string()]),
+        modname: z.string(),
+        instance: z.union([z.number(), z.string()]),
+        name: z.string().optional(),
+        sectionnum: z.number().optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+export type MoodleRestCourseModuleInfo = z.infer<
+  typeof MoodleRestCourseModuleInfoSchema
+>['cm'];
 
 const MoodleId = z.union([z.number(), z.string()]);
 const MoodleFlag = z.union([z.boolean(), z.number()]);
